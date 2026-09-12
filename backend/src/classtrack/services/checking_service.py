@@ -23,7 +23,7 @@ from classtrack.models import (
     User,
 )
 from classtrack.routine.lattice import SLOTS, slot_bounds
-from classtrack.services import settings_service, status_engine
+from classtrack.services import settings_service, status_engine, zones
 
 #: Statuses excluded from physical room checking.
 #: BR-12: an approved online makeup must not appear on the staff screen.
@@ -61,9 +61,20 @@ async def _teacher_names(session: AsyncSession, initials: set[str]) -> dict[str,
 
 
 async def checking_screen(
-    session: AsyncSession, *, on: Date | None = None, slot: str | None = None
+    session: AsyncSession,
+    *,
+    on: Date | None = None,
+    slot: str | None = None,
+    only_zones: list[str] | None = None,
 ) -> dict:
-    """Room-wise list for one date and slot (BR-02)."""
+    """Room-wise list for one date and slot (BR-02).
+
+    ``only_zones`` narrows the list to the floors a staff member covers. An
+    empty or absent list means no restriction -- filtering happens here in
+    Python rather than in SQL because the slot's row set is already small (one
+    slot is at most a few dozen rooms) and the zone rule is a string function,
+    not something the database can index on.
+    """
     now = status_engine.now_local()
     on = on or now.date()
     slot = slot or current_slot(now)
@@ -84,6 +95,10 @@ async def checking_screen(
             .order_by(ClassInstance.room)
         )
     ).all()
+
+    if only_zones:
+        allowed = set(only_zones)
+        instances = [i for i in instances if zones.zone_key(i.room) in allowed]
 
     names = await _teacher_names(session, {i.teacher_initial for i in instances})
     checker_ids = {i.check.checked_by_id for i in instances if i.check}
@@ -119,6 +134,7 @@ async def checking_screen(
                 "scheduled_start": f"{start_min // 60:02d}:{start_min % 60:02d}",
                 "scheduled_end": f"{end_min // 60:02d}:{end_min % 60:02d}",
                 "is_makeup": inst.is_makeup,
+                "zone": zones.room_zone(inst.room).short_label,
                 "status": status_engine.derive(inst, now=now, window_minutes=window),
                 "check": check,
             }
@@ -130,6 +146,7 @@ async def checking_screen(
         "slot_state": status_engine.slot_state(on, start_min, window),
         "window_closes_at": status_engine.slot_start_at(on, start_min)
         + timedelta(minutes=window),
+        "zones": sorted(only_zones) if only_zones else [],
         "rooms": rooms,
     }
 

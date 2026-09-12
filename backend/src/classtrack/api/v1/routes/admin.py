@@ -33,11 +33,19 @@ from classtrack.schemas.admin import (
     SemesterOut,
     SessionRow,
     SettingsIn,
+    StaffOut,
     UserIn,
     UserOut,
+    ZoneAssignRequest,
+    ZoneOut,
 )
 from classtrack.schemas.common import Message
-from classtrack.services import audit_service, instance_service, settings_service
+from classtrack.services import (
+    assignment_service,
+    audit_service,
+    instance_service,
+    settings_service,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -385,6 +393,56 @@ async def create_user(
     session.add(created)
     await session.commit()
     return UserOut.model_validate(created)
+
+
+# --- staff coverage --------------------------------------------------------
+
+
+@router.get("/zones", response_model=list[ZoneOut], summary="Buildings and floors")
+async def zones(session: SessionDep, user: AdminUser) -> list[ZoneOut]:  # noqa: ARG001
+    """The zones the active routine uses, derived from its room names."""
+    return [ZoneOut.model_validate(z) for z in await assignment_service.available_zones(session)]
+
+
+@router.get("/staff", response_model=list[StaffOut], summary="Office staff and their floors")
+async def staff(session: SessionDep, user: AdminUser) -> list[StaffOut]:  # noqa: ARG001
+    rows = (
+        await session.scalars(
+            select(User).where(User.role == Role.STAFF).order_by(User.full_name)
+        )
+    ).all()
+    assignments = await assignment_service.assignments_by_user(session)
+    out = []
+    for member in rows:
+        item = StaffOut.model_validate(member)
+        item.zones = assignments.get(member.id, [])
+        out.append(item)
+    return out
+
+
+@router.put(
+    "/staff/{user_id}/zones",
+    response_model=StaffOut,
+    summary="Assign a staff member to floors",
+)
+async def assign_zones(
+    user_id: int,
+    payload: ZoneAssignRequest,
+    session: SessionDep,
+    user: AdminUser,
+) -> StaffOut:
+    """Replace this staff member's coverage.
+
+    An empty list removes the restriction, so they see every room again.
+    """
+    keys = await assignment_service.set_zones(
+        session, user_id=user_id, zone_keys=payload.zones, actor=user
+    )
+    await session.commit()
+    member = await session.get(User, user_id)
+    item = StaffOut.model_validate(member)
+    item.zones = keys
+    return item
 
 
 # --- settings and audit ----------------------------------------------------

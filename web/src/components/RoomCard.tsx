@@ -88,6 +88,11 @@ export default function RoomCard({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-base font-semibold">{row.room}</span>
+            {row.zone ? (
+              <span className="rounded bg-canvas px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-ink-faint">
+                {row.zone}
+              </span>
+            ) : null}
             {row.is_makeup ? (
               <span className="rounded bg-info-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-info">
                 Makeup

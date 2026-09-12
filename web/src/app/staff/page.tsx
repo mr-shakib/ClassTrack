@@ -84,6 +84,9 @@ export default function StaffPage() {
         <h1 className="text-xl font-semibold">Room checking</h1>
         <p className="mt-0.5 text-sm text-ink-soft">
           Tap once for a class that is running.
+          {screen && screen.zones.length > 0
+            ? " Showing only the floors assigned to you."
+            : ""}
         </p>
       </div>
 
@@ -149,6 +152,9 @@ export default function StaffPage() {
                   { hour: "2-digit", minute: "2-digit" },
                 )}`
               : ""}
+            {screen.zones.length > 0
+              ? ` · your floors: ${screen.zones.join(", ")}`
+              : ""}
           </p>
         ) : null}
       </Card>
@@ -161,7 +167,11 @@ export default function StaffPage() {
         <Card>
           <EmptyState
             title="No classes in this slot"
-            body="Nothing is scheduled here, or the routine has no entry for this day."
+            body={
+              screen.zones.length > 0
+                ? `Nothing scheduled on your floors (${screen.zones.join(", ")}) in this slot.`
+                : "Nothing is scheduled here, or the routine has no entry for this day."
+            }
           />
         </Card>
       ) : (

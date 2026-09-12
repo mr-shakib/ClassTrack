@@ -15,10 +15,12 @@ import type {
   Routine,
   RoutineReview,
   Semester,
+  StaffMember,
   StaffReport,
   TeacherReport,
   TeacherResponseValue,
   User,
+  Zone,
 } from "./types";
 
 /** An error carrying the backend's `{detail, code, context}` shape. */
@@ -90,8 +92,8 @@ export const api = {
   me: () => get<User>("/auth/me"),
 
   // --- staff checking -----------------------------------------------------
-  checkingRooms: (date?: string, slot?: string) =>
-    get<CheckingScreen>(`/checking/rooms${qs({ date, slot })}`),
+  checkingRooms: (date?: string, slot?: string, all?: boolean) =>
+    get<CheckingScreen>(`/checking/rooms${qs({ date, slot, all })}`),
   submitCheck: (
     instanceId: number,
     payload: { outcome: CheckOutcome; arrival_time?: string | null; remark?: string | null },
@@ -180,6 +182,10 @@ export const api = {
       `/admin/teachers${qs({ q })}`,
     ),
   users: () => get<(User & { is_active: boolean })[]>("/admin/users"),
+  zones: () => get<Zone[]>("/admin/zones"),
+  staff: () => get<StaffMember[]>("/admin/staff"),
+  assignZones: (userId: number, zones: string[]) =>
+    put<StaffMember>(`/admin/staff/${userId}/zones`, { zones }),
 };
 
 /** The routine lattice. Fixed, so the UI need not fetch it to render a picker. */

@@ -59,6 +59,19 @@ async def staff(session: AsyncSession) -> User:
 
 
 @pytest_asyncio.fixture
+async def hod(session: AsyncSession) -> User:
+    user = User(
+        email="hod@test.edu",
+        password_hash=hash_password("x"),
+        full_name="Head of Department",
+        role=Role.HOD,
+    )
+    session.add(user)
+    await session.flush()
+    return user
+
+
+@pytest_asyncio.fixture
 async def teacher_user(session: AsyncSession) -> User:
     session.add(Teacher(initial="TCA", name="Teacher A", department="cse"))
     await session.flush()

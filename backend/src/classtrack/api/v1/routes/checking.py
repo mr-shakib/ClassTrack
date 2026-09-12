@@ -8,6 +8,7 @@ from fastapi import APIRouter, Query
 
 from classtrack.api.deps import AdminUser, CheckingUser, SessionDep
 from classtrack.core.errors import ValidationError
+from classtrack.models import Role
 from classtrack.routine.lattice import SLOTS
 from classtrack.schemas.monitoring import (
     CheckingScreen,
@@ -15,7 +16,12 @@ from classtrack.schemas.monitoring import (
     CheckResponse,
     DashboardOut,
 )
-from classtrack.services import check_service, checking_service, status_engine
+from classtrack.services import (
+    assignment_service,
+    check_service,
+    checking_service,
+    status_engine,
+)
 
 router = APIRouter(tags=["monitoring"])
 
@@ -27,15 +33,30 @@ router = APIRouter(tags=["monitoring"])
 )
 async def rooms(
     session: SessionDep,
-    user: CheckingUser,  # noqa: ARG001 -- role gate
+    user: CheckingUser,
     on: Date | None = Query(default=None, alias="date"),
     slot: str | None = Query(default=None),
+    all_rooms: bool = Query(default=False, alias="all"),
 ) -> CheckingScreen:
+    """Room-wise list, narrowed to the floors this staff member covers.
+
+    Staff with no assignment see everything, so an unzoned account can still
+    work. Admins are never narrowed, but may pass ``all=false`` to preview what
+    a zoned account would see.
+    """
     if slot is not None and slot not in SLOTS:
         raise ValidationError(
             f"{slot!r} is not a routine slot.", detail={"valid_slots": list(SLOTS)}
         )
-    data = await checking_service.checking_screen(session, on=on, slot=slot)
+
+    only_zones: list[str] | None = None
+    if user.role is Role.STAFF and not all_rooms:
+        assigned = await assignment_service.zones_for_user(session, user.id)
+        only_zones = assigned or None
+
+    data = await checking_service.checking_screen(
+        session, on=on, slot=slot, only_zones=only_zones
+    )
     return CheckingScreen.model_validate(data)
 
 

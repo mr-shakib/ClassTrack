@@ -44,6 +44,24 @@ export interface CheckRecord {
   checked_by: string | null;
 }
 
+export interface Zone {
+  key: string;
+  building: string;
+  floor: number | null;
+  label: string;
+  short_label: string;
+  room_count: number;
+  rooms: string[];
+}
+
+export interface StaffMember {
+  id: number;
+  email: string;
+  full_name: string;
+  is_active: boolean;
+  zones: string[];
+}
+
 export interface RoomRow {
   instance_id: number;
   room: string;
@@ -56,6 +74,7 @@ export interface RoomRow {
   scheduled_start: string;
   scheduled_end: string;
   is_makeup: boolean;
+  zone: string | null;
   status: ClassStatus | null;
   check: CheckRecord | null;
 }
@@ -65,6 +84,8 @@ export interface CheckingScreen {
   time_slot: string;
   slot_state: "UPCOMING" | "ONGOING" | "CLOSED";
   window_closes_at: string;
+  /** Zones this list was narrowed to. Empty means unrestricted. */
+  zones: string[];
   rooms: RoomRow[];
 }
 

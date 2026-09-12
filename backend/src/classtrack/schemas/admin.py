@@ -71,6 +71,29 @@ class UserOut(ORMModel):
     is_active: bool
 
 
+class ZoneOut(BaseModel):
+    key: str
+    building: str
+    floor: int | None
+    label: str
+    short_label: str
+    room_count: int
+    rooms: list[str]
+
+
+class StaffOut(ORMModel):
+    id: int
+    email: str
+    full_name: str
+    is_active: bool
+    zones: list[str] = Field(default_factory=list)
+
+
+class ZoneAssignRequest(BaseModel):
+    #: Empty list clears the restriction -- the staff member then sees every room.
+    zones: list[str] = Field(default_factory=list)
+
+
 class SettingsIn(BaseModel):
     missed_threshold_minutes: int | None = Field(default=None, ge=1, le=180)
     check_window_minutes: int | None = Field(default=None, ge=1, le=180)

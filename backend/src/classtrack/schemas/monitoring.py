@@ -41,6 +41,8 @@ class RoomRow(BaseModel):
     scheduled_start: str
     scheduled_end: str
     is_makeup: bool
+    #: "KT-3", "G1-0", "Other" -- shown so staff can see the card is theirs.
+    zone: str | None = None
     status: StatusOut | None = None
     check: CheckOut | None = None
 
@@ -50,6 +52,8 @@ class CheckingScreen(BaseModel):
     time_slot: str
     slot_state: str
     window_closes_at: datetime
+    #: The zones this list was narrowed to. Empty means unrestricted.
+    zones: list[str] = Field(default_factory=list)
     rooms: list[RoomRow]
 
 
