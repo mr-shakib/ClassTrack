@@ -18,6 +18,7 @@ from classtrack.core.errors import ValidationError
 from classtrack.models import (
     ClassInstance,
     ClassSession,
+    Role,
     Routine,
     Semester,
     StaffZone,
@@ -132,14 +133,27 @@ ROOMS = ["KT-201", "KT-208", "KT-305", "KT-318(A)", "G1-001", "G1-002", "EMBED"]
 # --- filtering --------------------------------------------------------------
 
 
-async def test_unassigned_staff_see_every_room(session, staff):
-    """No assignment must mean "can work", not "locked out"."""
+async def test_staff_with_no_floors_have_no_classes(session, staff):
+    """Floors are the workload. No floor means no classes, not every class.
+
+    Conflating "no filter" with "empty filter" is how an unassigned account
+    silently inherits the whole department.
+    """
     await _routine_with_rooms(session, ROOMS)
     assigned = await assignment_service.zones_for_user(session, staff.id)
     assert assigned == []
 
     screen = await checking_service.checking_screen(
-        session, on=DAY, slot=SLOT, only_zones=assigned or None
+        session, on=DAY, slot=SLOT, only_zones=assigned
+    )
+    assert screen["rooms"] == []
+
+
+async def test_an_admin_is_never_narrowed(session):
+    """``None`` is the no-filter case, and only admins get it."""
+    await _routine_with_rooms(session, ROOMS)
+    screen = await checking_service.checking_screen(
+        session, on=DAY, slot=SLOT, only_zones=None
     )
     assert len(screen["rooms"]) == len(ROOMS)
 
@@ -174,7 +188,8 @@ async def test_a_floor_with_no_classes_in_the_slot_yields_nothing(session, staff
     assert [r["room"] for r in screen["rooms"]] == ["EMBED"]
 
 
-async def test_clearing_zones_restores_the_full_list(session, staff, hod):
+async def test_clearing_zones_leaves_a_staff_member_with_nothing(session, staff, hod):
+    """Parking an account is allowed, but it is not a promotion to see-all."""
     await _routine_with_rooms(session, ROOMS)
     await assignment_service.set_zones(
         session, user_id=staff.id, zone_keys=["G1-0"], actor=hod
@@ -186,7 +201,12 @@ async def test_clearing_zones_restores_the_full_list(session, staff, hod):
         session, user_id=staff.id, zone_keys=[], actor=hod
     )
     await session.commit()
-    assert await assignment_service.zones_for_user(session, staff.id) == []
+    keys = await assignment_service.zones_for_user(session, staff.id)
+    assert keys == []
+    screen = await checking_service.checking_screen(
+        session, on=DAY, slot=SLOT, only_zones=keys
+    )
+    assert screen["rooms"] == []
 
 
 # --- validation -------------------------------------------------------------
@@ -267,3 +287,86 @@ async def test_deleting_a_user_removes_their_assignments(session, staff, hod):
 
     left = await session.scalar(select(func.count(StaffZone.id)))
     assert left == 0
+
+
+# --- creating a staff member and their floor together -----------------------
+
+
+async def test_create_staff_assigns_floors_in_one_step(session, hod):
+    await _routine_with_rooms(session, ROOMS)
+    member = await assignment_service.create_staff(
+        session,
+        full_name="Floor Two Checker",
+        email="Floor2@diu.edu",
+        password="secret123",
+        zone_keys=["KT-2"],
+        actor=hod,
+    )
+    await session.commit()
+
+    assert member.role is Role.STAFF
+    assert member.email == "floor2@diu.edu"      # normalised
+    assert await assignment_service.zones_for_user(session, member.id) == ["KT-2"]
+
+    screen = await checking_service.checking_screen(
+        session, on=DAY, slot=SLOT, only_zones=["KT-2"]
+    )
+    assert sorted(r["room"] for r in screen["rooms"]) == ["KT-201", "KT-208"]
+
+
+async def test_create_staff_requires_a_floor(session, hod):
+    await _routine_with_rooms(session, ROOMS)
+    with pytest.raises(ValidationError, match="at least one floor"):
+        await assignment_service.create_staff(
+            session,
+            full_name="Nobody",
+            email="nobody@diu.edu",
+            password="secret123",
+            zone_keys=[],
+            actor=hod,
+        )
+
+
+async def test_create_staff_rejects_a_duplicate_email(session, hod, staff):
+    await _routine_with_rooms(session, ROOMS)
+    with pytest.raises(ValidationError, match="already has an account"):
+        await assignment_service.create_staff(
+            session,
+            full_name="Clash",
+            email=staff.email,
+            password="secret123",
+            zone_keys=["KT-2"],
+            actor=hod,
+        )
+
+
+async def test_create_staff_rejects_a_short_password(session, hod):
+    await _routine_with_rooms(session, ROOMS)
+    with pytest.raises(ValidationError, match="6 characters"):
+        await assignment_service.create_staff(
+            session,
+            full_name="Weak",
+            email="weak@diu.edu",
+            password="123",
+            zone_keys=["KT-2"],
+            actor=hod,
+        )
+
+
+async def test_new_staff_can_sign_in(session, hod):
+    """The account has to actually work, not just exist."""
+    from classtrack.services import auth_service
+
+    await _routine_with_rooms(session, ROOMS)
+    await assignment_service.create_staff(
+        session,
+        full_name="Signs In",
+        email="signsin@diu.edu",
+        password="secret123",
+        zone_keys=["G1-0"],
+        actor=hod,
+    )
+    await session.commit()
+
+    user = await auth_service.authenticate(session, "signsin@diu.edu", "secret123")
+    assert user.role is Role.STAFF

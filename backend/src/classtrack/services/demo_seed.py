@@ -70,6 +70,48 @@ async def rebind_demo_teacher(session: AsyncSession) -> str | None:
     return initial
 
 
+async def assign_demo_floors(session: AsyncSession) -> dict[str, list[str]]:
+    """Give the demo staff accounts a floor each.
+
+    Floors are a staff member's whole workload now, so an unassigned demo
+    account would open to an empty checking screen and look broken.
+    """
+    from classtrack.services import assignment_service
+
+    available = [str(z["key"]) for z in await assignment_service.available_zones(session)]
+    if not available:
+        return {}
+
+    staff = list(
+        (
+            await session.scalars(
+                select(User).where(User.role == Role.STAFF).order_by(User.id)
+            )
+        ).all()
+    )
+    if not staff:
+        return {}
+
+    admin = await session.scalar(select(User).where(User.role == Role.SUPER_ADMIN))
+    actor = admin or staff[0]
+
+    # Deal the floors round-robin so every floor has someone and the "uncovered"
+    # warning on the admin screen starts empty.
+    buckets: dict[int, list[str]] = {m.id: [] for m in staff}
+    for i, key in enumerate(available):
+        buckets[staff[i % len(staff)].id].append(key)
+
+    out: dict[str, list[str]] = {}
+    for member in staff:
+        keys = buckets[member.id]
+        await assignment_service.set_zones(
+            session, user_id=member.id, zone_keys=keys, actor=actor
+        )
+        out[member.full_name] = keys
+    await session.flush()
+    return out
+
+
 async def build(session: AsyncSession, *, days: int = 10, seed: int = 11) -> dict[str, object]:
     """Apply a plausible monitoring history over the last ``days`` teaching days."""
     rng = random.Random(seed)
@@ -145,6 +187,7 @@ async def build(session: AsyncSession, *, days: int = 10, seed: int = 11) -> dic
     await session.commit()
 
     initial = await rebind_demo_teacher(session)
+    floors = await assign_demo_floors(session)
     await session.commit()
 
     # One of each makeup kind, so the approval queue and the linkage are visible.
@@ -201,6 +244,7 @@ async def build(session: AsyncSession, *, days: int = 10, seed: int = 11) -> dic
 
     return {
         "demo_teacher_initial": initial,
+        "staff_floors": floors,
         "checks": counts,
         "sweep": result,
         "makeups": makeups,

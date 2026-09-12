@@ -33,6 +33,7 @@ from classtrack.schemas.admin import (
     SemesterOut,
     SessionRow,
     SettingsIn,
+    StaffCreateRequest,
     StaffOut,
     UserIn,
     UserOut,
@@ -418,6 +419,35 @@ async def staff(session: SessionDep, user: AdminUser) -> list[StaffOut]:  # noqa
         item.zones = assignments.get(member.id, [])
         out.append(item)
     return out
+
+
+@router.post(
+    "/staff",
+    response_model=StaffOut,
+    summary="Create an office staff account with its floors",
+)
+async def create_staff(
+    payload: StaffCreateRequest,
+    session: SessionDep,
+    user: AdminUser,
+) -> StaffOut:
+    """One step: the account and the floors it covers.
+
+    Those floors are the person's workload -- every class on them becomes theirs
+    to check and report.
+    """
+    member = await assignment_service.create_staff(
+        session,
+        full_name=payload.full_name,
+        email=payload.email,
+        password=payload.password,
+        zone_keys=payload.zones,
+        actor=user,
+    )
+    await session.commit()
+    item = StaffOut.model_validate(member)
+    item.zones = await assignment_service.zones_for_user(session, member.id)
+    return item
 
 
 @router.put(

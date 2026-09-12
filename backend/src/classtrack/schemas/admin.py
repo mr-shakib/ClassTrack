@@ -89,6 +89,14 @@ class StaffOut(ORMModel):
     zones: list[str] = Field(default_factory=list)
 
 
+class StaffCreateRequest(BaseModel):
+    full_name: str = Field(min_length=1, max_length=255)
+    email: EmailStr
+    password: str = Field(min_length=6)
+    #: At least one. Staff exist to check a floor.
+    zones: list[str] = Field(min_length=1)
+
+
 class ZoneAssignRequest(BaseModel):
     #: Empty list clears the restriction -- the staff member then sees every room.
     zones: list[str] = Field(default_factory=list)

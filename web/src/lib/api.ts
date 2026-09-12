@@ -190,6 +190,12 @@ export const api = {
   users: () => get<(User & { is_active: boolean })[]>("/admin/users"),
   zones: () => get<Zone[]>("/admin/zones"),
   staff: () => get<StaffMember[]>("/admin/staff"),
+  createStaff: (payload: {
+    full_name: string;
+    email: string;
+    password: string;
+    zones: string[];
+  }) => post<StaffMember>("/admin/staff", payload),
   assignZones: (userId: number, zones: string[]) =>
     put<StaffMember>(`/admin/staff/${userId}/zones`, { zones }),
 };

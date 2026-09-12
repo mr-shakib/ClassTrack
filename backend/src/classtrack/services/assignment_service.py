@@ -6,6 +6,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from classtrack.core.errors import NotFoundError, ValidationError
+from classtrack.core.security import hash_password
 from classtrack.models import ClassSession, Role, Routine, StaffZone, User
 from classtrack.services import audit_service, zones
 
@@ -51,13 +52,62 @@ async def available_zones(session: AsyncSession) -> list[dict[str, object]]:
     return zones.zones_for_rooms(rooms)
 
 
+async def create_staff(
+    session: AsyncSession,
+    *,
+    full_name: str,
+    email: str,
+    password: str,
+    zone_keys: list[str],
+    actor: User,
+) -> User:
+    """Create an office staff account and give it its floors in one step.
+
+    A staff account exists to check a floor, so it is created with one. An
+    account with no floor has nothing to do and would silently show an empty
+    checking screen.
+    """
+    email = email.strip().lower()
+    if not email:
+        raise ValidationError("An email address is required.")
+    if await session.scalar(select(User).where(User.email == email)):
+        raise ValidationError(f"{email} already has an account.")
+    if len(password) < 6:
+        raise ValidationError("The password must be at least 6 characters.")
+    if not zone_keys:
+        raise ValidationError("Assign at least one floor. Staff check a floor.")
+
+    member = User(
+        email=email,
+        full_name=full_name.strip(),
+        role=Role.STAFF,
+        password_hash=hash_password(password),
+    )
+    session.add(member)
+    await session.flush()
+
+    await set_zones(session, user_id=member.id, zone_keys=zone_keys, actor=actor)
+
+    audit_service.record(
+        session,
+        actor_id=actor.id,
+        entity_type="user",
+        entity_id=member.id,
+        action="staff_created",
+        after={"email": email, "full_name": member.full_name},
+    )
+    await session.flush()
+    return member
+
+
 async def set_zones(
     session: AsyncSession, *, user_id: int, zone_keys: list[str], actor: User
 ) -> list[str]:
-    """Replace a staff member's assignments.
+    """Replace a staff member's floors.
 
-    An empty list means "no restriction" -- the checking screen then shows every
-    room, which is the right default for an account nobody has zoned yet.
+    Their floors *are* their workload: the checking screen shows those rooms and
+    nothing else. An empty list is allowed here so an account can be parked, but
+    it leaves that person with no classes, and the admin screen says so.
     """
     target = await session.get(User, user_id)
     if target is None:

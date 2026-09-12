@@ -69,11 +69,15 @@ async def checking_screen(
 ) -> dict:
     """Room-wise list for one date and slot (BR-02).
 
-    ``only_zones`` narrows the list to the floors a staff member covers. An
-    empty or absent list means no restriction -- filtering happens here in
-    Python rather than in SQL because the slot's row set is already small (one
-    slot is at most a few dozen rooms) and the zone rule is a string function,
-    not something the database can index on.
+    ``only_zones`` narrows the list to the floors a staff member covers.
+    ``None`` means no restriction (an admin); an empty list means the caller
+    covers no floors and therefore has no classes -- the two are different, and
+    conflating them is how an unassigned account silently gets the whole
+    department.
+
+    Filtering happens in Python rather than SQL because one slot is at most a
+    few dozen rooms, and the zone rule is a string function the database cannot
+    index on.
     """
     now = status_engine.now_local()
     on = on or now.date()
@@ -96,7 +100,7 @@ async def checking_screen(
         )
     ).all()
 
-    if only_zones:
+    if only_zones is not None:
         allowed = set(only_zones)
         instances = [i for i in instances if zones.zone_key(i.room) in allowed]
 
@@ -146,7 +150,7 @@ async def checking_screen(
         "slot_state": status_engine.slot_state(on, start_min, window),
         "window_closes_at": status_engine.slot_start_at(on, start_min)
         + timedelta(minutes=window),
-        "zones": sorted(only_zones) if only_zones else [],
+        "zones": sorted(only_zones) if only_zones is not None else [],
         "rooms": rooms,
     }
 

@@ -22,6 +22,7 @@ export default function StaffPage() {
   const { user } = useAuth();
   // Staff are bound by the checking window; an admin may correct afterwards.
   const canOverride = user?.role === "HOD" || user?.role === "SUPER_ADMIN";
+  const isStaff = user?.role === "STAFF";
 
   const [date, setDate] = useState(todayISO());
   const [slot, setSlot] = useState<string | null>(null);
@@ -81,6 +82,9 @@ export default function StaffPage() {
   const slotIndex = slot ? SLOTS.indexOf(slot as (typeof SLOTS)[number]) : -1;
   const state = screen ? SLOT_STATE_COPY[screen.slot_state] : null;
   const locked = screen ? screen.slot_state !== "ONGOING" : false;
+  // A staff member with no floor has no workload -- say that, rather than
+  // letting it read as "nothing is scheduled today".
+  const noFloor = isStaff && screen != null && screen.zones.length === 0;
 
   return (
     <div className="space-y-4">
@@ -165,7 +169,14 @@ export default function StaffPage() {
 
       {error ? <ErrorNote message={error} /> : null}
 
-      {screen && locked ? (
+      {noFloor ? (
+        <div className="rounded-lg border border-warn/20 bg-warn-soft px-3 py-2.5 text-sm text-warn">
+          <strong>No floor assigned to you yet.</strong> An administrator needs
+          to assign your floor before any classes appear here.
+        </div>
+      ) : null}
+
+      {screen && locked && !noFloor ? (
         <div
           className={`rounded-lg border px-3 py-2.5 text-sm ${
             screen.slot_state === "CLOSED"
@@ -193,11 +204,13 @@ export default function StaffPage() {
       ) : screen && screen.rooms.length === 0 ? (
         <Card>
           <EmptyState
-            title="No classes in this slot"
+            title={noFloor ? "No floor assigned" : "No classes in this slot"}
             body={
-              screen.zones.length > 0
-                ? `Nothing scheduled on your floors (${screen.zones.join(", ")}) in this slot.`
-                : "Nothing is scheduled here, or the routine has no entry for this day."
+              noFloor
+                ? "Ask an administrator to assign your floor."
+                : screen.zones.length > 0
+                  ? `Nothing scheduled on your floors (${screen.zones.join(", ")}) in this slot.`
+                  : "Nothing is scheduled here, or the routine has no entry for this day."
             }
           />
         </Card>

@@ -183,6 +183,8 @@ async def demo(days: int) -> None:
             days = max(1, (today - semester.start_date).days + 1)
         history = await demo_seed.build(session, days=days)
         print(f"  teacher:   demo account bound to {history['demo_teacher_initial']}")
+        for name, keys in (history.get("staff_floors") or {}).items():
+            print(f"  floors:    {name} → {', '.join(keys) or '(none)'}")
         print(f"  checks:    {history['checks']}")
         print(f"  sweep:     {history['sweep']}")
         print(f"  makeups:   {history['makeups']}")

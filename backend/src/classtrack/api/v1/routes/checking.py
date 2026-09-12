@@ -41,9 +41,11 @@ async def rooms(
 ) -> CheckingScreen:
     """Room-wise list, narrowed to the floors this staff member covers.
 
-    Staff with no assignment see everything, so an unzoned account can still
-    work. Admins are never narrowed, but may pass ``all=false`` to preview what
-    a zoned account would see.
+    A staff member's floors are their workload: they see those rooms and nothing
+    else. Someone with no floors sees nothing, which is visible and fixable on
+    the admin screen, rather than silently inheriting the whole department.
+
+    Admins are never narrowed.
     """
     if slot is not None and slot not in SLOTS:
         raise ValidationError(
@@ -52,8 +54,8 @@ async def rooms(
 
     only_zones: list[str] | None = None
     if user.role is Role.STAFF and not all_rooms:
-        assigned = await assignment_service.zones_for_user(session, user.id)
-        only_zones = assigned or None
+        # Possibly empty -- that is meaningful, not a missing filter.
+        only_zones = await assignment_service.zones_for_user(session, user.id)
 
     data = await checking_service.checking_screen(
         session, on=on, slot=slot, only_zones=only_zones
