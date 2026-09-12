@@ -15,7 +15,7 @@ import logging
 from datetime import date as Date
 from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from classtrack.core.errors import NotFoundError, ValidationError
@@ -26,6 +26,7 @@ from classtrack.models import (
     Holiday,
     Semester,
 )
+from classtrack.services import status_engine
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,47 @@ def date_range(start: Date, end: Date):
     while current <= end:
         yield current
         current += timedelta(days=1)
+
+
+async def retire_superseded(
+    session: AsyncSession, *, semester_id: int, keep_routine_id: int
+) -> int:
+    """Drop future classes left behind by a replaced routine.
+
+    When a revised routine is activated, the classes it supersedes are no longer
+    scheduled and must stop appearing on the checking screen -- otherwise staff
+    see every remaining class twice, once per revision.
+
+    Two things are deliberately preserved:
+
+    * **Anything already monitored** (``status IS NOT NULL``). A checked class is
+      a historical fact; a routine revision does not un-happen it.
+    * **Anything in the past.** Today's partly-checked slots included, so the
+      cut-off is tomorrow rather than now.
+
+    Makeup instances have no ``session_id`` and so are never matched here --
+    correctly, since a makeup is not part of any routine.
+    """
+    from_tomorrow = status_engine.now_local().date() + timedelta(days=1)
+
+    stale = select(ClassInstance.id).join(
+        ClassSession, ClassSession.id == ClassInstance.session_id
+    ).where(
+        ClassInstance.semester_id == semester_id,
+        ClassInstance.status.is_(None),
+        ClassInstance.date >= from_tomorrow,
+        ClassSession.routine_id != keep_routine_id,
+    )
+
+    ids = list((await session.scalars(stale)).all())
+    if ids:
+        await session.execute(delete(ClassInstance).where(ClassInstance.id.in_(ids)))
+        logger.info(
+            "Retired %d future instances from superseded routines (kept %d)",
+            len(ids),
+            keep_routine_id,
+        )
+    return len(ids)
 
 
 async def generate(
@@ -86,6 +128,10 @@ async def generate(
         raise ValidationError(
             f"Routine {semester.routine_id} holds no classes. Ingest it again."
         )
+
+    retired = await retire_superseded(
+        session, semester_id=semester.id, keep_routine_id=semester.routine_id
+    )
 
     by_day: dict[str, list[ClassSession]] = {}
     for sess in sessions:
@@ -169,6 +215,7 @@ async def generate(
         "routine_id": semester.routine_id,
         "instances_created": len(rows),
         "instances_existing": len(existing),
+        "instances_retired": retired,
         "skipped_holidays": skipped_holidays,
         "skipped_fridays": skipped_fridays,
     }

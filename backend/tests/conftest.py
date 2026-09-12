@@ -31,6 +31,8 @@ SLOT = "10:00-11:30"
 START_MIN = 600
 END_MIN = 690
 
+__all__ = ["END_MIN", "SLOT", "START_MIN", "at"]
+
 
 @pytest_asyncio.fixture
 async def session() -> AsyncSession:
