@@ -96,7 +96,13 @@ export const api = {
     get<CheckingScreen>(`/checking/rooms${qs({ date, slot, all })}`),
   submitCheck: (
     instanceId: number,
-    payload: { outcome: CheckOutcome; arrival_time?: string | null; remark?: string | null },
+    payload: {
+      outcome: CheckOutcome;
+      arrival_time?: string | null;
+      remark?: string | null;
+      /** Required when an admin corrects a record after the window closed. */
+      reason?: string | null;
+    },
   ) => post<CheckResponse>(`/checking/${instanceId}`, payload),
 
   // --- dashboard ----------------------------------------------------------

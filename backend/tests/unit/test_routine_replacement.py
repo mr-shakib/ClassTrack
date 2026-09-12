@@ -61,7 +61,7 @@ async def _semester(session, routine_id: int) -> Semester:
     return semester
 
 
-async def test_revision_replaces_future_classes_and_keeps_history(session, staff):
+async def test_revision_replaces_future_classes_and_keeps_history(session, hod):
     """The whole point: new schedule forward, old record backward."""
     old = await _routine(session, "V1", ["KT-301", "KT-302"])
     semester = await _semester(session, old.id)
@@ -74,8 +74,13 @@ async def test_revision_replaces_future_classes_and_keeps_history(session, staff
         select(ClassInstance).where(ClassInstance.date < today).limit(1)
     )
     assert past is not None
+    # Past-dated, so outside the checking window: an admin correction.
     await check_service.submit(
-        session, instance_id=past.id, user=staff, outcome=CheckOutcome.RUNNING
+        session,
+        instance_id=past.id,
+        user=hod,
+        outcome=CheckOutcome.RUNNING,
+        reason="Recorded on paper, entered later",
     )
     await session.commit()
     checked_id = past.id
@@ -110,7 +115,7 @@ async def test_revision_replaces_future_classes_and_keeps_history(session, staff
     assert kept.room == "KT-301"
 
 
-async def test_revision_never_drops_a_monitored_future_class(session, staff):
+async def test_revision_never_drops_a_monitored_future_class(session, hod):
     """A class already checked is a fact, even if it is in the future."""
     old = await _routine(session, "V1", ["KT-301"])
     semester = await _semester(session, old.id)
@@ -122,7 +127,11 @@ async def test_revision_never_drops_a_monitored_future_class(session, staff):
         select(ClassInstance).where(ClassInstance.date > today).limit(1)
     )
     await check_service.submit(
-        session, instance_id=future.id, user=staff, outcome=CheckOutcome.RUNNING
+        session,
+        instance_id=future.id,
+        user=hod,
+        outcome=CheckOutcome.RUNNING,
+        reason="Test fixture: a monitored future class",
     )
     await session.commit()
     monitored_id = future.id

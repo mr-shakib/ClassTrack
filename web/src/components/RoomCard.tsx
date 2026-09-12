@@ -15,9 +15,15 @@ import StatusBadge from "./StatusBadge";
 export default function RoomCard({
   row,
   onChanged,
+  locked = false,
+  canOverride = false,
 }: {
   row: RoomRow;
   onChanged: (next: Partial<RoomRow>) => void;
+  /** The checking window is not open, so staff cannot submit. */
+  locked?: boolean;
+  /** An admin may still correct the record, with a reason. */
+  canOverride?: boolean;
 }) {
   const [busy, setBusy] = useState<CheckOutcome | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +31,8 @@ export default function RoomCard({
   const [showRemark, setShowRemark] = useState(false);
   const [arrival, setArrival] = useState("");
   const [remark, setRemark] = useState(row.check?.remark ?? "");
+  const [reason, setReason] = useState("");
+  const [overriding, setOverriding] = useState(false);
 
   const submitted = row.check != null;
 
@@ -51,6 +59,7 @@ export default function RoomCard({
         outcome,
         arrival_time: arrivalTime ?? null,
         remark: remark || null,
+        reason: reason || null,
       });
       onChanged({
         status: res.status,
@@ -126,21 +135,57 @@ export default function RoomCard({
               : `Recorded${row.check?.checked_by ? ` by ${row.check.checked_by}` : ""}`}
             {row.check?.arrival_time ? ` · arrived ${row.check.arrival_time}` : ""}
           </p>
-          <button
-            className="shrink-0 text-xs font-medium text-brand hover:underline"
-            onClick={() => setShowLate(true)}
-          >
-            Amend
-          </button>
+          {!locked || canOverride ? (
+            <button
+              className="shrink-0 text-xs font-medium text-brand hover:underline"
+              onClick={() => {
+                if (locked) setOverriding(true);
+                setShowLate(true);
+              }}
+            >
+              {locked ? "Correct" : "Amend"}
+            </button>
+          ) : null}
+        </div>
+      ) : locked && !overriding ? (
+        <div className="mt-3 border-t border-line pt-2.5">
+          <p className="text-xs text-ink-faint">
+            {row.status === "NOT_CHECKED"
+              ? "Recorded as not checked — the window closed with no result."
+              : "The checking window for this class is closed."}
+          </p>
+          {canOverride ? (
+            <button
+              className="mt-1 text-xs font-medium text-brand hover:underline"
+              onClick={() => setOverriding(true)}
+            >
+              Correct this record
+            </button>
+          ) : null}
         </div>
       ) : (
         <>
+          {overriding ? (
+            <div className="mt-3 rounded-lg bg-brand-soft/60 p-2.5">
+              <p className="text-xs font-medium text-brand">
+                Correcting after the window closed. A reason is required and is
+                kept in the audit log.
+              </p>
+              <input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Why is this being changed?"
+                className="mt-1.5 w-full rounded-md border border-brand/30 bg-surface px-2 py-1.5 text-sm"
+              />
+            </div>
+          ) : null}
+
           {/* Three primary actions. Large targets -- these get tapped hundreds
               of times a week, often one-handed while walking. */}
           <div className="mt-3 grid grid-cols-3 gap-2">
             <button
               onClick={() => submit("RUNNING")}
-              disabled={busy != null}
+              disabled={busy != null || (overriding && !reason.trim())}
               className="min-h-11 rounded-lg bg-ok-soft px-2 py-2.5 text-sm font-semibold text-ok ring-1 ring-inset ring-ok/20 transition-colors hover:bg-ok/10 active:bg-ok/20 disabled:opacity-50"
             >
               {busy === "RUNNING" ? "…" : "Running"}
@@ -150,14 +195,14 @@ export default function RoomCard({
                 setArrival(nowHHMM());
                 setShowLate(true);
               }}
-              disabled={busy != null}
+              disabled={busy != null || (overriding && !reason.trim())}
               className="min-h-11 rounded-lg bg-warn-soft px-2 py-2.5 text-sm font-semibold text-warn ring-1 ring-inset ring-warn/20 transition-colors hover:bg-warn/10 active:bg-warn/20 disabled:opacity-50"
             >
               Late
             </button>
             <button
               onClick={() => submit("TEACHER_NOT_FOUND")}
-              disabled={busy != null}
+              disabled={busy != null || (overriding && !reason.trim())}
               className="min-h-11 rounded-lg bg-bad-soft px-2 py-2.5 text-xs font-semibold leading-tight text-bad ring-1 ring-inset ring-bad/20 transition-colors hover:bg-bad/10 active:bg-bad/20 disabled:opacity-50"
             >
               {busy === "TEACHER_NOT_FOUND" ? "…" : "Not found"}

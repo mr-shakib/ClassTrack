@@ -20,6 +20,7 @@ from classtrack.services import (
     assignment_service,
     check_service,
     checking_service,
+    settings_service,
     status_engine,
 )
 
@@ -71,7 +72,12 @@ async def submit(
     session: SessionDep,
     user: CheckingUser,
 ) -> CheckResponse:
-    """Idempotent: re-submitting amends the existing check rather than adding one."""
+    """Idempotent: re-submitting amends the existing check rather than adding one.
+
+    Staff may only submit while the checking window is open. An admin may
+    correct a record afterwards by supplying a reason, which is audited as an
+    override rather than an observation.
+    """
     instance = await check_service.submit(
         session,
         instance_id=instance_id,
@@ -79,7 +85,10 @@ async def submit(
         outcome=payload.outcome,
         arrival_time=payload.arrival_time,
         remark=payload.remark,
+        reason=payload.reason,
     )
+    window = await settings_service.check_window(session)
+    outside = not status_engine.is_checkable(instance, window)
     await session.commit()
     return CheckResponse(
         instance_id=instance.id,
@@ -87,6 +96,7 @@ async def submit(
         late_minutes=instance.check.late_minutes if instance.check else None,
         checked_by=user.full_name,
         checked_at=instance.check.checked_at if instance.check else status_engine.now_local(),
+        outside_window=outside,
     )
 
 

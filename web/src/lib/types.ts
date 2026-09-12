@@ -95,6 +95,8 @@ export interface CheckResponse {
   late_minutes: number | null;
   checked_by: string;
   checked_at: string;
+  /** True when an admin corrected the record after the window closed. */
+  outside_window: boolean;
 }
 
 export interface ClassInstance {

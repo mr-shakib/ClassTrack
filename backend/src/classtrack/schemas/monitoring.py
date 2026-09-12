@@ -62,6 +62,9 @@ class CheckRequest(BaseModel):
     #: Required when outcome is LATE.
     arrival_time: time | None = None
     remark: str | None = Field(default=None, max_length=2000)
+    #: Required when an admin changes a record after the window has closed.
+    #: Staff cannot submit outside the window at all, so this is ignored for them.
+    reason: str | None = Field(default=None, max_length=2000)
 
 
 class CheckResponse(BaseModel):
@@ -70,6 +73,8 @@ class CheckResponse(BaseModel):
     late_minutes: int | None = None
     checked_by: str
     checked_at: datetime
+    #: True when this was an admin correction made after the window closed.
+    outside_window: bool = False
 
 
 class InstanceOut(ORMModel):

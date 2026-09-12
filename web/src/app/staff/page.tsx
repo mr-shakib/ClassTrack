@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import RoomCard from "@/components/RoomCard";
 import { Card, EmptyState, ErrorNote, Spinner } from "@/components/ui";
 import { SLOTS, api, todayISO } from "@/lib/api";
-import { useRequireRole } from "@/lib/auth";
+import { useAuth, useRequireRole } from "@/lib/auth";
 import type { CheckingScreen, RoomRow } from "@/lib/types";
 
 const SLOT_STATE_COPY: Record<string, { label: string; className: string }> = {
@@ -19,6 +19,9 @@ export default function StaffPage() {
     "HOD",
     "SUPER_ADMIN",
   ]);
+  const { user } = useAuth();
+  // Staff are bound by the checking window; an admin may correct afterwards.
+  const canOverride = user?.role === "HOD" || user?.role === "SUPER_ADMIN";
 
   const [date, setDate] = useState(todayISO());
   const [slot, setSlot] = useState<string | null>(null);
@@ -77,6 +80,7 @@ export default function StaffPage() {
 
   const slotIndex = slot ? SLOTS.indexOf(slot as (typeof SLOTS)[number]) : -1;
   const state = screen ? SLOT_STATE_COPY[screen.slot_state] : null;
+  const locked = screen ? screen.slot_state !== "ONGOING" : false;
 
   return (
     <div className="space-y-4">
@@ -161,6 +165,29 @@ export default function StaffPage() {
 
       {error ? <ErrorNote message={error} /> : null}
 
+      {screen && locked ? (
+        <div
+          className={`rounded-lg border px-3 py-2.5 text-sm ${
+            screen.slot_state === "CLOSED"
+              ? "border-gap/20 bg-gap-soft text-gap"
+              : "border-line bg-canvas text-ink-soft"
+          }`}
+        >
+          {screen.slot_state === "CLOSED" ? (
+            <>
+              <strong>The checking window for this slot has closed.</strong>{" "}
+              Anything still unchecked is recorded as Not Checked.
+              {canOverride ? " You can correct a record from here." : ""}
+            </>
+          ) : (
+            <>
+              <strong>This slot has not started yet.</strong> Checking opens at{" "}
+              {screen.rooms[0]?.scheduled_start ?? screen.time_slot.split("-")[0]}.
+            </>
+          )}
+        </div>
+      ) : null}
+
       {loading ? (
         <Spinner label="Loading classes…" />
       ) : screen && screen.rooms.length === 0 ? (
@@ -179,13 +206,17 @@ export default function StaffPage() {
           {pending.length > 0 ? (
             <section className="space-y-2.5">
               <h2 className="text-sm font-semibold text-ink-soft">
-                Needs checking ({pending.length})
+                {locked
+                  ? `Not checked (${pending.length})`
+                  : `Needs checking (${pending.length})`}
               </h2>
               <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                 {pending.map((row) => (
                   <RoomCard
                     key={row.instance_id}
                     row={row}
+                    locked={locked}
+                    canOverride={canOverride}
                     onChanged={(next) => patchRow(row.instance_id, next)}
                   />
                 ))}
@@ -203,6 +234,8 @@ export default function StaffPage() {
                   <RoomCard
                     key={row.instance_id}
                     row={row}
+                    locked={locked}
+                    canOverride={canOverride}
                     onChanged={(next) => patchRow(row.instance_id, next)}
                   />
                 ))}
