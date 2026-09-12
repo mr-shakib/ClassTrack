@@ -1,0 +1,70 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "classtrack"
+version = "0.1.0"
+description = "Department class monitoring and makeup management for DIU CSE"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+keywords = ["routine", "monitoring", "diu", "fastapi"]
+
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "aiosqlite>=0.20",
+    "alembic>=1.14",
+    "pydantic[email]>=2.9",
+    "pydantic-settings>=2.6",
+    "pdfplumber>=0.11",
+    "python-multipart>=0.0.17",
+    # Auth: bcrypt and PyJWT directly. passlib and python-jose are unmaintained
+    # and break on current Python.
+    "bcrypt>=4.2",
+    "PyJWT>=2.10",
+]
+
+[project.optional-dependencies]
+postgres = ["asyncpg>=0.30"]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.28",
+    "ruff>=0.8",
+]
+
+[project.scripts]
+classtrack = "classtrack.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/classtrack"]
+
+# ----------------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF", "ARG", "PTH"]
+ignore = [
+    "B008",   # FastAPI Depends() in defaults is idiomatic
+    "UP042",  # `str, Enum` is used consistently; it serialises predictably
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ARG"]
+"src/classtrack/models/*" = ["RUF012"]
+# `date as Date` avoids shadowing columns and params literally named `date`.
+"src/classtrack/services/*" = ["N812"]
+"src/classtrack/schemas/*" = ["N812"]
+"src/classtrack/api/*" = ["N812"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-q"

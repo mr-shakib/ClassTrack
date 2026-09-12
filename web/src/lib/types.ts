@@ -1,0 +1,301 @@
+// Mirrors backend/docs/API.md. Keep in sync with classtrack/schemas/*.
+
+export type Role = "SUPER_ADMIN" | "HOD" | "STAFF" | "TEACHER";
+
+/** Stored, terminal statuses plus the two the backend derives from the clock. */
+export type ClassStatus =
+  | "UPCOMING"
+  | "ONGOING"
+  | "RUNNING"
+  | "LATE"
+  | "MISSED"
+  | "NOT_CHECKED"
+  | "MAKEUP_SCHEDULED"
+  | "MAKEUP_COMPLETED"
+  | "ONLINE_PENDING"
+  | "ONLINE_APPROVED"
+  | "ONLINE_REJECTED"
+  | "CANCELLED";
+
+export type CheckOutcome = "RUNNING" | "LATE" | "TEACHER_NOT_FOUND";
+export type MakeupMode = "PHYSICAL" | "ONLINE";
+export type MakeupStatus =
+  | "SCHEDULED"
+  | "PENDING"
+  | "APPROVED"
+  | "REJECTED"
+  | "COMPLETED";
+export type TeacherResponseValue = "CONFIRMED" | "DISPUTED";
+
+export interface User {
+  id: number;
+  email: string;
+  full_name: string;
+  role: Role;
+  teacher_initial: string | null;
+}
+
+export interface CheckRecord {
+  outcome: CheckOutcome;
+  arrival_time: string | null;
+  late_minutes: number | null;
+  remark: string | null;
+  checked_at: string;
+  checked_by: string | null;
+}
+
+export interface RoomRow {
+  instance_id: number;
+  room: string;
+  room_type: string;
+  course_code: string;
+  course_title: string | null;
+  section: string;
+  teacher_initial: string;
+  teacher_name: string | null;
+  scheduled_start: string;
+  scheduled_end: string;
+  is_makeup: boolean;
+  status: ClassStatus | null;
+  check: CheckRecord | null;
+}
+
+export interface CheckingScreen {
+  date: string;
+  time_slot: string;
+  slot_state: "UPCOMING" | "ONGOING" | "CLOSED";
+  window_closes_at: string;
+  rooms: RoomRow[];
+}
+
+export interface CheckResponse {
+  instance_id: number;
+  status: ClassStatus | null;
+  late_minutes: number | null;
+  checked_by: string;
+  checked_at: string;
+}
+
+export interface ClassInstance {
+  id: number;
+  date: string;
+  day: string;
+  time_slot: string;
+  room: string;
+  course_code: string;
+  course_title: string | null;
+  section: string;
+  batch: string;
+  teacher_initial: string;
+  is_makeup: boolean;
+  status: ClassStatus | null;
+  teacher_response: TeacherResponseValue | null;
+  response_note: string | null;
+  check: CheckRecord | null;
+}
+
+export interface DashboardSummary {
+  scheduled_now: number;
+  running: number;
+  late: number;
+  missed: number;
+  not_checked: number;
+  makeup_physical: number;
+  online_approved: number;
+}
+
+export interface AttentionCounts {
+  missed_today: number;
+  not_checked_today: number;
+  pending_online: number;
+  pending_makeup: number;
+  disputes: number;
+}
+
+export interface DashboardRow {
+  instance_id: number;
+  room: string;
+  teacher_initial: string;
+  teacher_name: string | null;
+  course_code: string;
+  section: string;
+  time_slot: string;
+  status: ClassStatus | null;
+  late_minutes: number | null;
+  checked_by: string | null;
+  checked_at: string | null;
+  is_makeup: boolean;
+}
+
+export interface Dashboard {
+  as_of: string;
+  current_slot: string | null;
+  summary: DashboardSummary;
+  rows: DashboardRow[];
+  attention: AttentionCounts;
+}
+
+export interface Conflict {
+  type: "TEACHER" | "ROOM" | "SECTION" | "HOLIDAY" | "SLOT";
+  message: string;
+  instance_id: number | null;
+}
+
+export interface ConflictReport {
+  ok: boolean;
+  overridable: boolean;
+  conflicts: Conflict[];
+}
+
+export interface Makeup {
+  id: number;
+  original_instance_id: number;
+  teacher_initial: string;
+  mode: MakeupMode;
+  date: string;
+  time_slot: string;
+  room: string | null;
+  reason: string | null;
+  status: MakeupStatus;
+  decision_note: string | null;
+  decided_at: string | null;
+  created_instance_id: number | null;
+  original_course_code: string | null;
+  original_section: string | null;
+  original_date: string | null;
+  teacher_name: string | null;
+}
+
+export interface DailyReport {
+  date: string;
+  total_scheduled: number;
+  total_checked: number;
+  running: number;
+  late: number;
+  missed: number;
+  not_checked: number;
+  makeup: number;
+  online_approved: number;
+  unresolved: number;
+}
+
+export interface TeacherReport {
+  teacher_initial: string;
+  teacher_name: string | null;
+  range: { from: string; to: string };
+  total_scheduled: number;
+  conducted: number;
+  late: number;
+  missed: number;
+  not_checked: number;
+  makeup_scheduled: number;
+  makeup_completed: number;
+  makeup_pending: number;
+  online_approved: number;
+  unresolved: number;
+}
+
+export interface StaffReport {
+  range: { from: string; to: string };
+  assigned: number;
+  checked: number;
+  not_checked: number;
+  completion_rate: number;
+  rows: {
+    user_id: number;
+    name: string;
+    assigned: number;
+    checked: number;
+    completion_rate: number;
+  }[];
+}
+
+export interface Notification {
+  id: number;
+  kind: string;
+  title: string;
+  body: string;
+  link: string | null;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface AuditEntry {
+  id: number;
+  actor_id: number | null;
+  actor_name: string | null;
+  entity_type: string;
+  entity_id: number;
+  action: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  reason: string | null;
+  created_at: string;
+}
+
+export interface Routine {
+  id: number;
+  department: string;
+  version: string;
+  semester: string | null;
+  source_filename: string | null;
+  is_active: boolean;
+  session_count: number;
+  published_at: string | null;
+}
+
+export interface IngestionReport {
+  department: string;
+  version: string;
+  routine_id: number | null;
+  cells_read: number;
+  sessions_created: number;
+  days_covered: Record<string, number>;
+  reserved: number;
+  skipped: number;
+  skipped_sample: {
+    page: number;
+    day: string;
+    time_slot: string;
+    room: string;
+    text: string;
+  }[];
+}
+
+export interface RoutineReview {
+  routine: Routine;
+  conflicts: {
+    type: string;
+    message: string;
+    day?: string;
+    time_slot?: string;
+  }[];
+  sessions: {
+    day: string;
+    time_slot: string;
+    room: string;
+    course_code: string;
+    section: string;
+    teacher: string;
+    is_lab: boolean;
+  }[];
+  total_sessions: number;
+}
+
+export interface Holiday {
+  id: number;
+  semester_id: number;
+  date: string;
+  title: string;
+  kind: "HOLIDAY" | "EXAM" | "CLOSED" | "SPECIAL";
+}
+
+export interface Semester {
+  id: number;
+  name: string;
+  department: string;
+  routine_id: number | null;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+}

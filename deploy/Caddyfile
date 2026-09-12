@@ -1,0 +1,31 @@
+# No global options block: an `email` directive with an empty value is a parse
+# error, and Caddy registers an ACME account fine without contact details.
+
+{$CLASSTRACK_DOMAIN} {
+	encode zstd gzip
+
+	# The API and the web app share one origin, which is what keeps the session
+	# cookie same-site with no CORS credentials handling anywhere.
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}

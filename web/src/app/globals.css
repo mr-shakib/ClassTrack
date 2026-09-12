@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+/* ClassTrack palette. Status colours carry meaning, so they are defined once
+   here and consumed through StatusBadge -- never re-picked per screen. */
+@theme {
+  --color-ink: #0f172a;
+  --color-ink-soft: #475569;
+  --color-ink-faint: #94a3b8;
+  --color-line: #e2e8f0;
+  --color-surface: #ffffff;
+  --color-canvas: #f6f8fb;
+
+  --color-brand: #1d4ed8;
+  --color-brand-soft: #eef2ff;
+
+  /* The class ran. */
+  --color-ok: #047857;
+  --color-ok-soft: #ecfdf5;
+  /* The teacher was late. */
+  --color-warn: #b45309;
+  --color-warn-soft: #fffbeb;
+  /* The teacher was absent -- a teacher-side problem. */
+  --color-bad: #b91c1c;
+  --color-bad-soft: #fef2f2;
+  /* Nobody checked -- a staff-side problem. Deliberately a different hue from
+     --color-bad so the two are never confused at a glance. */
+  --color-gap: #6d28d9;
+  --color-gap-soft: #f5f3ff;
+  /* Recovery in progress. */
+  --color-info: #0e7490;
+  --color-info-soft: #ecfeff;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* Keyboard focus stays visible; pointer focus does not add noise. */
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/* Staff tap the same three buttons hundreds of times a week. Suppress the
+   tap highlight but keep a real pressed state (defined on the button). */
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff; }
+}
