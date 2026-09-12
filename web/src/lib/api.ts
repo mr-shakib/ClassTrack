@@ -19,6 +19,7 @@ import type {
   StaffReport,
   TeacherReport,
   TeacherResponseValue,
+  UnreportedReport,
   User,
   Zone,
 } from "./types";
@@ -154,6 +155,8 @@ export const api = {
     get<TeacherReport>(`/reports/teacher${qs({ teacher, from, to })}`),
   staffReport: (from?: string, to?: string) =>
     get<StaffReport>(`/reports/staff${qs({ from, to })}`),
+  unreported: (from?: string, to?: string) =>
+    get<UnreportedReport>(`/reports/unreported${qs({ from, to })}`),
 
   // --- notifications ------------------------------------------------------
   notifications: (unread = false) =>

@@ -322,3 +322,45 @@ export interface Semester {
   end_date: string;
   is_active: boolean;
 }
+
+
+export interface UnreportedClass {
+  instance_id: number;
+  date: string;
+  time_slot: string;
+  room: string;
+  zone: string;
+  course_code: string;
+  section: string;
+  teacher_initial: string;
+  hours_since: number;
+}
+
+export type Urgency = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+
+export interface StaffMisses {
+  user_id: number;
+  name: string;
+  email: string;
+  zones: string[];
+  total: number;
+  today: number;
+  this_week: number;
+  urgency: Urgency;
+  classes: UnreportedClass[];
+}
+
+export interface UnreportedReport {
+  as_of: string;
+  range: { from: string; to: string };
+  summary: {
+    total: number;
+    today: number;
+    this_week: number;
+    staff_with_misses: number;
+    unassigned: number;
+  };
+  by_staff: StaffMisses[];
+  /** Classes on floors nobody covers — an admin gap, not a staff failure. */
+  unassigned: UnreportedClass[];
+}

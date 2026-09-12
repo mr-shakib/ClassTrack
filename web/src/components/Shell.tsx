@@ -11,6 +11,7 @@ import { Button } from "./ui";
 const NAV: { href: string; label: string; roles: Role[] }[] = [
   { href: "/staff", label: "Checking", roles: ["STAFF", "HOD", "SUPER_ADMIN"] },
   { href: "/dashboard", label: "Dashboard", roles: ["HOD", "SUPER_ADMIN"] },
+  { href: "/unreported", label: "Unreported", roles: ["HOD", "SUPER_ADMIN"] },
   { href: "/teacher", label: "My classes", roles: ["TEACHER"] },
   { href: "/approvals", label: "Approvals", roles: ["HOD", "SUPER_ADMIN"] },
   { href: "/reports", label: "Reports", roles: ["TEACHER", "HOD", "SUPER_ADMIN"] },

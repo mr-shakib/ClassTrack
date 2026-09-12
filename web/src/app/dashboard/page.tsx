@@ -90,7 +90,8 @@ export default function DashboardPage() {
             label="Not checked"
             value={a?.not_checked_today ?? 0}
             tone="text-gap"
-            note="staff gap"
+            note="see who"
+            href="/unreported"
           />
           <Attention
             label="Online requests"

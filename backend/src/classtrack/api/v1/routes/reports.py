@@ -9,8 +9,13 @@ from fastapi import APIRouter, Query
 
 from classtrack.api.deps import AdminUser, CurrentUser, SessionDep, scope_teacher
 from classtrack.core.errors import ValidationError
-from classtrack.schemas.reports import DailyReport, StaffReport, TeacherReport
-from classtrack.services import report_service, status_engine
+from classtrack.schemas.reports import (
+    DailyReport,
+    StaffReport,
+    TeacherReport,
+    UnreportedReport,
+)
+from classtrack.services import accountability_service, report_service, status_engine
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -64,4 +69,30 @@ async def staff(
     start, end = _range(start, end)
     return StaffReport.model_validate(
         await report_service.staff_report(session, start=start, end=end)
+    )
+
+
+@router.get(
+    "/unreported",
+    response_model=UnreportedReport,
+    summary="Classes nobody reported, and who was responsible",
+)
+async def unreported(
+    session: SessionDep,
+    user: AdminUser,  # noqa: ARG001
+    start: Date | None = Query(default=None, alias="from"),
+    end: Date | None = Query(default=None, alias="to"),
+) -> UnreportedReport:
+    """Accountability view.
+
+    Separates a staff member failing to submit from a floor nobody was assigned
+    -- the first needs chasing, the second needs configuring.
+    """
+    if start is None and end is None:
+        end = status_engine.now_local().date()
+        start = end - timedelta(days=7)
+    else:
+        start, end = _range(start, end)
+    return UnreportedReport.model_validate(
+        await accountability_service.unreported(session, start=start, end=end)
     )

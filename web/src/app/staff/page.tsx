@@ -88,114 +88,118 @@ export default function StaffPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold">Room checking</h1>
-        <p className="mt-0.5 text-sm text-ink-soft">
-          Tap once for a class that is running.
-          {screen && screen.zones.length > 0
-            ? " Showing only the floors assigned to you."
-            : ""}
-        </p>
+      <div className="rounded-2xl bg-brand px-4 py-4 text-white">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium opacity-80">
+              {new Date(`${date}T00:00:00`).toLocaleDateString([], {
+                weekday: "long",
+                day: "numeric",
+                month: "short",
+              })}
+            </p>
+            <p className="text-3xl font-bold tabular-nums">{slot ?? "—"}</p>
+          </div>
+          {screen ? (
+            <div className="text-right">
+              <p className="text-4xl font-bold tabular-nums">
+                {done.length}
+                <span className="text-2xl opacity-70">/{screen.rooms.length}</span>
+              </p>
+              <p className="text-sm font-medium opacity-80">rooms done</p>
+            </div>
+          ) : null}
+        </div>
+        {screen && screen.rooms.length > 0 ? (
+          <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white/25">
+            <div
+              className="h-full rounded-full bg-white transition-all duration-300"
+              style={{ width: `${(done.length / screen.rooms.length) * 100}%` }}
+            />
+          </div>
+        ) : null}
       </div>
 
       {/* Slot and date controls. Deliberately compact: the room cards are what
           matters on a phone. */}
-      <Card className="p-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="rounded-lg border border-line px-2.5 py-2 text-sm"
-          />
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => slotIndex > 0 && setSlot(SLOTS[slotIndex - 1])}
-              disabled={slotIndex <= 0}
-              className="min-h-10 rounded-lg px-2.5 text-sm font-medium text-ink-soft ring-1 ring-inset ring-line disabled:opacity-40"
-              aria-label="Previous slot"
-            >
-              ‹
-            </button>
-            <select
-              value={slot ?? ""}
-              onChange={(e) => setSlot(e.target.value)}
-              className="min-h-10 rounded-lg border border-line px-2.5 text-sm font-medium tabular-nums"
-            >
-              {SLOTS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={() =>
-                slotIndex >= 0 &&
-                slotIndex < SLOTS.length - 1 &&
-                setSlot(SLOTS[slotIndex + 1])
-              }
-              disabled={slotIndex < 0 || slotIndex >= SLOTS.length - 1}
-              className="min-h-10 rounded-lg px-2.5 text-sm font-medium text-ink-soft ring-1 ring-inset ring-line disabled:opacity-40"
-              aria-label="Next slot"
-            >
-              ›
-            </button>
-          </div>
+      <div className="flex items-stretch gap-2">
+        <button
+          onClick={() => slotIndex > 0 && setSlot(SLOTS[slotIndex - 1])}
+          disabled={slotIndex <= 0}
+          className="min-h-14 min-w-14 rounded-xl bg-surface text-2xl font-bold text-ink-soft ring-2 ring-inset ring-line disabled:opacity-30"
+          aria-label="Previous time"
+        >
+          ‹
+        </button>
+        <select
+          value={slot ?? ""}
+          onChange={(e) => setSlot(e.target.value)}
+          className="min-h-14 flex-1 rounded-xl border-2 border-line bg-surface px-3 text-center text-lg font-bold tabular-nums"
+          aria-label="Time"
+        >
+          {SLOTS.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={() =>
+            slotIndex >= 0 && slotIndex < SLOTS.length - 1 && setSlot(SLOTS[slotIndex + 1])
+          }
+          disabled={slotIndex < 0 || slotIndex >= SLOTS.length - 1}
+          className="min-h-14 min-w-14 rounded-xl bg-surface text-2xl font-bold text-ink-soft ring-2 ring-inset ring-line disabled:opacity-30"
+          aria-label="Next time"
+        >
+          ›
+        </button>
+      </div>
 
-          {state ? (
-            <span
-              className={`ml-auto rounded-full px-2.5 py-1 text-xs font-semibold ${state.className}`}
-            >
-              {state.label}
-            </span>
-          ) : null}
-        </div>
+      {state && screen && screen.slot_state === "ONGOING" ? (
+        <p className="text-center text-base font-semibold text-ok">
+          Open until{" "}
+          {new Date(screen.window_closes_at).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </p>
+      ) : null}
 
-        {screen ? (
-          <p className="mt-2 text-xs text-ink-faint">
-            {done.length} of {screen.rooms.length} checked
-            {screen.slot_state === "ONGOING"
-              ? ` · window closes ${new Date(screen.window_closes_at).toLocaleTimeString(
-                  [],
-                  { hour: "2-digit", minute: "2-digit" },
-                )}`
-              : ""}
-            {screen.zones.length > 0
-              ? ` · your floors: ${screen.zones.join(", ")}`
-              : ""}
-          </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="min-h-12 rounded-xl border-2 border-line bg-surface px-3 text-base"
+        />
+        {screen && screen.zones.length > 0 ? (
+          <span className="text-base font-medium text-ink-soft">
+            Your floors: {screen.zones.join(", ")}
+          </span>
         ) : null}
-      </Card>
+      </div>
 
       {error ? <ErrorNote message={error} /> : null}
 
       {noFloor ? (
-        <div className="rounded-lg border border-warn/20 bg-warn-soft px-3 py-2.5 text-sm text-warn">
-          <strong>No floor assigned to you yet.</strong> An administrator needs
-          to assign your floor before any classes appear here.
+        <div className="rounded-2xl border-2 border-warn/30 bg-warn-soft px-4 py-4 text-lg font-semibold text-warn">
+          No floor assigned to you yet. Ask the office to assign your floor.
         </div>
       ) : null}
 
       {screen && locked && !noFloor ? (
         <div
-          className={`rounded-lg border px-3 py-2.5 text-sm ${
+          className={`rounded-2xl border-2 px-4 py-4 text-lg font-semibold ${
             screen.slot_state === "CLOSED"
-              ? "border-gap/20 bg-gap-soft text-gap"
+              ? "border-gap/30 bg-gap-soft text-gap"
               : "border-line bg-canvas text-ink-soft"
           }`}
         >
-          {screen.slot_state === "CLOSED" ? (
-            <>
-              <strong>The checking window for this slot has closed.</strong>{" "}
-              Anything still unchecked is recorded as Not Checked.
-              {canOverride ? " You can correct a record from here." : ""}
-            </>
-          ) : (
-            <>
-              <strong>This slot has not started yet.</strong> Checking opens at{" "}
-              {screen.rooms[0]?.scheduled_start ?? screen.time_slot.split("-")[0]}.
-            </>
-          )}
+          {screen.slot_state === "CLOSED"
+            ? "This time is over. Anything not reported counts as missed."
+            : `This class has not started yet. It opens at ${
+                screen.rooms[0]?.scheduled_start ?? screen.time_slot.split("-")[0]
+              }.`}
         </div>
       ) : null}
 
@@ -218,12 +222,11 @@ export default function StaffPage() {
         <>
           {pending.length > 0 ? (
             <section className="space-y-2.5">
-              <h2 className="text-sm font-semibold text-ink-soft">
-                {locked
-                  ? `Not checked (${pending.length})`
-                  : `Needs checking (${pending.length})`}
+              <h2 className="text-xl font-bold">
+                {locked ? "Not reported" : "To do"}{" "}
+                <span className="text-ink-faint">({pending.length})</span>
               </h2>
-              <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {pending.map((row) => (
                   <RoomCard
                     key={row.instance_id}
@@ -237,12 +240,21 @@ export default function StaffPage() {
             </section>
           ) : null}
 
+          {pending.length === 0 && done.length > 0 && !locked ? (
+            <div className="rounded-2xl bg-ok px-4 py-6 text-center text-white">
+              <p className="text-2xl font-bold">All rooms done</p>
+              <p className="mt-1 text-base opacity-90">
+                Nothing left for this time.
+              </p>
+            </div>
+          ) : null}
+
           {done.length > 0 ? (
             <section className="space-y-2.5">
-              <h2 className="text-sm font-semibold text-ink-soft">
-                Checked ({done.length})
+              <h2 className="text-xl font-bold text-ok">
+                Done <span className="text-ink-faint">({done.length})</span>
               </h2>
-              <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {done.map((row) => (
                   <RoomCard
                     key={row.instance_id}
