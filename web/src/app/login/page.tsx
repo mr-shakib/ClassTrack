@@ -13,9 +13,17 @@ const DEMO = [
   ["teacher@diu.edu", "Teacher"],
 ];
 
+/**
+ * Seeded demo accounts, for local development only. A deployed site has its
+ * passwords changed after seeding, so offering them there only produces
+ * "Invalid credentials" -- and it would advertise the admin addresses.
+ * Inlined at build time: `npm run dev` shows it, every production build hides it.
+ */
+const SHOW_DEMO = process.env.NODE_ENV !== "production";
+
 export default function LoginPage() {
-  const [email, setEmail] = useState("staff1@diu.edu");
-  const [password, setPassword] = useState("classtrack");
+  const [email, setEmail] = useState(SHOW_DEMO ? "staff1@diu.edu" : "");
+  const [password, setPassword] = useState(SHOW_DEMO ? "classtrack" : "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const router = useRouter();
@@ -84,27 +92,29 @@ export default function LoginPage() {
           </form>
         </Card>
 
-        <Card className="mt-4 p-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">
-            Demo accounts · password <code className="text-ink-soft">classtrack</code>
-          </p>
-          <div className="grid gap-1">
-            {DEMO.map(([addr, label]) => (
-              <button
-                key={addr}
-                type="button"
-                onClick={() => {
-                  setEmail(addr);
-                  setPassword("classtrack");
-                }}
-                className="flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-canvas"
-              >
-                <span className="text-ink-soft">{label}</span>
-                <code className="text-xs text-ink-faint">{addr}</code>
-              </button>
-            ))}
-          </div>
-        </Card>
+        {SHOW_DEMO ? (
+          <Card className="mt-4 p-4">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+              Demo accounts · password <code className="text-ink-soft">classtrack</code>
+            </p>
+            <div className="grid gap-1">
+              {DEMO.map(([addr, label]) => (
+                <button
+                  key={addr}
+                  type="button"
+                  onClick={() => {
+                    setEmail(addr);
+                    setPassword("classtrack");
+                  }}
+                  className="flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-canvas"
+                >
+                  <span className="text-ink-soft">{label}</span>
+                  <code className="text-xs text-ink-faint">{addr}</code>
+                </button>
+              ))}
+            </div>
+          </Card>
+        ) : null}
       </div>
     </div>
   );
