@@ -27,6 +27,35 @@ reachable from the internet for the ACME challenge to succeed.
 Migrations run automatically on container start (`docker-entrypoint.sh`), so the
 schema is always current before the server accepts traffic.
 
+## Behind an existing nginx
+
+`compose.prod.yaml` brings its own Caddy and claims ports 80 and 443. On a host
+that already serves other sites through nginx, use `compose.nginx.yaml`
+instead: the same two app containers, bound to loopback only (API on
+`127.0.0.1:8310`, web on `127.0.0.1:3310`), with the host nginx terminating TLS.
+
+```bash
+# code in /srv/classtrack/app, secrets in /srv/classtrack/.env (outside the checkout)
+docker compose --env-file /srv/classtrack/.env \
+  -f deploy/compose.nginx.yaml up -d --build
+```
+
+Then add the site. Get the certificate with only the port-80 block of
+`nginx/classtrack.conf` enabled, then install the whole file:
+
+```bash
+certbot certonly --webroot -w /var/www/certbot -d class.bitstreamhq.com
+sudo install -m 644 deploy/nginx/classtrack.conf /etc/nginx/sites-available/class.bitstreamhq.com
+sudo ln -s /etc/nginx/sites-available/class.bitstreamhq.com /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+certbot reconfigure --cert-name class.bitstreamhq.com --deploy-hook "systemctl reload nginx"
+```
+
+The compose project is named `classtrack`, so its containers and its
+`classtrack_classtrack-data` volume never collide with other stacks on the host.
+With this file, replace `compose.prod.yaml` with `compose.nginx.yaml` (and add
+`--env-file`) in the commands below.
+
 ## Create the first accounts
 
 ```bash

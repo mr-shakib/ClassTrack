@@ -1,0 +1,57 @@
+# Production stack for a host that already runs nginx on :80/:443.
+#
+# compose.prod.yaml brings its own Caddy and claims those ports, which would
+# fight any site already on the machine. Here the host nginx terminates TLS and
+# proxies to these two containers, which listen on loopback only -- see
+# nginx/classtrack.conf.
+#
+#   docker compose --env-file /srv/classtrack/.env \
+#     -f deploy/compose.nginx.yaml up -d --build
+name: classtrack
+
+services:
+  api:
+    build:
+      context: ../backend
+    restart: unless-stopped
+    environment:
+      CLASSTRACK_ENVIRONMENT: production
+      CLASSTRACK_LOG_LEVEL: INFO
+      CLASSTRACK_DATABASE_URL: sqlite+aiosqlite:////data/classtrack.db
+      CLASSTRACK_JWT_SECRET: ${CLASSTRACK_JWT_SECRET:?set a long random value in .env}
+      CLASSTRACK_COOKIE_SECURE: "true"
+      CLASSTRACK_CORS_ORIGINS: ${CLASSTRACK_CORS_ORIGINS:-https://${CLASSTRACK_DOMAIN}}
+      CLASSTRACK_TIMEZONE: ${CLASSTRACK_TIMEZONE:-Asia/Dhaka}
+      CLASSTRACK_MISSED_THRESHOLD_MINUTES: ${CLASSTRACK_MISSED_THRESHOLD_MINUTES:-30}
+      CLASSTRACK_CHECK_WINDOW_MINUTES: ${CLASSTRACK_CHECK_WINDOW_MINUTES:-30}
+      # The status sweep runs inside this process. Keep exactly one replica.
+      CLASSTRACK_SWEEP_INTERVAL_SECONDS: "60"
+    volumes:
+      - classtrack-data:/data
+    ports:
+      - "127.0.0.1:${CLASSTRACK_API_PORT:-8310}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  web:
+    build:
+      context: ../web
+      args:
+        API_ORIGIN: http://api:8000
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_ORIGIN: http://api:8000
+    ports:
+      - "127.0.0.1:${CLASSTRACK_WEB_PORT:-3310}:3000"
+
+volumes:
+  classtrack-data:
