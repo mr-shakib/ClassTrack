@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
@@ -50,9 +51,14 @@ export default function LoginPage() {
     <div className="grid min-h-dvh place-items-center bg-canvas p-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 grid size-12 place-items-center rounded-xl bg-brand text-xl font-bold text-white">
-            C
-          </div>
+          <Image
+            src="/diu-logo.png"
+            alt="Daffodil International University"
+            width={756}
+            height={289}
+            className="mx-auto mb-4 h-20 w-auto"
+            preload
+          />
           <h1 className="text-xl font-semibold">ClassTrack</h1>
           <p className="mt-1 text-sm text-ink-soft">
             Class monitoring &amp; makeup management

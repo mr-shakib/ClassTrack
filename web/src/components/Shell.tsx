@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -123,11 +124,16 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     <div className="min-h-dvh">
       <header className="sticky top-0 z-30 border-b border-line bg-surface/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2.5">
-          <Link href="/" className="flex items-center gap-2 font-semibold">
-            <span className="grid size-7 place-items-center rounded-lg bg-brand text-sm text-white">
-              C
-            </span>
-            <span className="hidden sm:inline">ClassTrack</span>
+          <Link href="/" className="flex shrink-0 items-center gap-2.5 font-semibold">
+            <Image
+              src="/diu-logo.png"
+              alt="Daffodil International University"
+              width={756}
+              height={289}
+              className="h-8 w-auto"
+              preload
+            />
+            <span className="hidden border-l border-line pl-2.5 sm:inline">ClassTrack</span>
           </Link>
 
           <nav className="flex flex-1 items-center gap-0.5 overflow-x-auto">
