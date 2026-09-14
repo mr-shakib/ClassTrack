@@ -7,7 +7,7 @@ path, which is why room and teacher are denormalised onto every row.
 from __future__ import annotations
 
 from datetime import date as Date
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +23,7 @@ from classtrack.models import (
     User,
 )
 from classtrack.routine.lattice import SLOTS, slot_bounds
-from classtrack.services import settings_service, status_engine, zones
+from classtrack.services import status_engine, zones
 
 #: Statuses excluded from physical room checking.
 #: BR-12: an approved online makeup must not appear on the staff screen.
@@ -65,17 +65,15 @@ async def checking_screen(
     *,
     on: Date | None = None,
     slot: str | None = None,
-    only_zones: list[str] | None = None,
+    my_zones: list[str] | None = None,
 ) -> dict:
-    """Room-wise list for one date and slot (BR-02).
+    """Room-wise list for one date and slot (BR-02), with a summary per floor.
 
-    ``only_zones`` narrows the list to the floors a staff member covers.
-    ``None`` means no restriction (an admin); an empty list means the caller
-    covers no floors and therefore has no classes -- the two are different, and
-    conflating them is how an unassigned account silently gets the whole
-    department.
+    Every room is returned whoever asks. ``my_zones`` -- the floors a staff
+    member covers -- only orders the floor summary and marks those floors as
+    theirs; it hides nothing.
 
-    Filtering happens in Python rather than SQL because one slot is at most a
+    Floors are grouped in Python rather than SQL because one slot is at most a
     few dozen rooms, and the zone rule is a string function the database cannot
     index on.
     """
@@ -83,7 +81,6 @@ async def checking_screen(
     on = on or now.date()
     slot = slot or current_slot(now)
     start_min, end_min = slot_bounds(slot)
-    window = await settings_service.check_window(session)
 
     instances = (
         await session.scalars(
@@ -99,10 +96,6 @@ async def checking_screen(
             .order_by(ClassInstance.room)
         )
     ).all()
-
-    if only_zones is not None:
-        allowed = set(only_zones)
-        instances = [i for i in instances if zones.zone_key(i.room) in allowed]
 
     names = await _teacher_names(session, {i.teacher_initial for i in instances})
     checker_ids = {i.check.checked_by_id for i in instances if i.check}
@@ -139,18 +132,39 @@ async def checking_screen(
                 "scheduled_end": f"{end_min // 60:02d}:{end_min % 60:02d}",
                 "is_makeup": inst.is_makeup,
                 "zone": zones.room_zone(inst.room).short_label,
-                "status": status_engine.derive(inst, now=now, window_minutes=window),
+                "zone_key": zones.zone_key(inst.room),
+                "status": status_engine.derive(inst, now=now),
                 "check": check,
             }
         )
 
+    mine = set(my_zones or [])
+    floors = []
+    # zones_for_rooms orders the floors like a building directory.
+    for zone in zones.zones_for_rooms([r["room"] for r in rooms]):
+        on_floor = [r for r in rooms if r["zone_key"] == zone["key"]]
+        floors.append(
+            {
+                "key": zone["key"],
+                "label": zone["label"],
+                "short_label": zone["short_label"],
+                "total": len(on_floor),
+                "checked": sum(1 for r in on_floor if r["check"] is not None),
+                "is_mine": zone["key"] in mine,
+            }
+        )
+    # A staff member's own floors first; the sort is stable, so each group keeps
+    # directory order.
+    floors.sort(key=lambda f: not f["is_mine"])
+
     return {
         "date": on,
         "time_slot": slot,
-        "slot_state": status_engine.slot_state(on, start_min, window),
-        "window_closes_at": status_engine.slot_start_at(on, start_min)
-        + timedelta(minutes=window),
-        "zones": sorted(only_zones) if only_zones is not None else [],
+        "slot_state": status_engine.slot_state(on, start_min),
+        # Reports stay open all day; the field keeps its name for API clients.
+        "window_closes_at": status_engine.day_ends_at(on),
+        "zones": sorted(mine),
+        "floors": floors,
         "rooms": rooms,
     }
 
@@ -160,7 +174,6 @@ async def dashboard(session: AsyncSession) -> dict:
     now = status_engine.now_local()
     today = now.date()
     slot = current_slot(now)
-    window = await settings_service.check_window(session)
 
     todays = (
         await session.scalars(
@@ -204,7 +217,7 @@ async def dashboard(session: AsyncSession) -> dict:
                 "course_code": inst.course_code,
                 "section": inst.section,
                 "time_slot": inst.time_slot,
-                "status": status_engine.derive(inst, now=now, window_minutes=window),
+                "status": status_engine.derive(inst, now=now),
                 "late_minutes": inst.check.late_minutes if inst.check else None,
                 "checked_by": checkers.get(inst.check.checked_by_id) if inst.check else None,
                 "checked_at": (

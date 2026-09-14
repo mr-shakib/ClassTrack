@@ -38,10 +38,6 @@ async def missed_threshold(session: AsyncSession) -> int:
     return await get_int(session, "missed_threshold_minutes")
 
 
-async def check_window(session: AsyncSession) -> int:
-    return await get_int(session, "check_window_minutes")
-
-
 async def set_value(
     session: AsyncSession, key: str, value: str, *, updated_by_id: int | None = None
 ) -> Setting:

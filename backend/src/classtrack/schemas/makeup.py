@@ -39,6 +39,8 @@ class MakeupCreateRequest(BaseModel):
     #: Required for PHYSICAL, ignored for ONLINE.
     room: str | None = None
     reason: str | None = Field(default=None, max_length=2000)
+    #: ONLINE only, optional: a Drive link for the approver to open. Ignored for PHYSICAL.
+    drive_link: str | None = Field(default=None, max_length=1024)
 
 
 class MakeupOut(ORMModel):
@@ -54,6 +56,10 @@ class MakeupOut(ORMModel):
     decision_note: str | None = None
     decided_at: datetime | None = None
     created_instance_id: int | None = None
+    drive_link: str | None = None
+    completed_at: datetime | None = None
+    #: When the rescheduled class ends; it can be marked done from then on.
+    ends_at: datetime | None = None
     #: Filled in by the route for the approval queue and teacher views.
     original_course_code: str | None = None
     original_section: str | None = None
@@ -68,6 +74,11 @@ class FreeRoomOut(BaseModel):
     room_type: str
     #: Short floor label, e.g. "KT-3".
     zone: str
+
+
+class CompleteRequest(BaseModel):
+    #: Required when the makeup is ONLINE, ignored when PHYSICAL.
+    drive_link: str | None = Field(default=None, max_length=1024)
 
 
 class DecisionRequest(BaseModel):

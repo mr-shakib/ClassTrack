@@ -19,11 +19,20 @@ const AuthContext = createContext<AuthState>({
   signOut: async () => {},
 });
 
+/** Roles that see every teacher's data. Mirrors ADMIN_ROLES in the API. */
+export const ADMIN_ROLES: Role[] = ["HOD", "ASSOCIATE_HEAD", "SUPER_ADMIN"];
+/** Roles that may correct a check after its day is over. */
+export const OVERRIDE_ROLES: Role[] = [...ADMIN_ROLES, "COMMITTEE"];
+/** Roles that may open the checking screen. */
+export const CHECKING_ROLES: Role[] = ["STAFF", ...OVERRIDE_ROLES];
+
 /** Where each role lands after signing in. */
 export const HOME_FOR: Record<Role, string> = {
   STAFF: "/staff",
   TEACHER: "/teacher",
+  COMMITTEE: "/staff",
   HOD: "/dashboard",
+  ASSOCIATE_HEAD: "/dashboard",
   SUPER_ADMIN: "/dashboard",
 };
 

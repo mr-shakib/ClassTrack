@@ -1,6 +1,12 @@
 // Mirrors backend/docs/API.md. Keep in sync with classtrack/schemas/*.
 
-export type Role = "SUPER_ADMIN" | "HOD" | "STAFF" | "TEACHER";
+export type Role =
+  | "SUPER_ADMIN"
+  | "HOD"
+  | "ASSOCIATE_HEAD"
+  | "COMMITTEE"
+  | "STAFF"
+  | "TEACHER";
 
 /** Stored, terminal statuses plus the two the backend derives from the clock. */
 export type ClassStatus =
@@ -76,8 +82,22 @@ export interface RoomRow {
   scheduled_end: string;
   is_makeup: boolean;
   zone: string | null;
+  /** "KT-3", "UNZONED" -- matches FloorSummary.key. */
+  zone_key: string | null;
   status: ClassStatus | null;
   check: CheckRecord | null;
+}
+
+/** One floor card on the checking screen. */
+export interface FloorSummary {
+  key: string;
+  /** "KT · Floor 3", "G1 · Ground floor", "Other rooms". */
+  label: string;
+  short_label: string;
+  total: number;
+  checked: number;
+  /** One of the caller's assigned floors: listed first, never a restriction. */
+  is_mine: boolean;
 }
 
 export interface CheckingScreen {
@@ -85,8 +105,9 @@ export interface CheckingScreen {
   time_slot: string;
   slot_state: "UPCOMING" | "ONGOING" | "CLOSED";
   window_closes_at: string;
-  /** Zones this list was narrowed to. Empty means unrestricted. */
+  /** The caller's assigned floors (staff only). They order the list, not filter it. */
   zones: string[];
+  floors: FloorSummary[];
   rooms: RoomRow[];
 }
 
@@ -96,7 +117,7 @@ export interface CheckResponse {
   late_minutes: number | null;
   checked_by: string;
   checked_at: string;
-  /** True when an admin corrected the record after the window closed. */
+  /** True when an admin or the committee corrected the record after its day. */
   outside_window: boolean;
 }
 
@@ -185,6 +206,11 @@ export interface Makeup {
   decision_note: string | null;
   decided_at: string | null;
   created_instance_id: number | null;
+  /** ONLINE only: submitted by the teacher when marking the class done. */
+  drive_link: string | null;
+  completed_at: string | null;
+  /** When the rescheduled class ends; it can be marked done from then on. */
+  ends_at: string | null;
   original_course_code: string | null;
   original_section: string | null;
   original_date: string | null;

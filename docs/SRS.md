@@ -77,21 +77,24 @@ to a working-but-shallow depth. It satisfies all ten acceptance criteria (AC-01�
 |---|---|
 | `SUPER_ADMIN` | Users, semesters, routine import, settings, all admin functions |
 | `HOD` | Live dashboard, review missed/unchecked, approve online makeup, all reports |
+| `ASSOCIATE_HEAD` | Same permissions as `HOD` |
+| `COMMITTEE` | Checking screen; override a reported check after its day (reason optional) |
 | `STAFF` | Room-wise physical checking, record running/late/not-found |
 | `TEACHER` | Own schedule, missed-class response, makeup scheduling, own reports |
 
 ### 3.1 Permission matrix (enforced in the API layer)
 
-| Function | STAFF | TEACHER | HOD | SUPER_ADMIN |
-|---|---|---|---|---|
-| Check classroom | ✅ | ❌ | ✅ | ✅ |
-| View own teacher report | ❌ | ✅ | ✅ | ✅ |
-| View all teacher reports | ❌ | ❌ | ✅ | ✅ |
-| Schedule makeup class | ❌ | ✅ | ✅ | ✅ |
-| Approve online makeup | ❌ | ❌ | ✅ | ✅ |
-| Upload / activate routine | ❌ | ❌ | ✅ | ✅ |
-| Modify monitoring rule | ❌ | ❌ | ✅ | ✅ |
-| Manage users | ❌ | ❌ | ❌ | ✅ |
+| Function | STAFF | TEACHER | COMMITTEE | HOD / ASSOCIATE_HEAD | SUPER_ADMIN |
+|---|---|---|---|---|---|
+| Check classroom | ✅ | ❌ | ✅ | ✅ | ✅ |
+| Override a check after its day (reason optional, audited) | ❌ | ❌ | ✅ | ✅ | ✅ |
+| View own teacher report | ❌ | ✅ | ❌ | ✅ | ✅ |
+| View all teacher reports | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Schedule makeup class | ❌ | ✅ | ❌ | ✅ | ✅ |
+| Approve online makeup | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Upload / activate routine | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Modify monitoring rule | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Manage users | ❌ | ❌ | ❌ | ❌ | ✅ |
 
 ## 4. The lattice — foundational constraint
 
@@ -124,7 +127,7 @@ Every class occupies exactly one cell. Two consequences that shape the entire sy
 | `RUNNING` | Staff verified the class is running | Staff check |
 | `LATE` | Teacher arrived after scheduled start | Staff check + arrival time |
 | `MISSED` | Teacher absent past threshold, confirmed by check | Sweep job (from `TEACHER_NOT_FOUND`) |
-| `NOT_CHECKED` | No staff input within the checking window | Sweep job |
+| `NOT_CHECKED` | No staff input by the end of the class's day | Sweep job |
 | `MAKEUP_SCHEDULED` | Makeup created for this missed class | Teacher |
 | `MAKEUP_COMPLETED` | Makeup class conducted | Staff check on makeup instance |
 | `ONLINE_PENDING` | Online makeup requested, awaiting approval | Teacher |
@@ -138,7 +141,7 @@ Every class occupies exactly one cell. Two consequences that shape the entire sy
 UPCOMING ──clock──> ONGOING ──staff:RUNNING──────> RUNNING
                             ──staff:LATE─────────> LATE
                             ──staff:NOT_FOUND────> (pending) ──threshold──> MISSED
-                            ──no input────────────────window close──────> NOT_CHECKED
+                            ──no input────────────────end of day────────> NOT_CHECKED
 
 MISSED ──teacher confirms──> MISSED (confirmed)
        ──teacher disputes──> MISSED (disputed, flagged for HoD)
@@ -166,8 +169,9 @@ A class becomes `MISSED` only when a staff member has recorded `TEACHER_NOT_FOUN
 threshold has elapsed. Absence of a check never produces `MISSED`.
 
 ### BR-06 — Not Checked
-If **no** monitoring input is submitted within the checking window (default 30 min), the class
-becomes `NOT_CHECKED` — a **staff** failure, never a teacher absence.
+If **no** monitoring input is submitted by the end of the class's day, the class becomes
+`NOT_CHECKED` — a **staff** failure, never a teacher absence. Staff may report any time from the
+class's start until midnight.
 
 > This separation is the single most important correctness requirement in the system.
 > `MISSED` requires positive evidence of teacher absence. `NOT_CHECKED` is the absence of evidence.

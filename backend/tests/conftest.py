@@ -72,6 +72,32 @@ async def hod(session: AsyncSession) -> User:
 
 
 @pytest_asyncio.fixture
+async def associate_head(session: AsyncSession) -> User:
+    user = User(
+        email="associate@test.edu",
+        password_hash=hash_password("x"),
+        full_name="Associate Head",
+        role=Role.ASSOCIATE_HEAD,
+    )
+    session.add(user)
+    await session.flush()
+    return user
+
+
+@pytest_asyncio.fixture
+async def committee(session: AsyncSession) -> User:
+    user = User(
+        email="committee@test.edu",
+        password_hash=hash_password("x"),
+        full_name="Committee Member",
+        role=Role.COMMITTEE,
+    )
+    session.add(user)
+    await session.flush()
+    return user
+
+
+@pytest_asyncio.fixture
 async def teacher_user(session: AsyncSession) -> User:
     session.add(Teacher(initial="TCA", name="Teacher A", department="cse"))
     await session.flush()

@@ -62,14 +62,12 @@ def late_minutes(start_min: int, arrival: time) -> int:
     return max(0, arrival_min - start_min)
 
 
-def window_closes_at(instance: ClassInstance, window_minutes: int) -> datetime:
-    """When staff lose the chance to submit a check for this instance (BR-06)."""
-    return slot_start_at(instance.date, instance.start_min) + timedelta(minutes=window_minutes)
+def day_ends_at(day: Date) -> datetime:
+    """Midnight after ``day``: staff may report that day's classes until then (BR-06)."""
+    return datetime.combine(day + timedelta(days=1), time(0, 0), tzinfo=get_settings().tz)
 
 
-def derive(
-    instance: ClassInstance, *, now: datetime | None = None, window_minutes: int | None = None
-) -> StatusValue:
+def derive(instance: ClassInstance, *, now: datetime | None = None) -> StatusValue:
     """The status to report for an instance.
 
     A stored status always wins -- it is terminal and was written deliberately.
@@ -79,39 +77,29 @@ def derive(
         return instance.status
 
     now = now or now_local()
-    settings = get_settings()
-    window = window_minutes if window_minutes is not None else settings.check_window_minutes
-
-    start = slot_start_at(instance.date, instance.start_min)
-    if now < start:
+    if now < slot_start_at(instance.date, instance.start_min):
         return DerivedStatus.UPCOMING
-    if now <= start + timedelta(minutes=window):
-        return DerivedStatus.ONGOING
-    # Past the window but still unresolved: the sweep has not run yet. Report
-    # ONGOING rather than inventing a status here -- only the sweep may decide
-    # between MISSED and NOT_CHECKED, and it needs the check record to do it.
+    # Started and still unresolved. Report ONGOING rather than inventing a
+    # status here -- only the sweep may decide between MISSED and NOT_CHECKED,
+    # and it needs the check record to do it.
     return DerivedStatus.ONGOING
 
 
-def slot_state(day: Date, start_min: int, window_minutes: int) -> str:
-    """Whether a slot is UPCOMING, ONGOING, or CLOSED for checking."""
+def slot_state(day: Date, start_min: int) -> str:
+    """UPCOMING before the slot starts, ONGOING until the day ends, then CLOSED."""
     now = now_local()
-    start = slot_start_at(day, start_min)
-    if now < start:
+    if now < slot_start_at(day, start_min):
         return "UPCOMING"
-    if now <= start + timedelta(minutes=window_minutes):
+    if now < day_ends_at(day):
         return "ONGOING"
     return "CLOSED"
 
 
-def is_checkable(
-    instance: ClassInstance, window_minutes: int, *, now: datetime | None = None
-) -> bool:
-    """Whether staff may still submit a check.
+def is_checkable(instance: ClassInstance, *, now: datetime | None = None) -> bool:
+    """Whether staff may still report: from the class's start until the end of its day.
 
-    Amending an existing check stays allowed while the window is open; the
-    route layer decides whether a closed window is a hard error.
+    The service layer decides whether reporting outside those hours is an error
+    or an override.
     """
     now = now or now_local()
-    start = slot_start_at(instance.date, instance.start_min)
-    return start <= now <= start + timedelta(minutes=window_minutes)
+    return slot_start_at(instance.date, instance.start_min) <= now < day_ends_at(instance.date)

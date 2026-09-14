@@ -58,7 +58,7 @@ export function Button({
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "ghost" | "danger";
-  size?: "md" | "lg";
+  size?: "md" | "lg" | "xl";
 }) {
   const variants = {
     primary: "bg-brand text-white hover:bg-brand/90 active:bg-brand/80",
@@ -67,7 +67,12 @@ export function Button({
     ghost: "text-ink-soft hover:bg-canvas active:bg-line/50",
     danger: "bg-bad text-white hover:bg-bad/90 active:bg-bad/80",
   };
-  const sizes = { md: "px-3 py-2 text-sm", lg: "px-4 py-3 text-base" };
+  const sizes = {
+    md: "px-3 py-2 text-sm",
+    lg: "min-h-12 px-4 py-3 text-base",
+    // The one action a screen is for: tall, full-width friendly, unmissable.
+    xl: "min-h-14 rounded-xl px-5 py-3 text-lg font-semibold",
+  };
   return (
     <button
       className={`inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${sizes[size]} ${className}`}
@@ -82,22 +87,41 @@ export function Field({
   label,
   children,
   hint,
+  size = "md",
 }: {
   label: string;
   children: ReactNode;
   hint?: string;
+  size?: "md" | "lg";
 }) {
+  const large = size === "lg";
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-medium text-ink-soft">{label}</span>
+      <span
+        className={
+          large
+            ? "mb-2 block text-base font-semibold text-ink"
+            : "mb-1 block text-sm font-medium text-ink-soft"
+        }
+      >
+        {label}
+      </span>
       {children}
-      {hint ? <span className="mt-1 block text-xs text-ink-faint">{hint}</span> : null}
+      {hint ? (
+        <span className={`mt-1 block text-ink-faint ${large ? "text-sm" : "text-xs"}`}>
+          {hint}
+        </span>
+      ) : null}
     </label>
   );
 }
 
 export const inputClass =
   "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20";
+
+/** For screens teachers use on a phone: large text and a tall touch target. */
+export const bigInputClass =
+  "min-h-14 w-full rounded-xl border-2 border-line bg-surface px-4 py-3 text-lg text-ink placeholder:text-ink-faint focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/20";
 
 export function Spinner({ label = "Loading…" }: { label?: string }) {
   return (
@@ -116,9 +140,9 @@ export function EmptyState({
   body?: string;
 }) {
   return (
-    <div className="py-12 text-center">
-      <p className="text-sm font-medium text-ink-soft">{title}</p>
-      {body ? <p className="mt-1 text-sm text-ink-faint">{body}</p> : null}
+    <div className="px-4 py-12 text-center">
+      <p className="text-base font-semibold text-ink-soft">{title}</p>
+      {body ? <p className="mt-1 text-base text-ink-faint">{body}</p> : null}
     </div>
   );
 }

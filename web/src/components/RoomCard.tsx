@@ -147,7 +147,7 @@ export default function RoomCard({
     );
   }
 
-  // --- window closed, nothing to do ----------------------------------------
+  // --- reporting closed for the day, nothing to do -------------------------
   if (locked && !overriding) {
     return (
       <div className="rounded-2xl border-2 border-line bg-surface p-4 opacity-80">
@@ -161,7 +161,7 @@ export default function RoomCard({
           {row.course_code} · {row.section}
         </div>
         <div className="mt-3 rounded-xl bg-gap-soft px-3 py-2.5 text-base font-semibold text-gap">
-          Not reported — time is over
+          Not reported — the day is over
         </div>
         {canOverride ? (
           <button
@@ -241,12 +241,12 @@ export default function RoomCard({
       {overriding ? (
         <div className="mt-3 rounded-xl bg-brand-soft p-3">
           <p className="text-sm font-semibold text-brand">
-            Reason for changing this after the time was over
+            Reason for the change (optional)
           </p>
           <input
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Type a short reason"
+            placeholder="Not required"
             className="mt-1.5 w-full rounded-lg border-2 border-brand/30 bg-surface px-3 py-2.5 text-base"
           />
         </div>
@@ -256,7 +256,7 @@ export default function RoomCard({
       <div className="mt-3 space-y-2">
         <button
           onClick={() => submit("RUNNING")}
-          disabled={busy != null || (overriding && !reason.trim())}
+          disabled={busy != null}
           className="min-h-16 w-full rounded-xl bg-ok px-4 text-xl font-bold text-white transition-transform active:scale-[0.98] disabled:opacity-50"
         >
           {busy === "RUNNING" ? "Saving…" : "Class is running"}
@@ -268,14 +268,14 @@ export default function RoomCard({
               setArrival(nowHHMM());
               setConfirmingLate(true);
             }}
-            disabled={busy != null || (overriding && !reason.trim())}
+            disabled={busy != null}
             className="min-h-16 rounded-xl bg-warn px-3 text-lg font-bold leading-tight text-white transition-transform active:scale-[0.98] disabled:opacity-50"
           >
             Teacher late
           </button>
           <button
             onClick={() => submit("TEACHER_NOT_FOUND")}
-            disabled={busy != null || (overriding && !reason.trim())}
+            disabled={busy != null}
             className="min-h-16 rounded-xl bg-bad px-3 text-lg font-bold leading-tight text-white transition-transform active:scale-[0.98] disabled:opacity-50"
           >
             {busy === "TEACHER_NOT_FOUND" ? "Saving…" : "Teacher absent"}

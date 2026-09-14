@@ -96,15 +96,15 @@ export const api = {
   me: () => get<User>("/auth/me"),
 
   // --- staff checking -----------------------------------------------------
-  checkingRooms: (date?: string, slot?: string, all?: boolean) =>
-    get<CheckingScreen>(`/checking/rooms${qs({ date, slot, all })}`),
+  checkingRooms: (date?: string, slot?: string) =>
+    get<CheckingScreen>(`/checking/rooms${qs({ date, slot })}`),
   submitCheck: (
     instanceId: number,
     payload: {
       outcome: CheckOutcome;
       arrival_time?: string | null;
       remark?: string | null;
-      /** Required when an admin corrects a record after the window closed. */
+      /** Optional note when an admin or the committee corrects a record after its day. */
       reason?: string | null;
     },
   ) => post<CheckResponse>(`/checking/${instanceId}`, payload),
@@ -147,9 +147,15 @@ export const api = {
     time_slot: string;
     room?: string | null;
     reason?: string | null;
+    /** ONLINE only, optional: for the HoD or Associate Head to open while deciding. */
+    drive_link?: string | null;
   }) => post<Makeup>("/makeup", payload),
   makeups: (status?: string) => get<Makeup[]>(`/makeup${qs({ status })}`),
-  completeMakeup: (id: number) => post<Makeup>(`/makeup/${id}/complete`),
+  completeMakeup: (id: number, driveLink?: string) =>
+    post<Makeup>(
+      `/makeup/${id}/complete`,
+      driveLink ? { drive_link: driveLink } : undefined,
+    ),
 
   // --- approvals ----------------------------------------------------------
   pendingApprovals: () => get<Makeup[]>("/approvals/pending"),
@@ -189,7 +195,6 @@ export const api = {
   settings: () => get<Record<string, string>>("/admin/settings"),
   updateSettings: (payload: {
     missed_threshold_minutes?: number;
-    check_window_minutes?: number;
   }) => put<Record<string, string>>("/admin/settings", payload),
   audit: (params: { entity_type?: string; entity_id?: number; limit?: number }) =>
     get<AuditEntry[]>(`/admin/audit${qs(params)}`),

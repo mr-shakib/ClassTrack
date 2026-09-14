@@ -60,7 +60,8 @@ def require_role(*roles: Role):
     return guard
 
 
-#: Submit a classroom check -- staff, plus admins who may also check.
+#: Submit a classroom check -- staff, plus admins and the committee, who may also
+#: override one after the window closes.
 CheckingUser = Annotated[User, Depends(require_role(*CHECKING_ROLES))]
 #: See every teacher's data, approve online makeups, manage the routine.
 AdminUser = Annotated[User, Depends(require_role(*ADMIN_ROLES))]

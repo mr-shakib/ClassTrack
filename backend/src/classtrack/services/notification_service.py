@@ -179,33 +179,88 @@ async def notify_makeup_request(
             body=(
                 f"{makeup.teacher_initial} requested to reschedule {_describe(instance)} "
                 f"to {makeup.date:%d %B %Y} at {makeup.time_slot}, {where}."
+                + (" A Drive link is attached for review." if makeup.drive_link else "")
             ),
             link="/approvals",
         )
 
 
-async def notify_makeup_decision(session: AsyncSession, makeup: MakeupClass) -> None:
+def _makeup_link(makeup: MakeupClass) -> str:
+    return f"/teacher#makeup-{makeup.id}"
+
+
+def _rescheduled_to(makeup: MakeupClass) -> str:
+    where = "online" if makeup.mode is MakeupMode.ONLINE else f"in room {makeup.room}"
+    return f"{makeup.date:%A %d %B %Y} at {makeup.time_slot}, {where}"
+
+
+async def notify_makeup_decision(
+    session: AsyncSession, makeup: MakeupClass, original: ClassInstance
+) -> None:
+    """Tell the teacher the HoD's answer, naming the class and where it now happens."""
     user = await _user_for_teacher(session, makeup.teacher_initial)
     if user is None:
         return
     online = makeup.mode is MakeupMode.ONLINE
     approved = makeup.status is not MakeupStatus.REJECTED
-    verdict = "approved" if approved else "rejected"
-    body = (
-        f"Your {'online makeup' if online else 'reschedule'} on {makeup.date:%d %B %Y} "
-        f"at {makeup.time_slot} was {verdict}."
+    missed = (
+        f"{original.course_code} for section {original.section} "
+        f"({original.date:%d %B %Y}, {original.time_slot}, {original.room})"
     )
-    if not approved and not online:
-        body += " Please request another slot."
+    if approved:
+        title = f"Reschedule approved — {original.course_code} {'online' if online else 'in class'}"
+        body = f"Your missed class {missed} is rescheduled to {_rescheduled_to(makeup)}."
+        body += (
+            " After the class, submit its Drive link to mark it done."
+            if online
+            else " Staff will check the room at that time. Mark it done after the class."
+        )
+    else:
+        title = f"Reschedule rejected — {original.course_code}"
+        body = (
+            f"Your request to move {missed} to {_rescheduled_to(makeup)} was rejected."
+        )
+        if not online:
+            body += " Please request another slot."
     if makeup.decision_note:
-        body += f" Note: {makeup.decision_note}"
+        body += f" Note from the Head of Department: {makeup.decision_note}"
     await _dispatch(
         session,
         user_id=user.id,
         kind=NotificationKind.ONLINE_DECISION if online else NotificationKind.MAKEUP_DECISION,
-        title=f"{'Online makeup' if online else 'Reschedule'} {verdict}",
+        title=title,
         body=body,
-        link="/teacher",
+        link=_makeup_link(makeup),
+    )
+
+
+async def notify_makeup_due(
+    session: AsyncSession, makeup: MakeupClass, original: ClassInstance
+) -> None:
+    """Remind the teacher that a rescheduled class has ended and is not marked done."""
+    user = await _user_for_teacher(session, makeup.teacher_initial)
+    if user is None:
+        return
+    online = makeup.mode is MakeupMode.ONLINE
+    await _dispatch(
+        session,
+        user_id=user.id,
+        kind=NotificationKind.MAKEUP_REMINDER,
+        title=(
+            f"Submit the Drive link — {original.course_code}"
+            if online
+            else f"Mark your makeup class done — {original.course_code}"
+        ),
+        body=(
+            f"Your rescheduled {original.course_code} for section {original.section} "
+            f"({_rescheduled_to(makeup)}) has ended. "
+            + (
+                "Submit the Drive link of the class to mark it done."
+                if online
+                else "Mark it done once you have held it."
+            )
+        ),
+        link=_makeup_link(makeup),
     )
 
 

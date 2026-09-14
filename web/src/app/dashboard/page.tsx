@@ -5,11 +5,11 @@ import Link from "next/link";
 import StatusBadge from "@/components/StatusBadge";
 import { Card, EmptyState, ErrorNote, Spinner, SummaryCard } from "@/components/ui";
 import { api } from "@/lib/api";
-import { useRequireRole } from "@/lib/auth";
+import { ADMIN_ROLES, useRequireRole } from "@/lib/auth";
 import type { Dashboard } from "@/lib/types";
 
 export default function DashboardPage() {
-  const { permitted, loading: authLoading } = useRequireRole(["HOD", "SUPER_ADMIN"]);
+  const { permitted, loading: authLoading } = useRequireRole(ADMIN_ROLES);
   const [data, setData] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

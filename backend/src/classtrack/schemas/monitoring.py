@@ -43,8 +43,23 @@ class RoomRow(BaseModel):
     is_makeup: bool
     #: "KT-3", "G1-0", "Other" -- shown so staff can see the card is theirs.
     zone: str | None = None
+    #: "KT-3", "UNZONED" -- matches ``FloorSummary.key``.
+    zone_key: str | None = None
     status: StatusOut | None = None
     check: CheckOut | None = None
+
+
+class FloorSummary(BaseModel):
+    """One floor card on the staff checking screen."""
+
+    key: str
+    #: "KT · Floor 3", "G1 · Ground floor", "Other rooms".
+    label: str
+    short_label: str
+    total: int
+    checked: int
+    #: One of the caller's assigned floors. Listed first; never a restriction.
+    is_mine: bool = False
 
 
 class CheckingScreen(BaseModel):
@@ -52,8 +67,9 @@ class CheckingScreen(BaseModel):
     time_slot: str
     slot_state: str
     window_closes_at: datetime
-    #: The zones this list was narrowed to. Empty means unrestricted.
+    #: The caller's assigned floors (staff only). They order the list, not filter it.
     zones: list[str] = Field(default_factory=list)
+    floors: list[FloorSummary] = Field(default_factory=list)
     rooms: list[RoomRow]
 
 

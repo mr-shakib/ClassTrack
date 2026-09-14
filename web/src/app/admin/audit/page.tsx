@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Card, EmptyState, ErrorNote, Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
-import { useRequireRole } from "@/lib/auth";
+import { ADMIN_ROLES, useRequireRole } from "@/lib/auth";
 import type { AuditEntry } from "@/lib/types";
 
 const ACTION_LABEL: Record<string, string> = {
@@ -22,7 +22,7 @@ const ACTION_LABEL: Record<string, string> = {
 };
 
 export default function AuditPage() {
-  const { permitted, loading: authLoading } = useRequireRole(["HOD", "SUPER_ADMIN"]);
+  const { permitted, loading: authLoading } = useRequireRole(ADMIN_ROLES);
   const [rows, setRows] = useState<AuditEntry[]>([]);
   const [filter, setFilter] = useState("");
   const [loading, setLoading] = useState(true);

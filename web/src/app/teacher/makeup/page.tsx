@@ -2,24 +2,23 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { formatDay } from "@/components/MakeupTracker";
 import {
   Button,
   Card,
   ErrorNote,
   Field,
   Spinner,
-  inputClass,
+  bigInputClass,
 } from "@/components/ui";
 import { ApiError, SLOTS, api, todayISO } from "@/lib/api";
-import { useRequireRole } from "@/lib/auth";
-import type { ClassInstance, ConflictReport, FreeRoom, MakeupMode } from "@/lib/types";
+import { ADMIN_ROLES, useRequireRole } from "@/lib/auth";
+import type { ClassInstance, ConflictReport, FreeRoom, MakeupMode, Role } from "@/lib/types";
+
+const TEACHER_PAGE_ROLES: Role[] = ["TEACHER", ...ADMIN_ROLES];
 
 function MakeupForm() {
-  const { permitted, loading: authLoading } = useRequireRole([
-    "TEACHER",
-    "HOD",
-    "SUPER_ADMIN",
-  ]);
+  const { permitted, loading: authLoading } = useRequireRole(TEACHER_PAGE_ROLES);
   const params = useSearchParams();
   const router = useRouter();
   const instanceId = Number(params.get("instance") ?? 0);
@@ -33,6 +32,7 @@ function MakeupForm() {
   const [roomsLoading, setRoomsLoading] = useState(false);
   const [sameType, setSameType] = useState(true);
   const [reason, setReason] = useState("");
+  const [driveLink, setDriveLink] = useState("");
   const [report, setReport] = useState<ConflictReport | null>(null);
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -121,9 +121,10 @@ function MakeupForm() {
         time_slot: slot,
         room: mode === "PHYSICAL" ? room : null,
         reason: reason || null,
+        drive_link: mode === "ONLINE" && driveLink.trim() ? driveLink.trim() : null,
       });
       setDone(true);
-      setTimeout(() => router.push("/teacher"), 2000);
+      setTimeout(() => router.push("/teacher"), 2500);
     } catch (err) {
       setError(
         err instanceof ApiError ? err.message : "Could not send the reschedule request.",
@@ -137,10 +138,10 @@ function MakeupForm() {
 
   if (!instanceId) {
     return (
-      <Card className="p-6">
-        <p className="text-sm text-ink-soft">
+      <Card className="mx-auto max-w-2xl p-6">
+        <p className="text-lg text-ink-soft">
           Pick a missed class from{" "}
-          <a className="text-brand hover:underline" href="/teacher">
+          <a className="font-semibold text-brand hover:underline" href="/teacher">
             My classes
           </a>{" "}
           to reschedule it.
@@ -151,15 +152,18 @@ function MakeupForm() {
 
   if (done) {
     return (
-      <Card className="p-6 text-center">
-        <p className="text-lg font-semibold text-ok">Reschedule requested</p>
-        <p className="mt-1 text-sm text-ink-soft">
-          Sent to the Head of Department.{" "}
+      <div className="mx-auto max-w-2xl rounded-2xl bg-ok px-6 py-8 text-center text-white">
+        <p className="text-2xl font-bold">Reschedule requested</p>
+        <p className="mt-2 text-lg">
+          Sent to the Head of Department. You will get a notification when they decide.{" "}
           {mode === "ONLINE"
-            ? "Once approved it is recorded as an online class."
-            : `Once approved, staff will check ${room} on ${date} at ${slot}.`}
+            ? driveLink.trim()
+              ? "Your Drive link was sent with the request."
+              : "After the class, submit its Drive link."
+            : `Once approved, staff will check ${room} on ${formatDay(date)} at ${slot}.`}
         </p>
-      </Card>
+        <p className="mt-3 text-base opacity-80">Taking you back to My classes…</p>
+      </div>
     );
   }
 
@@ -169,71 +173,72 @@ function MakeupForm() {
   const typeLabel = original?.room_type.toLowerCase() ?? "";
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4">
+    <div className="mx-auto max-w-2xl space-y-5">
       <div>
-        <h1 className="text-xl font-semibold">Request a reschedule</h1>
-        <p className="mt-0.5 text-sm text-ink-soft">
-          Pick a new time and an empty room. The Head of Department approves it,
-          and then staff check it like any other class.
+        <h1 className="text-2xl font-bold tracking-tight">Request a reschedule</h1>
+        <p className="mt-1 text-base text-ink-soft">
+          Pick a new time and an empty room. The Head of Department approves it, and
+          then staff check it like any other class.
         </p>
       </div>
 
       {original ? (
-        <Card className="p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
-            Missed class
+        <div className="rounded-2xl border-2 border-bad/30 bg-bad-soft p-4 sm:p-5">
+          <p className="text-sm font-bold uppercase tracking-wide text-bad">Missed class</p>
+          <p className="mt-1 text-2xl font-bold tracking-tight">{original.course_code}</p>
+          <p className="text-lg">Section {original.section}</p>
+          <p className="mt-1 text-base tabular-nums text-ink-soft">
+            {formatDay(original.date)} · {original.time_slot} · {original.room}
           </p>
-          <p className="mt-1 text-sm font-medium">
-            {original.course_code} · {original.section}
-          </p>
-          <p className="text-xs text-ink-soft">
-            {original.date} · {original.time_slot} · {original.room}
-          </p>
-        </Card>
+        </div>
       ) : (
         <Spinner label="Loading the original class…" />
       )}
 
-      <Card className="p-4">
-        <form onSubmit={submit} className="space-y-4">
-          <Field label="Class mode">
-            <div className="grid grid-cols-2 gap-2">
+      <Card className="p-4 sm:p-5">
+        <form onSubmit={submit} className="space-y-6">
+          {/* Not a <Field>: a <label> wrapping several buttons forwards stray
+              clicks to the first one. */}
+          <div>
+            <p className="mb-2 text-base font-semibold">How will you hold it?</p>
+            <div className="grid grid-cols-2 gap-3">
               {(["PHYSICAL", "ONLINE"] as MakeupMode[]).map((m) => (
                 <button
                   key={m}
                   type="button"
+                  aria-pressed={mode === m}
                   onClick={() => setMode(m)}
-                  className={`min-h-11 rounded-lg px-3 py-2.5 text-sm font-medium ring-1 ring-inset transition-colors ${
+                  className={`min-h-16 rounded-xl px-3 py-3 text-lg font-bold ring-2 ring-inset transition-colors ${
                     mode === m
-                      ? "bg-brand-soft text-brand ring-brand/30"
-                      : "bg-surface text-ink-soft ring-line hover:bg-canvas"
+                      ? "bg-brand text-white ring-brand"
+                      : "bg-surface text-ink ring-line hover:bg-canvas"
                   }`}
                 >
                   {m === "PHYSICAL" ? "In a room" : "Online"}
                 </button>
               ))}
             </div>
-            <p className="mt-1.5 text-xs text-ink-faint">
+            <p className="mt-2 text-base text-ink-soft">
               {mode === "PHYSICAL"
                 ? "Staff check it in the room you pick, at the new time."
-                : "Excluded from physical room checking."}
+                : "Not checked in a room. You can add a Drive link now, or after the class."}
             </p>
-          </Field>
+          </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Date">
+            <Field label="Date" size="lg">
               <input
                 type="date"
-                className={inputClass}
+                className={bigInputClass}
                 value={date}
                 min={todayISO()}
                 onChange={(e) => setDate(e.target.value)}
                 required
               />
             </Field>
-            <Field label="Slot" hint="Classes run on fixed 90-minute slots.">
+            <Field label="Time" size="lg" hint="Classes run on fixed 90-minute slots.">
               <select
-                className={inputClass}
+                className={bigInputClass}
                 value={slot}
                 onChange={(e) => setSlot(e.target.value)}
               >
@@ -247,17 +252,16 @@ function MakeupForm() {
           </div>
 
           {mode === "PHYSICAL" ? (
-            // Not a <Field>: a <label> wrapping many buttons forwards stray
-            // clicks to the first one.
             <div>
-              <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm font-medium text-ink-soft">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-base font-semibold">
                   Empty room{room ? ` · ${room}` : ""}
                 </span>
                 {original ? (
-                  <label className="flex items-center gap-1.5 text-xs text-ink-soft">
+                  <label className="flex items-center gap-2 text-base text-ink-soft">
                     <input
                       type="checkbox"
+                      className="size-5 accent-brand"
                       checked={sameType}
                       onChange={(e) => setSameType(e.target.checked)}
                     />
@@ -267,18 +271,18 @@ function MakeupForm() {
               </div>
 
               {!date ? (
-                <p className="rounded-lg bg-canvas px-3 py-2 text-sm text-ink-faint">
-                  Pick a date and slot to see which rooms are empty.
+                <p className="rounded-xl bg-canvas px-4 py-3 text-base text-ink-soft">
+                  Pick a date and time to see which rooms are empty.
                 </p>
               ) : roomsLoading ? (
-                <p className="text-sm text-ink-faint">Finding empty rooms…</p>
+                <p className="text-base text-ink-faint">Finding empty rooms…</p>
               ) : shown.length === 0 ? (
-                <p className="rounded-lg bg-canvas px-3 py-2 text-sm text-ink-soft">
+                <p className="rounded-xl bg-canvas px-4 py-3 text-base text-ink-soft">
                   No empty {sameType ? `${typeLabel} ` : ""}rooms at this time. Try
-                  another slot{sameType ? " or include every room type" : ""}.
+                  another time{sameType ? " or include every room type" : ""}.
                 </p>
               ) : (
-                <div className="grid max-h-72 grid-cols-3 gap-1.5 overflow-y-auto sm:grid-cols-5">
+                <div className="grid max-h-96 grid-cols-2 gap-2 overflow-y-auto p-0.5 sm:grid-cols-4">
                   {shown.map((r) => {
                     const on = room === r.room;
                     return (
@@ -287,14 +291,14 @@ function MakeupForm() {
                         type="button"
                         aria-pressed={on}
                         onClick={() => setRoom(r.room)}
-                        className={`min-h-11 rounded-lg px-2 py-1.5 text-left ring-1 ring-inset transition-colors ${
+                        className={`min-h-16 rounded-xl px-3 py-2 text-left ring-2 ring-inset transition-colors ${
                           on
-                            ? "bg-brand-soft text-brand ring-brand/30"
+                            ? "bg-brand text-white ring-brand"
                             : "bg-surface text-ink ring-line hover:bg-canvas"
                         }`}
                       >
-                        <span className="block text-sm font-medium">{r.room}</span>
-                        <span className="block text-[11px] opacity-70">
+                        <span className="block text-lg font-bold">{r.room}</span>
+                        <span className="block text-sm opacity-80">
                           {r.zone}
                           {sameType ? "" : ` · ${r.room_type}`}
                         </span>
@@ -306,9 +310,26 @@ function MakeupForm() {
             </div>
           ) : null}
 
-          <Field label="Reason">
+          {mode === "ONLINE" ? (
+            <Field
+              label="Drive link (optional)"
+              size="lg"
+              hint="The Head of Department or Associate Head can open it while deciding."
+            >
+              <input
+                type="url"
+                inputMode="url"
+                className={bigInputClass}
+                placeholder="https://drive.google.com/…"
+                value={driveLink}
+                onChange={(e) => setDriveLink(e.target.value)}
+              />
+            </Field>
+          ) : null}
+
+          <Field label="Reason" size="lg">
             <input
-              className={inputClass}
+              className={bigInputClass}
               placeholder="Why was the class missed?"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -316,16 +337,16 @@ function MakeupForm() {
           </Field>
 
           {checking ? (
-            <p className="text-xs text-ink-faint">Checking availability…</p>
+            <p className="text-base text-ink-faint">Checking availability…</p>
           ) : report && !report.ok ? (
-            <div className="rounded-lg border border-bad/20 bg-bad-soft px-3 py-2">
-              <p className="text-sm font-semibold text-bad">
+            <div className="rounded-xl border-2 border-bad/30 bg-bad-soft px-4 py-3">
+              <p className="text-lg font-bold text-bad">
                 {report.conflicts.length} conflict
                 {report.conflicts.length === 1 ? "" : "s"}
               </p>
-              <ul className="mt-1 space-y-0.5">
+              <ul className="mt-1 space-y-1">
                 {report.conflicts.map((c, i) => (
-                  <li key={i} className="text-xs text-bad">
+                  <li key={i} className="text-base text-bad">
                     <span className="font-semibold">{c.type}:</span> {c.message}
                   </li>
                 ))}
@@ -337,7 +358,7 @@ function MakeupForm() {
 
           <Button
             type="submit"
-            size="lg"
+            size="xl"
             className="w-full"
             disabled={
               busy || blocked || !date || !original || (mode === "PHYSICAL" && !room)

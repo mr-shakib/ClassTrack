@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Card, EmptyState, ErrorNote, Spinner } from "@/components/ui";
 import { api, todayISO } from "@/lib/api";
-import { useRequireRole } from "@/lib/auth";
+import { ADMIN_ROLES, useRequireRole } from "@/lib/auth";
 import type { StaffMisses, UnreportedClass, UnreportedReport, Urgency } from "@/lib/types";
 
 const URGENCY: Record<Urgency, { label: string; chip: string; bar: string }> = {
@@ -22,7 +22,7 @@ const URGENCY: Record<Urgency, { label: string; chip: string; bar: string }> = {
 };
 
 export default function UnreportedPage() {
-  const { permitted, loading: authLoading } = useRequireRole(["HOD", "SUPER_ADMIN"]);
+  const { permitted, loading: authLoading } = useRequireRole(ADMIN_ROLES);
   const [data, setData] = useState<UnreportedReport | null>(null);
   const [days, setDays] = useState(7);
   const [loading, setLoading] = useState(true);

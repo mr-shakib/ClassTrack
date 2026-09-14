@@ -12,8 +12,10 @@ import {
   inputClass,
 } from "@/components/ui";
 import { api, todayISO } from "@/lib/api";
-import { useAuth, useRequireRole } from "@/lib/auth";
-import type { DailyReport, StaffReport, TeacherReport } from "@/lib/types";
+import { ADMIN_ROLES, useAuth, useRequireRole } from "@/lib/auth";
+import type { DailyReport, Role, StaffReport, TeacherReport } from "@/lib/types";
+
+const REPORT_ROLES: Role[] = ["TEACHER", ...ADMIN_ROLES];
 
 type Tab = "daily" | "teacher" | "staff";
 
@@ -39,13 +41,9 @@ function downloadCsv(filename: string, rows: (string | number)[][]) {
 
 export default function ReportsPage() {
   const { user } = useAuth();
-  const { permitted, loading: authLoading } = useRequireRole([
-    "TEACHER",
-    "HOD",
-    "SUPER_ADMIN",
-  ]);
+  const { permitted, loading: authLoading } = useRequireRole(REPORT_ROLES);
 
-  const isAdmin = user?.role === "HOD" || user?.role === "SUPER_ADMIN";
+  const isAdmin = user != null && ADMIN_ROLES.includes(user.role);
   const [tab, setTab] = useState<Tab>("teacher");
   const [date, setDate] = useState(todayISO());
   const [from, setFrom] = useState("2026-09-01");

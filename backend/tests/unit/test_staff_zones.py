@@ -1,10 +1,10 @@
 """Staff floor coverage.
 
-Office staff walk a floor, so the checking screen has to narrow to the rooms
-they can actually reach. The two failure modes worth guarding are opposite:
-showing a staff member rooms on a floor they never visit (noise, and classes
-they cannot check), and hiding rooms from someone who has no assignment at all
-(a locked-out account, and a silent monitoring gap).
+An assigned floor is a staff member's round, and decides who answers for a class
+nobody reported. It is never a fence: someone standing on another floor can see
+and check every class there, so a class is not left unchecked just because the
+person who covers it is elsewhere. The checking screen groups rooms into floor
+cards, with the caller's own floors first.
 """
 
 from __future__ import annotations
@@ -12,10 +12,11 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import pytest
-from tests.conftest import END_MIN, SLOT, START_MIN
+from tests.conftest import END_MIN, SLOT, START_MIN, at
 
 from classtrack.core.errors import ValidationError
 from classtrack.models import (
+    CheckOutcome,
     ClassInstance,
     ClassSession,
     Role,
@@ -23,7 +24,7 @@ from classtrack.models import (
     Semester,
     StaffZone,
 )
-from classtrack.services import assignment_service, checking_service
+from classtrack.services import assignment_service, check_service, checking_service
 from classtrack.services.zones import room_zone, zones_for_rooms
 
 DAY = date(2026, 9, 13)
@@ -130,35 +131,33 @@ async def _routine_with_rooms(session, rooms: list[str]) -> Semester:
 ROOMS = ["KT-201", "KT-208", "KT-305", "KT-318(A)", "G1-001", "G1-002", "EMBED"]
 
 
-# --- filtering --------------------------------------------------------------
+# --- every floor is visible; assigned floors come first ---------------------
 
 
-async def test_staff_with_no_floors_have_no_classes(session, staff):
-    """Floors are the workload. No floor means no classes, not every class.
-
-    Conflating "no filter" with "empty filter" is how an unassigned account
-    silently inherits the whole department.
-    """
+async def test_staff_with_no_floors_still_see_every_class(session, staff):
+    """An assigned floor is a round, not a fence: nobody is locked out of a class."""
     await _routine_with_rooms(session, ROOMS)
     assigned = await assignment_service.zones_for_user(session, staff.id)
     assert assigned == []
 
     screen = await checking_service.checking_screen(
-        session, on=DAY, slot=SLOT, only_zones=assigned
+        session, on=DAY, slot=SLOT, my_zones=assigned
     )
-    assert screen["rooms"] == []
+    assert len(screen["rooms"]) == len(ROOMS)
+    assert screen["zones"] == []
+    assert not any(f["is_mine"] for f in screen["floors"])
 
 
-async def test_an_admin_is_never_narrowed(session):
-    """``None`` is the no-filter case, and only admins get it."""
+async def test_an_admin_sees_every_class(session):
+    """An admin has no floors of their own and gets the same full list."""
     await _routine_with_rooms(session, ROOMS)
     screen = await checking_service.checking_screen(
-        session, on=DAY, slot=SLOT, only_zones=None
+        session, on=DAY, slot=SLOT, my_zones=None
     )
     assert len(screen["rooms"]) == len(ROOMS)
 
 
-async def test_assigned_staff_see_only_their_floors(session, staff, hod):
+async def test_staff_see_every_floor_with_their_own_first(session, staff, hod):
     await _routine_with_rooms(session, ROOMS)
     await assignment_service.set_zones(
         session, user_id=staff.id, zone_keys=["KT-2", "KT-3"], actor=hod
@@ -167,14 +166,20 @@ async def test_assigned_staff_see_only_their_floors(session, staff, hod):
 
     keys = await assignment_service.zones_for_user(session, staff.id)
     screen = await checking_service.checking_screen(
-        session, on=DAY, slot=SLOT, only_zones=keys
+        session, on=DAY, slot=SLOT, my_zones=keys
     )
-    rooms = sorted(r["room"] for r in screen["rooms"])
-    assert rooms == ["KT-201", "KT-208", "KT-305", "KT-318(A)"]
+    assert len(screen["rooms"]) == len(ROOMS)
     assert screen["zones"] == ["KT-2", "KT-3"]
+    floors = [(f["key"], f["total"], f["is_mine"]) for f in screen["floors"]]
+    assert floors == [
+        ("KT-2", 2, True),
+        ("KT-3", 2, True),
+        ("G1-0", 2, False),
+        ("UNZONED", 1, False),
+    ]
 
 
-async def test_a_floor_with_no_classes_in_the_slot_yields_nothing(session, staff, hod):
+async def test_unnumbered_rooms_get_a_floor_card_of_their_own(session, staff, hod):
     await _routine_with_rooms(session, ROOMS)
     await assignment_service.set_zones(
         session, user_id=staff.id, zone_keys=["UNZONED"], actor=hod
@@ -183,13 +188,46 @@ async def test_a_floor_with_no_classes_in_the_slot_yields_nothing(session, staff
 
     keys = await assignment_service.zones_for_user(session, staff.id)
     screen = await checking_service.checking_screen(
-        session, on=DAY, slot=SLOT, only_zones=keys
+        session, on=DAY, slot=SLOT, my_zones=keys
     )
-    assert [r["room"] for r in screen["rooms"]] == ["EMBED"]
+    first = screen["floors"][0]
+    assert (first["key"], first["label"], first["total"], first["is_mine"]) == (
+        "UNZONED",
+        "Other rooms",
+        1,
+        True,
+    )
+    assert [r["room"] for r in screen["rooms"] if r["zone_key"] == "UNZONED"] == ["EMBED"]
 
 
-async def test_clearing_zones_leaves_a_staff_member_with_nothing(session, staff, hod):
-    """Parking an account is allowed, but it is not a promotion to see-all."""
+async def test_staff_can_check_a_class_on_a_floor_they_do_not_cover(session, staff, hod):
+    await _routine_with_rooms(session, ROOMS)
+    await assignment_service.set_zones(
+        session, user_id=staff.id, zone_keys=["KT-2"], actor=hod
+    )
+    await session.commit()
+
+    screen = await checking_service.checking_screen(
+        session, on=DAY, slot=SLOT, my_zones=["KT-2"]
+    )
+    ground = next(r for r in screen["rooms"] if r["room"] == "G1-001")
+    await check_service.submit(
+        session,
+        instance_id=ground["instance_id"],
+        user=staff,
+        outcome=CheckOutcome.RUNNING,
+        now=at(10, 5),
+    )
+
+    screen = await checking_service.checking_screen(
+        session, on=DAY, slot=SLOT, my_zones=["KT-2"]
+    )
+    g1 = next(f for f in screen["floors"] if f["key"] == "G1-0")
+    assert (g1["checked"], g1["total"], g1["is_mine"]) == (1, 2, False)
+
+
+async def test_clearing_zones_only_removes_the_your_floor_mark(session, staff, hod):
+    """Parking an account takes away its round, not its access to classes."""
     await _routine_with_rooms(session, ROOMS)
     await assignment_service.set_zones(
         session, user_id=staff.id, zone_keys=["G1-0"], actor=hod
@@ -204,9 +242,10 @@ async def test_clearing_zones_leaves_a_staff_member_with_nothing(session, staff,
     keys = await assignment_service.zones_for_user(session, staff.id)
     assert keys == []
     screen = await checking_service.checking_screen(
-        session, on=DAY, slot=SLOT, only_zones=keys
+        session, on=DAY, slot=SLOT, my_zones=keys
     )
-    assert screen["rooms"] == []
+    assert len(screen["rooms"]) == len(ROOMS)
+    assert not any(f["is_mine"] for f in screen["floors"])
 
 
 # --- validation -------------------------------------------------------------
@@ -309,9 +348,9 @@ async def test_create_staff_assigns_floors_in_one_step(session, hod):
     assert await assignment_service.zones_for_user(session, member.id) == ["KT-2"]
 
     screen = await checking_service.checking_screen(
-        session, on=DAY, slot=SLOT, only_zones=["KT-2"]
+        session, on=DAY, slot=SLOT, my_zones=["KT-2"]
     )
-    assert sorted(r["room"] for r in screen["rooms"]) == ["KT-201", "KT-208"]
+    assert [f["key"] for f in screen["floors"] if f["is_mine"]] == ["KT-2"]
 
 
 async def test_create_staff_requires_a_floor(session, hod):

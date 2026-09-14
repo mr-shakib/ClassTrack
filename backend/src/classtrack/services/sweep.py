@@ -33,9 +33,15 @@ from sqlalchemy.orm import selectinload
 
 from classtrack.db.base import utcnow
 from classtrack.db.session import get_sessionmaker
-from classtrack.models import CheckOutcome, ClassInstance, ClassStatus
+from classtrack.models import CheckOutcome, ClassInstance, ClassStatus, MakeupClass, MakeupStatus
+from classtrack.routine.lattice import SLOTS, slot_bounds
 from classtrack.services import audit_service, notification_service, settings_service
-from classtrack.services.status_engine import now_local, slot_start_at
+from classtrack.services.status_engine import (
+    day_ends_at,
+    now_local,
+    slot_end_at,
+    slot_start_at,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +53,6 @@ async def sweep_once(session: AsyncSession, *, now: datetime | None = None) -> d
     """
     now = now or now_local()
     threshold = await settings_service.missed_threshold(session)
-    window = await settings_service.check_window(session)
 
     # Only unresolved rows, and only up to today -- a future date cannot have a
     # closed window, and scanning the whole semester every minute is waste.
@@ -75,9 +80,10 @@ async def sweep_once(session: AsyncSession, *, now: datetime | None = None) -> d
                 continue
             new_status = ClassStatus.MISSED
         elif check is None:
-            # BR-06: no input within the checking window. This is a staff
-            # failure and must never be reported as teacher absence.
-            if now < start + timedelta(minutes=window):
+            # BR-06: nobody reported the class all day. This is a staff failure
+            # and must never be reported as teacher absence. Staff may report
+            # until midnight, so nothing is concluded before then.
+            if now < day_ends_at(instance.date):
                 continue
             new_status = ClassStatus.NOT_CHECKED
         else:
@@ -106,15 +112,51 @@ async def sweep_once(session: AsyncSession, *, now: datetime | None = None) -> d
         else:
             not_checked += 1
 
-    if missed or not_checked:
+    reminded = await _remind_unfinished_makeups(session, now)
+
+    if missed or not_checked or reminded:
         await session.commit()
-        logger.info("Sweep: %d missed, %d not checked", missed, not_checked)
+        logger.info(
+            "Sweep: %d missed, %d not checked, %d makeup reminders",
+            missed,
+            not_checked,
+            reminded,
+        )
 
     return {
         "examined": len(candidates),
         "missed": missed,
         "not_checked": not_checked,
+        "reminded": reminded,
     }
+
+
+async def _remind_unfinished_makeups(session: AsyncSession, now: datetime) -> int:
+    """Remind each teacher once when an approved makeup ends without being marked done."""
+    due = (
+        await session.scalars(
+            select(MakeupClass).where(
+                MakeupClass.status.in_((MakeupStatus.SCHEDULED, MakeupStatus.APPROVED)),
+                MakeupClass.reminder_sent_at.is_(None),
+                MakeupClass.date <= now.date(),
+            )
+        )
+    ).all()
+
+    reminded = 0
+    for makeup in due:
+        if makeup.time_slot not in SLOTS:
+            continue
+        _start, end_min = slot_bounds(makeup.time_slot)
+        if now < slot_end_at(makeup.date, end_min):
+            continue
+        original = await session.get(ClassInstance, makeup.original_instance_id)
+        if original is None:
+            continue
+        await notification_service.notify_makeup_due(session, makeup, original)
+        makeup.reminder_sent_at = utcnow()
+        reminded += 1
+    return reminded
 
 
 async def sweep_loop(interval_seconds: int) -> None:

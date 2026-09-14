@@ -77,5 +77,16 @@ class MakeupClass(Base, TimestampMixin):
         ForeignKey("class_instance.id", ondelete="SET NULL")
     )
 
+    #: ONLINE only: the Drive link the teacher submits after holding the class.
+    #: Nothing else shows an online class took place, so completion requires it.
+    drive_link: Mapped[str | None] = mapped_column(String(1024))
+    completed_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("user.id", ondelete="SET NULL")
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    #: Set when the sweep reminds the teacher to mark a held class done, so the
+    #: reminder goes out once rather than on every pass.
+    reminder_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     def __repr__(self) -> str:
         return f"<MakeupClass {self.mode.value} {self.date} {self.time_slot} {self.status.value}>"

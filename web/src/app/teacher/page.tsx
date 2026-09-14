@@ -2,6 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  MakeupCard,
+  MakeupHistoryRow,
+  formatDay,
+  isOpenMakeup,
+} from "@/components/MakeupTracker";
 import StatusBadge from "@/components/StatusBadge";
 import {
   Button,
@@ -10,31 +16,23 @@ import {
   ErrorNote,
   Spinner,
   SummaryCard,
-  inputClass,
+  bigInputClass,
 } from "@/components/ui";
 import { ApiError, api, todayISO } from "@/lib/api";
-import { useRequireRole } from "@/lib/auth";
-import type { ClassInstance, Makeup, MakeupStatus, TeacherReport } from "@/lib/types";
+import { ADMIN_ROLES, useRequireRole } from "@/lib/auth";
+import type { ClassInstance, Makeup, Role, TeacherReport } from "@/lib/types";
 
-const MAKEUP_LABEL: Record<MakeupStatus, string> = {
-  PENDING: "awaiting approval",
-  SCHEDULED: "approved",
-  APPROVED: "approved",
-  REJECTED: "rejected",
-  COMPLETED: "completed",
-};
+const TEACHER_PAGE_ROLES: Role[] = ["TEACHER", ...ADMIN_ROLES];
 
 export default function TeacherPage() {
-  const { user, permitted, loading: authLoading } = useRequireRole([
-    "TEACHER",
-    "HOD",
-    "SUPER_ADMIN",
-  ]);
+  const { user, permitted, loading: authLoading } = useRequireRole(TEACHER_PAGE_ROLES);
 
   const [today, setToday] = useState<ClassInstance[]>([]);
   const [needsAction, setNeedsAction] = useState<ClassInstance[]>([]);
   const [makeups, setMakeups] = useState<Makeup[]>([]);
   const [stats, setStats] = useState<TeacherReport | null>(null);
+  // Refreshed with the data, so "has this makeup ended yet" moves on its own.
+  const [now, setNow] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,6 +54,7 @@ export default function TeacherPage() {
       ]);
       setToday(todays);
       setNeedsAction(missed);
+      setNow(Date.now());
       setMakeups(mk);
       setStats(report);
       setError(null);
@@ -74,6 +73,16 @@ export default function TeacherPage() {
     return () => clearInterval(timer);
   }, [permitted, load]);
 
+  // A notification links to /teacher#makeup-<id>; the card only exists once the
+  // data has loaded, so scroll to it then.
+  useEffect(() => {
+    if (loading) return;
+    const id = window.location.hash.slice(1);
+    if (id.startsWith("makeup-")) {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [loading]);
+
   if (authLoading || !permitted) return <Spinner />;
 
   if (!initial) {
@@ -87,11 +96,15 @@ export default function TeacherPage() {
     );
   }
 
+  // Soonest first, so the next class to hold is at the top.
+  const openMakeups = makeups.filter(isOpenMakeup).sort((a, b) => a.date.localeCompare(b.date));
+  const pastMakeups = makeups.filter((m) => !isOpenMakeup(m));
+
   return (
-    <div className="space-y-5">
+    <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">My classes</h1>
-        <p className="mt-0.5 text-sm text-ink-soft">
+        <h1 className="text-2xl font-bold tracking-tight">My classes</h1>
+        <p className="mt-1 text-base text-ink-soft">
           {user?.full_name} · {initial}
         </p>
       </div>
@@ -116,28 +129,45 @@ export default function TeacherPage() {
       {/* Missed classes needing a response come first: they are the only thing
           on this page that requires the teacher to act. */}
       {needsAction.length > 0 ? (
-        <Card className="border-bad/30">
-          <div className="border-b border-line px-4 py-3">
-            <h2 className="text-sm font-semibold text-bad">
+        <section className="overflow-hidden rounded-2xl border-2 border-bad/30 bg-surface">
+          <div className="border-b-2 border-bad/20 bg-bad-soft px-4 py-4 sm:px-5">
+            <h2 className="text-xl font-bold text-bad">
               Reschedule required ({needsAction.length})
             </h2>
-            <p className="mt-0.5 text-xs text-ink-soft">
-              Staff reported these classes as not held. Request a new time in an
-              empty room — once the Head of Department approves, it is checked
-              like any other class. Dispute the record if it is wrong.
+            <p className="mt-1 text-base text-ink-soft">
+              Staff reported these classes as not held. Request a new time — once the
+              Head of Department approves, it is checked like any other class. Dispute
+              the record if it is wrong.
             </p>
           </div>
-          <ul className="divide-y divide-line">
+          <ul className="divide-y-2 divide-line">
             {needsAction.map((inst) => (
               <MissedRow key={inst.id} instance={inst} onDone={load} />
             ))}
           </ul>
-        </Card>
+        </section>
+      ) : null}
+
+      {openMakeups.length > 0 ? (
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-xl font-bold">Rescheduled classes ({openMakeups.length})</h2>
+            <p className="mt-1 text-base text-ink-soft">
+              Each one stays here until you mark it done after the class. An online class
+              needs its Drive link.
+            </p>
+          </div>
+          <ul className="space-y-4">
+            {openMakeups.map((m) => (
+              <MakeupCard key={m.id} makeup={m} now={now} onChanged={load} />
+            ))}
+          </ul>
+        </section>
       ) : null}
 
       <Card>
-        <div className="border-b border-line px-4 py-3">
-          <h2 className="text-sm font-semibold">Today ({today.length})</h2>
+        <div className="border-b border-line px-4 py-4 sm:px-5">
+          <h2 className="text-xl font-bold">Today ({today.length})</h2>
         </div>
         {loading ? (
           <Spinner />
@@ -146,22 +176,26 @@ export default function TeacherPage() {
         ) : (
           <ul className="divide-y divide-line">
             {today.map((inst) => (
-              <li key={inst.id} className="flex items-center gap-3 px-4 py-3">
-                <div className="w-24 shrink-0 text-sm tabular-nums text-ink-soft">
+              <li
+                key={inst.id}
+                className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-4 sm:px-5"
+              >
+                <div className="w-32 shrink-0 text-lg font-semibold tabular-nums">
                   {inst.time_slot}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">
+                  <p className="text-lg font-semibold">
                     {inst.course_code} · {inst.section}
                   </p>
-                  <p className="text-xs text-ink-faint">
+                  <p className="text-base text-ink-soft">
                     {inst.room}
-                    {inst.is_makeup ? " · makeup" : ""}
+                    {inst.is_makeup ? " · makeup class" : ""}
                   </p>
                 </div>
                 <StatusBadge
                   status={inst.status}
                   lateMinutes={inst.check?.late_minutes}
+                  size="lg"
                 />
               </li>
             ))}
@@ -170,46 +204,15 @@ export default function TeacherPage() {
       </Card>
 
       <Card>
-        <div className="border-b border-line px-4 py-3">
-          <h2 className="text-sm font-semibold">My makeup classes ({makeups.length})</h2>
+        <div className="border-b border-line px-4 py-4 sm:px-5">
+          <h2 className="text-xl font-bold">Past reschedules ({pastMakeups.length})</h2>
         </div>
-        {makeups.length === 0 ? (
-          <EmptyState title="No makeup classes yet" />
+        {pastMakeups.length === 0 ? (
+          <EmptyState title="No finished reschedules yet" />
         ) : (
           <ul className="divide-y divide-line">
-            {makeups.map((m) => (
-              <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">
-                    {m.original_course_code ?? "—"} · {m.original_section ?? "—"}
-                  </p>
-                  <p className="text-xs text-ink-faint">
-                    {m.date} · {m.time_slot} · {m.mode === "ONLINE" ? "Online" : m.room}
-                    {m.original_date ? ` · recovers ${m.original_date}` : ""}
-                  </p>
-                  {m.status === "REJECTED" ? (
-                    <p className="mt-1 text-xs text-bad">
-                      Request another slot from the list above.
-                    </p>
-                  ) : null}
-                  {m.decision_note ? (
-                    <p className="mt-1 text-xs italic text-ink-soft">
-                      “{m.decision_note}”
-                    </p>
-                  ) : null}
-                </div>
-                <span
-                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${
-                    m.status === "REJECTED"
-                      ? "bg-bad-soft text-bad ring-bad/20"
-                      : m.status === "PENDING"
-                        ? "bg-warn-soft text-warn ring-warn/20"
-                        : "bg-ok-soft text-ok ring-ok/20"
-                  }`}
-                >
-                  {MAKEUP_LABEL[m.status]}
-                </span>
-              </li>
+            {pastMakeups.map((m) => (
+              <MakeupHistoryRow key={m.id} makeup={m} />
             ))}
           </ul>
         )}
@@ -247,67 +250,71 @@ function MissedRow({
   const reported = instance.status !== "MISSED";
 
   return (
-    <li className="px-4 py-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">
-            {instance.course_code} · {instance.section}
-          </p>
-          <p className="text-xs text-ink-faint">
-            {instance.date} · {instance.time_slot} · {instance.room}
-          </p>
-        </div>
+    <li className="px-4 py-4 sm:px-5">
+      <p className="text-2xl font-bold tracking-tight">{instance.course_code}</p>
+      <p className="text-lg text-ink-soft">Section {instance.section}</p>
+      <p className="mt-1 text-base tabular-nums">
+        {formatDay(instance.date)} · {instance.time_slot} · {instance.room}
+      </p>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {reported ? (
-            // Confirm and dispute answer a settled MISSED record; this one is
-            // not settled yet, and staff may still record a late arrival.
-            <span className="text-xs font-medium text-warn">Reported absent · not final yet</span>
-          ) : responded ? (
-            <span className="text-xs font-medium text-ink-soft">
-              You marked this {instance.teacher_response?.toLowerCase()}
-            </span>
-          ) : (
-            <>
-              <Button variant="ghost" onClick={() => act("CONFIRMED")} disabled={busy}>
-                Confirm
-              </Button>
-              <Button variant="ghost" onClick={() => setMode("dispute")} disabled={busy}>
-                Dispute
-              </Button>
-            </>
-          )}
-          {/* Offered after a response too: the class is still owed either way. */}
-          <Link href={`/teacher/makeup?instance=${instance.id}`}>
-            <Button>Request reschedule</Button>
-          </Link>
-        </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {reported ? (
+          // Confirm and dispute answer a settled MISSED record; this one is
+          // not settled yet, and staff may still record a late arrival.
+          <span className="rounded-lg bg-warn-soft px-3 py-2 text-base font-semibold text-warn">
+            Reported absent · not final yet
+          </span>
+        ) : responded ? (
+          <span className="text-base font-medium text-ink-soft">
+            You marked this {instance.teacher_response?.toLowerCase()}
+          </span>
+        ) : (
+          <>
+            <Button variant="secondary" size="lg" onClick={() => act("CONFIRMED")} disabled={busy}>
+              Confirm
+            </Button>
+            <Button variant="secondary" size="lg" onClick={() => setMode("dispute")} disabled={busy}>
+              Dispute
+            </Button>
+          </>
+        )}
       </div>
 
+      {/* Offered after a response too: the class is still owed either way. */}
+      <Link href={`/teacher/makeup?instance=${instance.id}`} className="mt-3 block">
+        <Button size="xl" className="w-full">
+          Request reschedule
+        </Button>
+      </Link>
+
       {mode === "dispute" && !responded ? (
-        <div className="mt-2.5 space-y-2 rounded-lg bg-canvas p-2.5">
+        <div className="mt-3 space-y-3 rounded-xl bg-canvas p-3 sm:p-4">
           <input
-            className={inputClass}
+            className={bigInputClass}
             placeholder="Why should this record be reviewed?"
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
-          <div className="flex gap-2">
-            <Button onClick={() => act("DISPUTED")} disabled={busy || !note.trim()}>
+          <div className="flex flex-wrap gap-2">
+            <Button size="lg" onClick={() => act("DISPUTED")} disabled={busy || !note.trim()}>
               Send to HoD
             </Button>
-            <Button variant="ghost" onClick={() => setMode("idle")}>
+            <Button variant="ghost" size="lg" onClick={() => setMode("idle")}>
               Cancel
             </Button>
           </div>
-          <p className="text-xs text-ink-faint">
-            The original monitoring record is kept either way — a dispute flags it
-            for review, it does not erase it.
+          <p className="text-sm text-ink-soft">
+            The original monitoring record is kept either way — a dispute flags it for
+            review, it does not erase it.
           </p>
         </div>
       ) : null}
 
-      {error ? <p className="mt-2 text-xs text-bad">{error}</p> : null}
+      {error ? (
+        <p className="mt-3 rounded-xl bg-bad-soft px-4 py-3 text-base font-semibold text-bad">
+          {error}
+        </p>
+      ) : null}
     </li>
   );
 }

@@ -11,11 +11,11 @@ import {
   inputClass,
 } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
-import { useRequireRole } from "@/lib/auth";
+import { ADMIN_ROLES, useRequireRole } from "@/lib/auth";
 import type { StaffMember, Zone } from "@/lib/types";
 
 export default function StaffPage() {
-  const { permitted, loading: authLoading } = useRequireRole(["HOD", "SUPER_ADMIN"]);
+  const { permitted, loading: authLoading } = useRequireRole(ADMIN_ROLES);
   const [zones, setZones] = useState<Zone[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,8 +49,9 @@ export default function StaffPage() {
       <Card className="p-4">
         <h2 className="text-sm font-semibold">Office staff</h2>
         <p className="mt-1 text-sm text-ink-soft">
-          Assign each staff member a floor. Every class on that floor becomes
-          theirs to check and report.
+          Assign each staff member a floor. Those floors are listed first on their
+          checking screen, and they answer for any class there nobody reported.
+          Staff can still check classes on every other floor.
         </p>
       </Card>
 
@@ -165,7 +166,7 @@ function AddStaff({ zones, onAdded }: { zones: Zone[]; onAdded: () => void }) {
           </Field>
         </div>
 
-        <Field label="Floors" hint="Pick at least one. These become their classes.">
+        <Field label="Floors" hint="Pick at least one. Listed first for them, and they answer for unreported classes there.">
           <div className="flex flex-wrap gap-1.5">
             {zones.map((z) => {
               const on = selected.includes(z.key);
@@ -260,7 +261,7 @@ function StaffRow({
           <p className="mt-1.5 text-sm">
             {mine.length === 0 ? (
               <span className="font-medium text-warn">
-                No floor assigned — sees no classes
+                No floor assigned — can still check any floor
               </span>
             ) : (
               <>

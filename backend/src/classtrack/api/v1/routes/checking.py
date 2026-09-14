@@ -20,7 +20,6 @@ from classtrack.services import (
     assignment_service,
     check_service,
     checking_service,
-    settings_service,
     status_engine,
 )
 
@@ -37,28 +36,26 @@ async def rooms(
     user: CheckingUser,
     on: Date | None = Query(default=None, alias="date"),
     slot: str | None = Query(default=None),
-    all_rooms: bool = Query(default=False, alias="all"),
 ) -> CheckingScreen:
-    """Room-wise list, narrowed to the floors this staff member covers.
+    """Every room in the slot, grouped into floors.
 
-    A staff member's floors are their workload: they see those rooms and nothing
-    else. Someone with no floors sees nothing, which is visible and fixable on
-    the admin screen, rather than silently inheriting the whole department.
-
-    Admins are never narrowed.
+    A staff member's assigned floors are their round, so they are listed first
+    and marked -- but never a limit. Someone passing another floor can check its
+    classes too, rather than leave them unreported because the person who covers
+    that floor is elsewhere.
     """
     if slot is not None and slot not in SLOTS:
         raise ValidationError(
             f"{slot!r} is not a routine slot.", detail={"valid_slots": list(SLOTS)}
         )
 
-    only_zones: list[str] | None = None
-    if user.role is Role.STAFF and not all_rooms:
-        # Possibly empty -- that is meaningful, not a missing filter.
-        only_zones = await assignment_service.zones_for_user(session, user.id)
-
+    my_zones = (
+        await assignment_service.zones_for_user(session, user.id)
+        if user.role is Role.STAFF
+        else None
+    )
     data = await checking_service.checking_screen(
-        session, on=on, slot=slot, only_zones=only_zones
+        session, on=on, slot=slot, my_zones=my_zones
     )
     return CheckingScreen.model_validate(data)
 
@@ -89,8 +86,7 @@ async def submit(
         remark=payload.remark,
         reason=payload.reason,
     )
-    window = await settings_service.check_window(session)
-    outside = not status_engine.is_checkable(instance, window)
+    outside = not status_engine.is_checkable(instance)
     await session.commit()
     return CheckResponse(
         instance_id=instance.id,

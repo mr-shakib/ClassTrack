@@ -17,14 +17,20 @@ from classtrack.db.base import Base, TimestampMixin
 class Role(str, enum.Enum):
     SUPER_ADMIN = "SUPER_ADMIN"
     HOD = "HOD"
+    #: Deputy to the HoD, with the same permissions.
+    ASSOCIATE_HEAD = "ASSOCIATE_HEAD"
+    #: Reviews monitoring records and may override a reported check.
+    COMMITTEE = "COMMITTEE"
     STAFF = "STAFF"
     TEACHER = "TEACHER"
 
 
-#: Roles permitted to submit a classroom check.
-CHECKING_ROLES = (Role.STAFF, Role.HOD, Role.SUPER_ADMIN)
 #: Roles permitted to see every teacher's data.
-ADMIN_ROLES = (Role.HOD, Role.SUPER_ADMIN)
+ADMIN_ROLES = (Role.HOD, Role.ASSOCIATE_HEAD, Role.SUPER_ADMIN)
+#: Roles permitted to correct a check after its window closed, with a reason.
+OVERRIDE_ROLES = (*ADMIN_ROLES, Role.COMMITTEE)
+#: Roles permitted to submit a classroom check.
+CHECKING_ROLES = (Role.STAFF, *OVERRIDE_ROLES)
 
 
 class User(Base, TimestampMixin):
@@ -51,6 +57,10 @@ class User(Base, TimestampMixin):
     @property
     def is_admin(self) -> bool:
         return self.role in ADMIN_ROLES
+
+    @property
+    def can_override(self) -> bool:
+        return self.role in OVERRIDE_ROLES
 
     def __repr__(self) -> str:
         return f"<User {self.email} {self.role.value}>"

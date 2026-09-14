@@ -46,10 +46,12 @@ export function statusLabel(status: ClassStatus | null | undefined): string {
 export default function StatusBadge({
   status,
   lateMinutes,
+  size = "md",
   className = "",
 }: {
   status: ClassStatus | null | undefined;
   lateMinutes?: number | null;
+  size?: "md" | "lg";
   className?: string;
 }) {
   const style = STYLES[status ?? "UNKNOWN"] ?? STYLES.UNKNOWN;
@@ -60,7 +62,9 @@ export default function StatusBadge({
 
   return (
     <span
-      className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${style.className} ${className}`}
+      className={`inline-flex items-center whitespace-nowrap rounded-full font-semibold ring-1 ring-inset ${
+        size === "lg" ? "px-3 py-1.5 text-sm" : "px-2.5 py-1 text-xs"
+      } ${style.className} ${className}`}
     >
       {label}
     </span>

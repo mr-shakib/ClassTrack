@@ -111,13 +111,12 @@ class TeacherAccountRequest(BaseModel):
 
 
 class ZoneAssignRequest(BaseModel):
-    #: Empty list clears the restriction -- the staff member then sees every room.
+    #: Empty list clears the assignment. Staff see every floor either way.
     zones: list[str] = Field(default_factory=list)
 
 
 class SettingsIn(BaseModel):
     missed_threshold_minutes: int | None = Field(default=None, ge=1, le=180)
-    check_window_minutes: int | None = Field(default=None, ge=1, le=180)
 
 
 class AuditOut(ORMModel):

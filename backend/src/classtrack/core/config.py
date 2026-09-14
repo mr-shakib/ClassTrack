@@ -44,7 +44,6 @@ class Settings(BaseSettings):
     #: Minutes after scheduled start before a confirmed absence becomes MISSED.
     missed_threshold_minutes: int = 30
     #: Minutes staff have to submit any input before the class is NOT_CHECKED.
-    check_window_minutes: int = 30
 
     #: Every clock comparison happens in this zone. Stored timestamps are UTC.
     timezone: str = "Asia/Dhaka"

@@ -10,6 +10,8 @@ import { Button, Card, ErrorNote, Field, inputClass } from "@/components/ui";
 const DEMO = [
   ["admin@diu.edu", "Super admin"],
   ["hod@diu.edu", "Head of department"],
+  ["associate@diu.edu", "Associate head"],
+  ["committee@diu.edu", "Committee"],
   ["staff1@diu.edu", "Office staff"],
   ["teacher@diu.edu", "Teacher"],
 ];

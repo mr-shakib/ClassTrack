@@ -16,6 +16,7 @@ so a report can always show Missed -> Makeup Scheduled -> Makeup Completed.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import date as Date
 from datetime import datetime
 
@@ -154,15 +155,22 @@ async def create(
     time_slot: str,
     room: str | None = None,
     reason: str | None = None,
+    drive_link: str | None = None,
     now: datetime | None = None,
 ) -> MakeupClass:
-    """Request a reschedule for a missed class. Nothing is scheduled until approved."""
+    """Request a reschedule for a missed class. Nothing is scheduled until approved.
+
+    An online request may carry a Drive link for the approver to open while
+    deciding; it also counts when the class is later marked done.
+    """
     original = await _load_original(session, original_instance_id, user)
 
     if mode is MakeupMode.PHYSICAL and not room:
         raise ValidationError("A physical makeup class needs a room.")
+    link = None
     if mode is MakeupMode.ONLINE:
         room = None
+        link = _clean_link(drive_link)
     _require_future(on, time_slot, now)
 
     semester_id = await _active_semester_id(session, original.semester_id)
@@ -193,6 +201,7 @@ async def create(
         room=room.upper() if room else None,
         reason=reason,
         status=MakeupStatus.PENDING,
+        drive_link=link,
     )
     session.add(makeup)
     await session.flush()
@@ -221,6 +230,7 @@ async def create(
             "date": on.isoformat(),
             "time_slot": time_slot,
             "room": makeup.room,
+            "drive_link": link,
             "original_status": original.status.value,
         },
         reason=reason,
@@ -319,37 +329,110 @@ async def decide(
         },
         reason=note,
     )
-    await notification_service.notify_makeup_decision(session, makeup)
+    await notification_service.notify_makeup_decision(session, makeup, original)
     await session.flush()
     return makeup
 
 
+def ends_at(makeup: MakeupClass) -> datetime:
+    """When the rescheduled class ends -- the earliest it can be marked done."""
+    _start, end_min = slot_bounds(makeup.time_slot)
+    return status_engine.slot_end_at(makeup.date, end_min)
+
+
+#: A full web address. Deliberately not tied to one host: a department may keep
+#: recordings on Google Drive, OneDrive or anywhere else a link can point.
+_LINK = re.compile(r"^https?://[^\s/.]+(\.[^\s/.]+)+(/\S*)?$", re.IGNORECASE)
+
+
+def _clean_link(raw: str | None) -> str | None:
+    """A trimmed link, None when blank; a malformed one is refused, not dropped."""
+    link = (raw or "").strip()
+    if not link:
+        return None
+    if not _LINK.match(link):
+        raise ValidationError(
+            "That is not a valid link. Paste the full address, starting with https://."
+        )
+    return link
+
+
 async def complete(
-    session: AsyncSession, *, makeup_id: int, user: User
+    session: AsyncSession,
+    *,
+    makeup_id: int,
+    user: User,
+    drive_link: str | None = None,
+    now: datetime | None = None,
 ) -> MakeupClass:
-    """Mark a makeup conducted, preserving the link to the original (BR-13)."""
+    """Mark a makeup conducted, preserving the link to the original (BR-13).
+
+    The teacher marks their own class done once it has ended. An online class
+    also needs the Drive link of the class: staff never see it, so the link is
+    the only record that it was held.
+    """
     makeup = await session.get(MakeupClass, makeup_id)
     if makeup is None:
         raise NotFoundError(f"No makeup class with id {makeup_id}")
+    if user.role is Role.TEACHER and makeup.teacher_initial != user.teacher_initial:
+        raise ForbiddenError("You may only mark your own makeup classes done.")
+    if makeup.status is MakeupStatus.COMPLETED:
+        raise ValidationError("This makeup class is already marked done.")
     if makeup.status in (MakeupStatus.PENDING, MakeupStatus.REJECTED):
         raise ValidationError(
             f"A {makeup.status.value.lower()} makeup class cannot be completed.",
             detail={"status": makeup.status.value},
         )
 
+    ends = ends_at(makeup)
+    if (now or status_engine.now_local()) < ends:
+        raise ValidationError(
+            f"This class ends at {ends:%H:%M} on {ends:%d %B %Y}. "
+            "Mark it done after you have held it.",
+            detail={"ends_at": ends.isoformat()},
+        )
+
+    link = None
+    if makeup.mode is MakeupMode.ONLINE:
+        # A link sent with the request counts; a new one replaces it.
+        link = _clean_link(drive_link) or makeup.drive_link
+        if not link:
+            raise ValidationError(
+                "Submit the Drive link of the online class to mark it done."
+            )
+
+    instance = None
+    if makeup.created_instance_id is not None:
+        instance = await session.scalar(
+            select(ClassInstance)
+            .where(ClassInstance.id == makeup.created_instance_id)
+            .options(selectinload(ClassInstance.check))
+        )
+    # The monitoring record outranks the teacher's word: a makeup staff found
+    # nobody in was not held, whatever the teacher later marks.
+    if instance is not None and (
+        instance.status is ClassStatus.MISSED
+        or (instance.check is not None and instance.check.outcome is CheckOutcome.TEACHER_NOT_FOUND)
+    ):
+        raise ConflictError(
+            "Staff reported the teacher absent from this makeup class, so it cannot be "
+            "marked done. Ask the Head of Department to review the report if it is wrong.",
+        )
+
     before = {"makeup_status": makeup.status.value}
     makeup.status = MakeupStatus.COMPLETED
+    makeup.drive_link = link
+    makeup.completed_by_id = user.id
+    makeup.completed_at = utcnow()
 
     original = await session.get(ClassInstance, makeup.original_instance_id)
     if original is not None:
         original.status = ClassStatus.MAKEUP_COMPLETED
         original.resolved_at = utcnow()
 
-    if makeup.created_instance_id is not None:
-        instance = await session.get(ClassInstance, makeup.created_instance_id)
-        if instance is not None and instance.status is None:
-            instance.status = ClassStatus.MAKEUP_COMPLETED
-            instance.resolved_at = utcnow()
+    if instance is not None and instance.status is None:
+        instance.status = ClassStatus.MAKEUP_COMPLETED
+        instance.resolved_at = utcnow()
 
     audit_service.record(
         session,
@@ -358,7 +441,7 @@ async def complete(
         entity_id=makeup.id,
         action="makeup_completed",
         before=before,
-        after={"makeup_status": MakeupStatus.COMPLETED.value},
+        after={"makeup_status": MakeupStatus.COMPLETED.value, "drive_link": link},
     )
     await session.flush()
     return makeup

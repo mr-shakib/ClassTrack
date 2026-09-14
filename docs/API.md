@@ -2,7 +2,9 @@
 
 Base: `/api/v1` · Auth: JWT in an httpOnly cookie · All timestamps ISO-8601, `Asia/Dhaka`.
 
-Roles: `SUPER_ADMIN` (SA) · `HOD` · `STAFF` (ST) · `TEACHER` (T)
+Roles: `SUPER_ADMIN` (SA) · `HOD` · `ASSOCIATE_HEAD` · `COMMITTEE` (C) · `STAFF` (ST) · `TEACHER` (T)
+
+`ASSOCIATE_HEAD` holds every `HOD` permission: wherever HOD is listed below, it is included.
 
 > Freeze this contract before parallel work starts. Frontend types in `web/lib/types.ts`
 > mirror it exactly.
@@ -42,10 +44,16 @@ One account per initial. The account's email is a placeholder
 ## 2. Staff checking — the hot path
 
 ### `GET /checking/rooms`
-Roles: ST, HOD, SA
+Roles: ST, C, HOD, SA
 
 Room-wise list for a date + slot. Defaults to **now**. Excludes approved-online makeups (BR-12);
 includes physical makeups (BR-10).
+
+Every caller gets **every floor** — staff are not limited to their assigned floors. The response
+groups rooms into `floors` (`key`, `label`, `total`, `checked`, `is_mine`), with a staff member's
+assigned floors first; each room carries its `zone_key`. `zones` lists the caller's assigned
+floors (empty for non-staff). Assigned floors still decide who is responsible for an unreported
+class (`/reports/unreported`); they never hide a class.
 
 ```
 ?date=2026-09-13&slot=10:00-11:30     both optional
@@ -56,7 +64,7 @@ includes physical makeups (BR-10).
   "date": "2026-09-13",
   "time_slot": "10:00-11:30",
   "slot_state": "ONGOING",          // UPCOMING | ONGOING | CLOSED
-  "window_closes_at": "2026-09-13T10:30:00+06:00",
+  "window_closes_at": "2026-09-14T00:00:00+06:00", // end of the day: reports stay open until then
   "rooms": [
     {
       "instance_id": 1042,
@@ -73,7 +81,11 @@ includes physical makeups (BR-10).
 ```
 
 ### `POST /checking/{instance_id}`
-Roles: ST, HOD, SA — **idempotent**, upserts on `instance_id`.
+Roles: ST, C, HOD, SA — **idempotent**, upserts on `instance_id`.
+
+Staff may submit any time from the class's start until the end of that day. After the day (or
+before the class starts) only C, HOD and SA may submit; this is audited as `check_overridden`,
+and `reason` is optional.
 
 ```jsonc
 { "outcome": "LATE",              // RUNNING | LATE | TEACHER_NOT_FOUND
@@ -138,7 +150,7 @@ Roles: HOD, SA. Frontend polls every 30s.
 | `POST` | `/makeup/check-conflict` | T, HOD, SA | Validate before submitting (BR-14) |
 | `POST` | `/makeup` | T, HOD, SA | Request a reschedule |
 | `GET` | `/makeup` | scoped | List; teachers see their own |
-| `POST` | `/makeup/{id}/complete` | HOD, SA | Mark completed |
+| `POST` | `/makeup/{id}/complete` | T (own), HOD, SA | Mark done after the class ends; `{ "drive_link": "https://..." }` required for `ONLINE` |
 
 ```jsonc
 // POST /makeup/check-conflict
@@ -159,6 +171,10 @@ Conflict types: `TEACHER` · `ROOM` · `SECTION` · `HOLIDAY`.
   "date": "2026-09-20", "time_slot": "02:30-04:00",
   "room": "KT-305", "reason": "Was on official duty" }
 ```
+
+An `ONLINE` request may include an optional `drive_link` (a full `http(s)://` address; `422`
+otherwise). The HoD or Associate Head sees it in `/approvals/pending`, and it counts when the
+makeup is later marked done. It is ignored for `PHYSICAL`.
 
 The original must be `MISSED`, or unresolved with a `TEACHER_NOT_FOUND` check — a teacher
 can ask as soon as staff report them absent, without waiting for the missed threshold.
@@ -195,7 +211,23 @@ Approval re-runs the conflict check; `409` if the cell has been taken since.
 | `APPROVE` | Makeup → `SCHEDULED`, original → `MAKEUP_SCHEDULED`. An `is_makeup=1` instance is created and **appears in `/checking/rooms`** for that room and slot (BR-10). | Makeup → `APPROVED`, original → `ONLINE_APPROVED`. The instance is **excluded from `/checking/rooms`** (BR-12, AC-08). |
 | `REJECT` | Makeup → `REJECTED`, original → back to `MISSED`, so the teacher requests again. | Makeup → `REJECTED`, original → `ONLINE_REJECTED`. |
 
-The teacher is notified either way.
+The teacher is notified either way. The notification names the missed class (course, section,
+original date, slot and room), the new date and slot, and whether it is in a room or online. It
+links to `/teacher#makeup-{id}`, where the reschedule stays visible until marked done.
+
+### Marking a makeup done
+
+`POST /makeup/{id}/complete` moves an approved makeup (`SCHEDULED` or `APPROVED`) to `COMPLETED`.
+
+- A teacher may complete only their own; HOD and SA may complete any.
+- `422` until the rescheduled slot has **ended** (`ends_at` in `MakeupOut`).
+- `ONLINE` needs a Drive link: one sent with the request is enough, or pass `drive_link` (a full
+  `http(s)://` address, which replaces it). It is stored on the makeup and in the audit log.
+  Ignored for `PHYSICAL`.
+- `409` for a `PHYSICAL` makeup that staff reported `TEACHER_NOT_FOUND` at the new time.
+
+Once an approved makeup's slot ends without completion, the sweep sends the teacher one
+`MAKEUP_REMINDER`.
 
 ## 7. Reports
 
@@ -280,7 +312,7 @@ Ingest does **not** activate. Review, then activate — that is AC-01's verifica
 | `401` | Missing or expired token |
 | `403` | Role not permitted, or teacher requesting another teacher's data |
 | `404` | Not found |
-| `409` | Conflict detected, or check window closed |
+| `409` | Conflict detected, or reporting closed for that day |
 | `422` | Pydantic schema violation |
 
 ## 11. Build order dependency

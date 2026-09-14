@@ -8,7 +8,6 @@ from fastapi import APIRouter, Query
 from sqlalchemy import select
 
 from classtrack.api.deps import AdminUser, CurrentUser, SessionDep, TeacherUser
-from classtrack.core.errors import ForbiddenError
 from classtrack.models import (
     ClassInstance,
     MakeupClass,
@@ -16,7 +15,9 @@ from classtrack.models import (
     Role,
     Teacher,
 )
+from classtrack.routine.lattice import SLOTS
 from classtrack.schemas.makeup import (
+    CompleteRequest,
     ConflictCheckRequest,
     ConflictReportOut,
     DecisionRequest,
@@ -62,6 +63,8 @@ async def _decorate(session, makeups: list[MakeupClass]) -> list[MakeupOut]:
             item.original_time_slot = original.time_slot
             item.original_room = original.room
         item.teacher_name = names.get(makeup.teacher_initial)
+        if makeup.time_slot in SLOTS:
+            item.ends_at = makeup_service.ends_at(makeup)
         out.append(item)
     return out
 
@@ -117,6 +120,7 @@ async def create(
         time_slot=payload.time_slot,
         room=payload.room,
         reason=payload.reason,
+        drive_link=payload.drive_link,
     )
     await session.commit()
     return (await _decorate(session, [makeup]))[0]
@@ -173,9 +177,18 @@ async def decide(
 @router.post(
     "/makeup/{makeup_id}/complete", response_model=MakeupOut, summary="Mark completed"
 )
-async def complete(makeup_id: int, session: SessionDep, user: CurrentUser) -> MakeupOut:
-    if not user.is_admin:
-        raise ForbiddenError("Only the HoD or an admin can mark a makeup completed.")
-    makeup = await makeup_service.complete(session, makeup_id=makeup_id, user=user)
+async def complete(
+    makeup_id: int,
+    session: SessionDep,
+    user: TeacherUser,
+    payload: CompleteRequest | None = None,
+) -> MakeupOut:
+    """The teacher marks their own class done after it ends; online needs a Drive link."""
+    makeup = await makeup_service.complete(
+        session,
+        makeup_id=makeup_id,
+        user=user,
+        drive_link=payload.drive_link if payload else None,
+    )
     await session.commit()
     return (await _decorate(session, [makeup]))[0]

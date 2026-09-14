@@ -6,13 +6,16 @@ fails, teacher reports are wrong in a way that matters to real people.
 
 from __future__ import annotations
 
-from datetime import time
+from datetime import date, time
 
 import pytest
 from tests.conftest import at
 
 from classtrack.models import CheckOutcome, ClassStatus
 from classtrack.services import check_service, sweep
+
+#: Midnight after the fixture class's day, when reporting closes.
+NEXT_DAY = at(0, 0, day=date(2026, 9, 14))
 
 # --- BR-06: no evidence is not absence -------------------------------------
 
@@ -22,7 +25,7 @@ async def test_no_check_becomes_not_checked_never_missed(session, instance):
 
     Staff failing to check must never be reported as the teacher being absent.
     """
-    result = await sweep.sweep_once(session, now=at(10, 31))
+    result = await sweep.sweep_once(session, now=NEXT_DAY)
 
     assert instance.status is ClassStatus.NOT_CHECKED
     assert instance.status is not ClassStatus.MISSED
@@ -30,9 +33,9 @@ async def test_no_check_becomes_not_checked_never_missed(session, instance):
     assert result["missed"] == 0
 
 
-async def test_no_check_inside_window_stays_unresolved(session, instance):
-    """Before the window closes there is nothing to conclude yet."""
-    await sweep.sweep_once(session, now=at(10, 29))
+async def test_no_check_during_the_day_stays_unresolved(session, instance):
+    """Staff may still report until midnight, so nothing is concluded before then."""
+    await sweep.sweep_once(session, now=at(23, 59))
     assert instance.status is None
 
 

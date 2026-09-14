@@ -30,7 +30,6 @@ from classtrack.models import (
 from classtrack.services import (
     audit_service,
     notification_service,
-    settings_service,
     status_engine,
 )
 
@@ -68,14 +67,13 @@ async def submit(
 ) -> ClassInstance:
     """Record a monitoring observation for one class instance.
 
-    Staff may only submit while the checking window is open. That is the point
-    of the window: a result typed in days later is not an observation, it is a
-    recollection, and it can silently rewrite a teacher's record long after the
-    fact.
+    Staff may report any time from the class's start until the end of that day.
+    A result typed in days later is not an observation, it is a recollection,
+    and it could silently rewrite a teacher's record long after the fact.
 
-    An admin may correct a record outside the window, but must give a reason,
-    and the override is audited as such (source SRS 17: "manual overrides and
-    reasons").
+    An admin or committee member may correct a record after that. A reason is
+    optional; the change is audited as an override either way (source SRS 17:
+    "manual overrides and reasons").
     """
     instance = await session.scalar(
         select(ClassInstance)
@@ -85,7 +83,7 @@ async def submit(
     if instance is None:
         raise NotFoundError(f"No class instance with id {instance_id}")
 
-    amendable = _ADMIN_AMENDABLE if user.is_admin else _AMENDABLE
+    amendable = _ADMIN_AMENDABLE if user.can_override else _AMENDABLE
     if instance.status is not None and instance.status not in amendable:
         raise ValidationError(
             f"This class is recorded as {instance.status.value} and cannot be checked.",
@@ -97,29 +95,22 @@ async def submit(
 
     now = now or status_engine.now_local()
 
-    # --- the checking window -------------------------------------------------
-    window = await settings_service.check_window(session)
-    late_override = not status_engine.is_checkable(instance, window, now=now)
+    # --- reporting hours: from the class's start to the end of its day -------
+    late_override = not status_engine.is_checkable(instance, now=now)
 
-    if late_override:
+    if late_override and not user.can_override:
         opens = status_engine.slot_start_at(instance.date, instance.start_min)
-        closes = status_engine.window_closes_at(instance, window)
-        if not user.is_admin:
-            raise ConflictError(
-                "The checking window for this class is closed."
-                if now > closes
-                else "This class has not started yet.",
-                detail={
-                    "opened_at": opens.isoformat(),
-                    "closed_at": closes.isoformat(),
-                    "now": now.isoformat(),
-                },
-            )
-        if not (reason or "").strip():
-            raise ValidationError(
-                "A reason is required to change a record outside the checking window.",
-                detail={"closed_at": closes.isoformat()},
-            )
+        closes = status_engine.day_ends_at(instance.date)
+        raise ConflictError(
+            f"Reports for this class closed at the end of {instance.date:%d %B %Y}."
+            if now >= closes
+            else "This class has not started yet.",
+            detail={
+                "opened_at": opens.isoformat(),
+                "closed_at": closes.isoformat(),
+                "now": now.isoformat(),
+            },
+        )
 
     # BR-04: computed here, never taken from the client.
     late = (
@@ -162,8 +153,8 @@ async def submit(
         actor_id=user.id,
         entity_type="class_instance",
         entity_id=instance.id,
-        # A correction made after the window closed is a different kind of event
-        # from an observation made at the door, and the log should say so.
+        # A correction made after reporting closed for the day is a different kind
+        # of event from an observation made at the door, and the log should say so.
         action="check_overridden" if late_override else "check_submitted",
         before=before,
         after={
@@ -172,7 +163,7 @@ async def submit(
             "late_minutes": late,
             "outside_window": late_override,
         },
-        reason=reason,
+        reason=(reason or "").strip() or None,
     )
 
     # Tell the teacher straight away, but only when the observation is new: a

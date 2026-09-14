@@ -16,7 +16,6 @@ from classtrack.db.base import Base, utcnow
 #: Keys the admin UI exposes, with their defaults.
 SETTING_DEFAULTS: dict[str, str] = {
     "missed_threshold_minutes": "30",
-    "check_window_minutes": "30",
     "timezone": "Asia/Dhaka",
     "department": "cse",
 }

@@ -50,7 +50,7 @@ Keyed on the uppercase initial as it appears in the routine (e.g. `"SRH"`).
 | `email` | str(255) | unique, not null |
 | `password_hash` | str(255) | bcrypt |
 | `full_name` | str(255) | |
-| `role` | enum | `SUPER_ADMIN` · `HOD` · `STAFF` · `TEACHER` |
+| `role` | enum | `SUPER_ADMIN` · `HOD` · `ASSOCIATE_HEAD` · `COMMITTEE` · `STAFF` · `TEACHER` |
 | `teacher_initial` | str(16) FK→`teacher.initial` | nullable; set for `TEACHER` role |
 | `is_active` | bool | default true |
 
@@ -122,7 +122,7 @@ ix_instance_section_date  (section, date, time_slot)
 
 **`status` is nullable by design.** Null means "not yet resolved" — the API derives
 `UPCOMING`/`ONGOING` from the clock. Only terminal statuses are persisted. The sweep selects
-exactly `status IS NULL AND date <= today AND slot_start + window < now`, which is why it is
+exactly `status IS NULL AND date <= today AND end_of_day(date) <= now`, which is why it is
 naturally idempotent.
 
 ```python
@@ -176,6 +176,10 @@ value is ignored.
 | `decision_note` | text | nullable |
 | `decided_at` | datetime | nullable |
 | `created_instance_id` | int FK→`class_instance.id` | the instance this makeup produced |
+| `drive_link` | str(1024) | nullable; required to complete an `ONLINE` makeup |
+| `completed_by_id` | int FK→`user.id` | nullable |
+| `completed_at` | datetime | nullable |
+| `reminder_sent_at` | datetime | nullable; the sweep's one "mark it done" reminder |
 
 ```
 ix_makeup_status · ix_makeup_teacher · ix_makeup_original (original_instance_id)
@@ -225,7 +229,6 @@ ix_audit_entity (entity_type, entity_id) · ix_audit_actor · ix_audit_created
 | Key | Default | Meaning |
 |---|---|---|
 | `missed_threshold_minutes` | `30` | BR-05 threshold |
-| `check_window_minutes` | `30` | BR-06 window |
 | `timezone` | `Asia/Dhaka` | all clock comparisons |
 | `department` | `cse` | active department |
 
@@ -248,6 +251,7 @@ ix_audit_entity (entity_type, entity_id) · ix_audit_actor · ix_audit_created
 
 ```
 users:     admin@diu.edu (SUPER_ADMIN) · hod@diu.edu (HOD)
+           associate@diu.edu (ASSOCIATE_HEAD) · committee@diu.edu (COMMITTEE)
            staff1@diu.edu (STAFF) · teacher initials from the faculty directory
 teachers:  loaded from open-routine's teachers.json evidence file
 routine:   ingested from the DIU routine PDF
