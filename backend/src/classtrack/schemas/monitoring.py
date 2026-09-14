@@ -83,6 +83,8 @@ class InstanceOut(ORMModel):
     day: str
     time_slot: str
     room: str
+    #: "Theory" or "Lab" -- a reschedule is offered rooms of the same kind.
+    room_type: str = "Theory"
     course_code: str
     course_title: str | None = None
     section: str

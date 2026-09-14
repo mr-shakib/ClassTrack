@@ -30,9 +30,9 @@ class MakeupMode(str, enum.Enum):
 
 
 class MakeupStatus(str, enum.Enum):
-    #: Physical makeup, accepted and already in the checking schedule.
+    #: Physical makeup, approved and already in the checking schedule.
     SCHEDULED = "SCHEDULED"
-    #: Online makeup awaiting an HoD decision (BR-11).
+    #: Awaiting an HoD decision. Both modes start here (BR-11).
     PENDING = "PENDING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"

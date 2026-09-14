@@ -54,9 +54,10 @@ export default function LoginPage() {
 
         <Card className="p-5">
           <form onSubmit={submit} className="space-y-4">
-            <Field label="Email">
+            <Field label="Email or teacher initial" hint="Teachers sign in with their initial, e.g. SRH.">
               <input
-                type="email"
+                type="text"
+                autoCapitalize="none"
                 className={inputClass}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}

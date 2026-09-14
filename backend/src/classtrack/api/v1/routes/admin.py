@@ -35,6 +35,8 @@ from classtrack.schemas.admin import (
     SettingsIn,
     StaffCreateRequest,
     StaffOut,
+    TeacherAccountRequest,
+    TeacherOut,
     UserIn,
     UserOut,
     ZoneAssignRequest,
@@ -42,6 +44,7 @@ from classtrack.schemas.admin import (
 )
 from classtrack.schemas.common import Message
 from classtrack.services import (
+    account_service,
     assignment_service,
     audit_service,
     instance_service,
@@ -538,17 +541,67 @@ async def audit(
     return out
 
 
-@router.get("/teachers", summary="Faculty directory")
+@router.get("/teachers", response_model=list[TeacherOut], summary="Faculty directory")
 async def teachers(
     session: SessionDep,
     user: AdminUser,  # noqa: ARG001
     q: str | None = None,
-) -> list[dict]:
+) -> list[TeacherOut]:
     query = select(Teacher).order_by(Teacher.initial).limit(500)
     if q:
         like = f"%{q.strip()}%"
         query = query.where(Teacher.name.ilike(like) | Teacher.initial.ilike(like))
-    return [
-        {"initial": t.initial, "name": t.name, "designation": t.designation}
-        for t in (await session.scalars(query)).all()
-    ]
+    accounts = await account_service.teacher_accounts(session)
+    out = []
+    for t in (await session.scalars(query)).all():
+        account = accounts.get(t.initial)
+        out.append(
+            TeacherOut(
+                initial=t.initial,
+                name=t.name,
+                designation=t.designation,
+                has_account=account is not None,
+                account_active=account.is_active if account else None,
+            )
+        )
+    return out
+
+
+@router.post(
+    "/teachers/{initial}/account",
+    response_model=TeacherOut,
+    summary="Create a teacher's sign-in account",
+)
+async def create_teacher_account(
+    initial: str, payload: TeacherAccountRequest, session: SessionDep, user: AdminUser
+) -> TeacherOut:
+    """The teacher then signs in with their initial and this password."""
+    account = await account_service.create_teacher_account(
+        session, initial=initial, password=payload.password, actor=user
+    )
+    await session.commit()
+    teacher = await session.scalar(
+        select(Teacher).where(Teacher.initial == account.teacher_initial)
+    )
+    return TeacherOut(
+        initial=account.teacher_initial or "",
+        name=account.full_name,
+        designation=teacher.designation if teacher else None,
+        has_account=True,
+        account_active=account.is_active,
+    )
+
+
+@router.put(
+    "/teachers/{initial}/password",
+    response_model=Message,
+    summary="Reset a teacher's password",
+)
+async def reset_teacher_password(
+    initial: str, payload: TeacherAccountRequest, session: SessionDep, user: AdminUser
+) -> Message:
+    await account_service.reset_teacher_password(
+        session, initial=initial, password=payload.password, actor=user
+    )
+    await session.commit()
+    return Message(detail="Password updated")

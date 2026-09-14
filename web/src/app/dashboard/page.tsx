@@ -94,7 +94,7 @@ export default function DashboardPage() {
             href="/unreported"
           />
           <Attention
-            label="Online requests"
+            label="Reschedule requests"
             value={a?.pending_online ?? 0}
             tone="text-warn"
             href="/approvals"

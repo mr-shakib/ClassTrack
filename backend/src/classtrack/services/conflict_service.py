@@ -19,10 +19,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from classtrack.models import (
     BLOCKING_KINDS,
     ClassInstance,
+    ClassSession,
     ClassStatus,
     Holiday,
+    MakeupClass,
+    MakeupMode,
+    MakeupStatus,
+    Routine,
 )
 from classtrack.routine.lattice import SLOTS
+from classtrack.services import zones
 
 #: Statuses that no longer occupy their cell, so they cannot block a makeup.
 _VACATED = (
@@ -72,6 +78,7 @@ async def check(
     section: str | None = None,
     semester_id: int | None = None,
     exclude_instance_id: int | None = None,
+    exclude_makeup_id: int | None = None,
 ) -> ConflictReport:
     """Validate a proposed makeup slot.
 
@@ -100,15 +107,7 @@ async def check(
             Conflict("HOLIDAY", f"{on:%d %B %Y} is {holiday.title} ({holiday.kind.value}).")
         )
 
-    # Everything already occupying that cell. One index seek.
-    query = select(ClassInstance).where(
-        ClassInstance.date == on,
-        ClassInstance.time_slot == time_slot,
-        ClassInstance.status.not_in(_VACATED) | ClassInstance.status.is_(None),
-    )
-    if exclude_instance_id is not None:
-        query = query.where(ClassInstance.id != exclude_instance_id)
-    occupants = (await session.scalars(query)).all()
+    occupants = await _occupants(session, on, time_slot, exclude_instance_id)
 
     for occupant in occupants:
         if occupant.teacher_initial == teacher_initial:
@@ -139,4 +138,95 @@ async def check(
                 )
             )
 
+    # A pending physical request has no instance yet, but it has claimed its
+    # room: two teachers must not be offered, and then approved into, one cell.
+    for pending in await _pending_requests(session, on, time_slot, exclude_makeup_id):
+        if pending.teacher_initial == teacher_initial:
+            report.conflicts.append(
+                Conflict(
+                    "TEACHER",
+                    f"{teacher_initial} already has a reschedule request for {time_slot}.",
+                )
+            )
+        if room is not None and pending.room == room.upper():
+            report.conflicts.append(
+                Conflict(
+                    "ROOM",
+                    f"{pending.room} is requested by {pending.teacher_initial} at {time_slot}.",
+                )
+            )
+
     return report
+
+
+async def _occupants(
+    session: AsyncSession,
+    on: Date,
+    time_slot: str,
+    exclude_instance_id: int | None = None,
+) -> list[ClassInstance]:
+    """Everything already occupying a cell. One index seek."""
+    query = select(ClassInstance).where(
+        ClassInstance.date == on,
+        ClassInstance.time_slot == time_slot,
+        ClassInstance.status.not_in(_VACATED) | ClassInstance.status.is_(None),
+    )
+    if exclude_instance_id is not None:
+        query = query.where(ClassInstance.id != exclude_instance_id)
+    return list((await session.scalars(query)).all())
+
+
+async def _pending_requests(
+    session: AsyncSession,
+    on: Date,
+    time_slot: str,
+    exclude_makeup_id: int | None = None,
+) -> list[MakeupClass]:
+    query = select(MakeupClass).where(
+        MakeupClass.date == on,
+        MakeupClass.time_slot == time_slot,
+        MakeupClass.status == MakeupStatus.PENDING,
+        MakeupClass.mode == MakeupMode.PHYSICAL,
+    )
+    if exclude_makeup_id is not None:
+        query = query.where(MakeupClass.id != exclude_makeup_id)
+    return list((await session.scalars(query)).all())
+
+
+async def free_rooms(session: AsyncSession, *, on: Date, time_slot: str) -> list[dict]:
+    """Rooms of the active routine with nothing in them on this cell.
+
+    The room universe is the live routine, the same source the staff floors
+    come from, so a room offered here is always one some staff member checks.
+    A room is taken by a class still holding its cell or by a pending request.
+    """
+    if time_slot not in SLOTS:
+        return []
+
+    routine = await session.scalar(select(Routine).where(Routine.is_active))
+    if routine is None:
+        return []
+    known = (
+        await session.execute(
+            select(ClassSession.room, ClassSession.room_type)
+            .where(ClassSession.routine_id == routine.id)
+            .distinct()
+        )
+    ).all()
+
+    taken = {o.room for o in await _occupants(session, on, time_slot)}
+    taken |= {p.room for p in await _pending_requests(session, on, time_slot) if p.room}
+
+    types: dict[str, str] = {}
+    for room, room_type in known:
+        if room and room not in taken:
+            types.setdefault(room, room_type)
+
+    return [
+        {
+            "room": room,
+            "room_type": types[room],
+            "zone": zones.room_zone(room).short_label,
+        }
+        for room in sorted(types)
+    ]

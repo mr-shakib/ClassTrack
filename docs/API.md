@@ -18,12 +18,26 @@ Roles: `SUPER_ADMIN` (SA) · `HOD` · `STAFF` (ST) · `TEACHER` (T)
 | `GET` | `/auth/me` | any | Current user + role |
 
 ```jsonc
-// POST /auth/login
-{ "email": "staff1@diu.edu", "password": "..." }
+// POST /auth/login -- username is an email, or a teacher's initial
+{ "username": "staff1@diu.edu", "password": "..." }
+{ "username": "SRH", "password": "..." }
 // 200
 { "id": 3, "full_name": "Staff One", "role": "STAFF", "teacher_initial": null }
 // 401 { "detail": "Invalid credentials" }
 ```
+
+`email` is still accepted as the key for `username`.
+
+### Teacher accounts
+
+| Method | Path | Roles | Purpose |
+|---|---|---|---|
+| `GET` | `/admin/teachers` | HOD, SA | Faculty list, with `has_account` per initial |
+| `POST` | `/admin/teachers/{initial}/account` | HOD, SA | `{ "password": "..." }` — create the sign-in |
+| `PUT` | `/admin/teachers/{initial}/password` | HOD, SA | `{ "password": "..." }` — reset it |
+
+One account per initial. The account's email is a placeholder
+(`<initial>@teacher.classtrack`); the teacher signs in with the initial.
 
 ## 2. Staff checking — the hot path
 
@@ -120,8 +134,9 @@ Roles: HOD, SA. Frontend polls every 30s.
 
 | Method | Path | Roles | Purpose |
 |---|---|---|---|
+| `GET` | `/makeup/free-rooms` | T, HOD, SA | `?date=&time_slot=` — empty rooms of the active routine |
 | `POST` | `/makeup/check-conflict` | T, HOD, SA | Validate before submitting (BR-14) |
-| `POST` | `/makeup` | T, HOD, SA | Create a makeup request |
+| `POST` | `/makeup` | T, HOD, SA | Request a reschedule |
 | `GET` | `/makeup` | scoped | List; teachers see their own |
 | `POST` | `/makeup/{id}/complete` | HOD, SA | Mark completed |
 
@@ -145,27 +160,42 @@ Conflict types: `TEACHER` · `ROOM` · `SECTION` · `HOLIDAY`.
   "room": "KT-305", "reason": "Was on official duty" }
 ```
 
-| Mode | Result |
+The original must be `MISSED`, or unresolved with a `TEACHER_NOT_FOUND` check — a teacher
+can ask as soon as staff report them absent, without waiting for the missed threshold.
+`GET /instances?needs_reschedule=true` lists exactly those classes.
+
+Every request starts `PENDING` with no instance, and the HoD is notified.
+
+| Mode | Original becomes |
 |---|---|
-| `PHYSICAL` | Makeup `SCHEDULED`; a `ClassInstance` with `is_makeup=1` is created and enters staff checking. Original → `MAKEUP_SCHEDULED`. |
-| `ONLINE` | Makeup `PENDING`; HoD notified. Original → `ONLINE_PENDING`. No instance yet. |
+| `PHYSICAL` | `MAKEUP_REQUESTED`. The room counts as taken for `free-rooms` and conflict checks. |
+| `ONLINE` | `ONLINE_PENDING` |
 
-`409` with the conflict report if validation fails. v1 does not accept an override.
+`409` with the conflict report if validation fails; `422` if the slot has already started.
+v1 does not accept an override.
 
-## 6. Online approvals
+The teacher is notified when staff record `TEACHER_NOT_FOUND` or `LATE` (`CLASS_REPORTED`),
+and again when the sweep marks the class `MISSED` (`MISSED_CLASS`).
+
+## 6. Reschedule approvals
 
 | Method | Path | Roles | Purpose |
 |---|---|---|---|
-| `GET` | `/approvals/pending` | HOD, SA | Queue of online requests |
+| `GET` | `/approvals/pending` | HOD, SA | Queue of pending requests, both modes |
 | `POST` | `/approvals/{makeup_id}/decide` | HOD, SA | Approve or reject |
 
 ```jsonc
 { "decision": "APPROVE", "note": "Approved for this week only" }
 ```
 
-On `APPROVE`: makeup → `APPROVED`, original → `ONLINE_APPROVED`, an instance is created with
-`is_makeup=1` **and it is excluded from `/checking/rooms`** (BR-12, AC-08). Teacher notified.
-On `REJECT`: makeup → `REJECTED`, original → `ONLINE_REJECTED`. Teacher notified.
+Approval re-runs the conflict check; `409` if the cell has been taken since.
+
+| Decision | `PHYSICAL` | `ONLINE` |
+|---|---|---|
+| `APPROVE` | Makeup → `SCHEDULED`, original → `MAKEUP_SCHEDULED`. An `is_makeup=1` instance is created and **appears in `/checking/rooms`** for that room and slot (BR-10). | Makeup → `APPROVED`, original → `ONLINE_APPROVED`. The instance is **excluded from `/checking/rooms`** (BR-12, AC-08). |
+| `REJECT` | Makeup → `REJECTED`, original → back to `MISSED`, so the teacher requests again. | Makeup → `REJECTED`, original → `ONLINE_REJECTED`. |
+
+The teacher is notified either way.
 
 ## 7. Reports
 

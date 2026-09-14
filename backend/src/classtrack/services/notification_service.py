@@ -15,8 +15,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from classtrack.db.base import utcnow
 from classtrack.models import (
     ADMIN_ROLES,
+    CheckOutcome,
     ClassInstance,
     MakeupClass,
+    MakeupMode,
+    MakeupStatus,
     Notification,
     NotificationKind,
     User,
@@ -109,48 +112,99 @@ async def notify_missed(session: AsyncSession, instance: ClassInstance) -> None:
         session,
         user_id=user.id,
         kind=NotificationKind.MISSED_CLASS,
-        title="Class marked as missed",
+        title="Class missed — reschedule required",
         body=(
             f"Your {_describe(instance)} has been marked as missed. "
-            "Please review the record and take the required action."
+            "Request a reschedule in an empty room."
         ),
-        link="/teacher",
+        link=_reschedule_link(instance),
     )
 
 
-async def notify_online_request(
+async def notify_reported(
+    session: AsyncSession, instance: ClassInstance, outcome: CheckOutcome
+) -> None:
+    """Tell the teacher the moment staff record them absent or late.
+
+    This is an early warning, not the verdict: a TEACHER_NOT_FOUND observation
+    only becomes MISSED once the threshold passes, and staff may still amend it
+    if the teacher arrives. ``notify_missed`` is the one that asks for a
+    reschedule.
+    """
+    user = await _user_for_teacher(session, instance.teacher_initial)
+    if user is None:
+        logger.warning(
+            "No user account for teacher %s; report notification skipped",
+            instance.teacher_initial,
+        )
+        return
+    link = "/teacher"
+    if outcome is CheckOutcome.TEACHER_NOT_FOUND:
+        title = "Reported absent — reschedule required"
+        body = (
+            f"Office staff found no teacher in {instance.room} for your "
+            f"{_describe(instance)}. If you cannot hold it, request a reschedule now. "
+            "If you are on your way, staff can still record you as late."
+        )
+        link = _reschedule_link(instance)
+    else:
+        title = "Reported late to class"
+        body = f"Office staff recorded a late start for your {_describe(instance)}."
+    await _dispatch(
+        session,
+        user_id=user.id,
+        kind=NotificationKind.CLASS_REPORTED,
+        title=title,
+        body=body,
+        link=link,
+    )
+
+
+def _reschedule_link(instance: ClassInstance) -> str:
+    return f"/teacher/makeup?instance={instance.id}"
+
+
+async def notify_makeup_request(
     session: AsyncSession, makeup: MakeupClass, instance: ClassInstance
 ) -> None:
-    """Tell the HoD an online makeup needs a decision (BR-11)."""
+    """Tell the HoD a reschedule needs a decision (BR-11)."""
+    online = makeup.mode is MakeupMode.ONLINE
+    where = "online" if online else f"in {makeup.room}"
     for admin in await _admins(session):
         await _dispatch(
             session,
             user_id=admin.id,
-            kind=NotificationKind.ONLINE_REQUEST,
-            title="Online makeup request",
+            kind=NotificationKind.ONLINE_REQUEST if online else NotificationKind.MAKEUP_REQUEST,
+            title="Online makeup request" if online else "Reschedule request",
             body=(
-                f"{makeup.teacher_initial} requested an online makeup for "
-                f"{_describe(instance)}, proposed {makeup.date:%d %B %Y} at {makeup.time_slot}."
+                f"{makeup.teacher_initial} requested to reschedule {_describe(instance)} "
+                f"to {makeup.date:%d %B %Y} at {makeup.time_slot}, {where}."
             ),
             link="/approvals",
         )
 
 
-async def notify_online_decision(session: AsyncSession, makeup: MakeupClass) -> None:
+async def notify_makeup_decision(session: AsyncSession, makeup: MakeupClass) -> None:
     user = await _user_for_teacher(session, makeup.teacher_initial)
     if user is None:
         return
-    approved = makeup.status.value == "APPROVED"
+    online = makeup.mode is MakeupMode.ONLINE
+    approved = makeup.status is not MakeupStatus.REJECTED
+    verdict = "approved" if approved else "rejected"
+    body = (
+        f"Your {'online makeup' if online else 'reschedule'} on {makeup.date:%d %B %Y} "
+        f"at {makeup.time_slot} was {verdict}."
+    )
+    if not approved and not online:
+        body += " Please request another slot."
+    if makeup.decision_note:
+        body += f" Note: {makeup.decision_note}"
     await _dispatch(
         session,
         user_id=user.id,
-        kind=NotificationKind.ONLINE_DECISION,
-        title=f"Online makeup {'approved' if approved else 'rejected'}",
-        body=(
-            f"Your online makeup on {makeup.date:%d %B %Y} at {makeup.time_slot} was "
-            f"{'approved' if approved else 'rejected'}."
-            + (f" Note: {makeup.decision_note}" if makeup.decision_note else "")
-        ),
+        kind=NotificationKind.ONLINE_DECISION if online else NotificationKind.MAKEUP_DECISION,
+        title=f"{'Online makeup' if online else 'Reschedule'} {verdict}",
+        body=body,
         link="/teacher",
     )
 

@@ -27,7 +27,12 @@ from classtrack.models import (
     ClassStatus,
     User,
 )
-from classtrack.services import audit_service, settings_service, status_engine
+from classtrack.services import (
+    audit_service,
+    notification_service,
+    settings_service,
+    status_engine,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +46,9 @@ _IMMEDIATE = {
 #: Statuses a check may still amend. A cancelled or makeup-tracked class is not
 #: something staff should be able to overwrite from the checking screen.
 _AMENDABLE = frozenset({ClassStatus.RUNNING, ClassStatus.LATE, ClassStatus.MISSED})
+
+#: Observations the teacher hears about the moment they are recorded.
+_REPORTABLE = frozenset({CheckOutcome.TEACHER_NOT_FOUND, CheckOutcome.LATE})
 
 #: An admin correcting the record after the fact may also reach a class that was
 #: swept to NOT_CHECKED -- staff did check it, but never submitted in time.
@@ -166,6 +174,11 @@ async def submit(
         },
         reason=reason,
     )
+
+    # Tell the teacher straight away, but only when the observation is new: a
+    # retried or re-saved submission must not ping them twice.
+    if outcome in _REPORTABLE and before["outcome"] != outcome.value:
+        await notification_service.notify_reported(session, instance, outcome)
 
     await session.flush()
     return instance

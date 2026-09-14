@@ -1,7 +1,7 @@
 import type { ClassStatus } from "@/lib/types";
 
 /**
- * One colour map for all twelve statuses, used everywhere.
+ * One colour map for every status, used everywhere.
  *
  * MISSED and NOT_CHECKED get visibly different hues on purpose: one is a
  * teacher-side problem, the other a staff-side one, and the whole system exists
@@ -14,6 +14,10 @@ const STYLES: Record<ClassStatus | "UNKNOWN", { label: string; className: string
   LATE: { label: "Late", className: "bg-warn-soft text-warn ring-warn/20" },
   MISSED: { label: "Missed", className: "bg-bad-soft text-bad ring-bad/20" },
   NOT_CHECKED: { label: "Not checked", className: "bg-gap-soft text-gap ring-gap/20" },
+  MAKEUP_REQUESTED: {
+    label: "Reschedule requested",
+    className: "bg-warn-soft text-warn ring-warn/20",
+  },
   MAKEUP_SCHEDULED: {
     label: "Makeup scheduled",
     className: "bg-info-soft text-info ring-info/20",

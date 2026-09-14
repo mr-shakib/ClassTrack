@@ -7,6 +7,7 @@ import type {
   ConflictReport,
   Dashboard,
   DailyReport,
+  FreeRoom,
   Holiday,
   IngestionReport,
   Makeup,
@@ -17,6 +18,7 @@ import type {
   Semester,
   StaffMember,
   StaffReport,
+  TeacherAccount,
   TeacherReport,
   TeacherResponseValue,
   UnreportedReport,
@@ -87,8 +89,9 @@ const qs = (params: Record<string, string | number | boolean | undefined | null>
 
 export const api = {
   // --- auth ---------------------------------------------------------------
-  login: (email: string, password: string) =>
-    post<User>("/auth/login", { email, password }),
+  /** `username` is an email address, or a teacher's initial. */
+  login: (username: string, password: string) =>
+    post<User>("/auth/login", { username, password }),
   logout: () => post<{ detail: string }>("/auth/logout"),
   me: () => get<User>("/auth/me"),
 
@@ -117,6 +120,8 @@ export const api = {
     room?: string;
     section?: string;
     status?: string;
+    /** Missed, or reported absent and not yet settled by the sweep. */
+    needs_reschedule?: boolean;
     limit?: number;
   }) => get<ClassInstance[]>(`/instances${qs(params)}`),
   instance: (id: number) => get<ClassInstance>(`/instances/${id}`),
@@ -133,6 +138,8 @@ export const api = {
     room?: string | null;
     section?: string | null;
   }) => post<ConflictReport>("/makeup/check-conflict", payload),
+  freeRooms: (date: string, slot: string) =>
+    get<FreeRoom[]>(`/makeup/free-rooms${qs({ date, time_slot: slot })}`),
   createMakeup: (payload: {
     original_instance_id: number;
     mode: MakeupMode;
@@ -186,10 +193,15 @@ export const api = {
   }) => put<Record<string, string>>("/admin/settings", payload),
   audit: (params: { entity_type?: string; entity_id?: number; limit?: number }) =>
     get<AuditEntry[]>(`/admin/audit${qs(params)}`),
-  teachers: (q?: string) =>
-    get<{ initial: string; name: string; designation: string | null }[]>(
-      `/admin/teachers${qs({ q })}`,
-    ),
+  teachers: (q?: string) => get<TeacherAccount[]>(`/admin/teachers${qs({ q })}`),
+  createTeacherAccount: (initial: string, password: string) =>
+    post<TeacherAccount>(`/admin/teachers/${encodeURIComponent(initial)}/account`, {
+      password,
+    }),
+  resetTeacherPassword: (initial: string, password: string) =>
+    put<{ detail: string }>(`/admin/teachers/${encodeURIComponent(initial)}/password`, {
+      password,
+    }),
   users: () => get<(User & { is_active: boolean })[]>("/admin/users"),
   zones: () => get<Zone[]>("/admin/zones"),
   staff: () => get<StaffMember[]>("/admin/staff"),

@@ -10,6 +10,7 @@ export type ClassStatus =
   | "LATE"
   | "MISSED"
   | "NOT_CHECKED"
+  | "MAKEUP_REQUESTED"
   | "MAKEUP_SCHEDULED"
   | "MAKEUP_COMPLETED"
   | "ONLINE_PENDING"
@@ -105,6 +106,7 @@ export interface ClassInstance {
   day: string;
   time_slot: string;
   room: string;
+  room_type: string;
   course_code: string;
   course_title: string | null;
   section: string;
@@ -186,7 +188,25 @@ export interface Makeup {
   original_course_code: string | null;
   original_section: string | null;
   original_date: string | null;
+  original_time_slot: string | null;
+  original_room: string | null;
   teacher_name: string | null;
+}
+
+/** An empty room offered for a physical reschedule. */
+export interface FreeRoom {
+  room: string;
+  room_type: string;
+  zone: string;
+}
+
+/** A faculty member, and whether an admin has given them a sign-in yet. */
+export interface TeacherAccount {
+  initial: string;
+  name: string;
+  designation: string | null;
+  has_account: boolean;
+  account_active: boolean | null;
 }
 
 export interface DailyReport {

@@ -225,7 +225,7 @@ async def build(session: AsyncSession, *, days: int = 10, seed: int = 11) -> dic
                     try:
                         # Re-fetch after any rollback so the object is live.
                         account = await session.get(User, teacher_id)
-                        await makeup_service.create(
+                        makeup = await makeup_service.create(
                             session,
                             original_instance_id=original_id,
                             user=account,
@@ -235,6 +235,15 @@ async def build(session: AsyncSession, *, days: int = 10, seed: int = 11) -> dic
                             room="KT-508" if mode is MakeupMode.PHYSICAL else None,
                             reason="Was on official university duty",
                         )
+                        # Approve the physical one so the checking screen shows
+                        # a rescheduled class; leave the online one in the queue.
+                        if mode is MakeupMode.PHYSICAL:
+                            await makeup_service.decide(
+                                session,
+                                makeup_id=makeup.id,
+                                user=await session.get(User, admin.id),
+                                approve=True,
+                            )
                     except Exception:  # a conflict just means: try the next day
                         await session.rollback()
                         continue

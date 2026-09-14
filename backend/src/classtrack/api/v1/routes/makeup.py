@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from datetime import date as Date
+
+from fastapi import APIRouter, Query
 from sqlalchemy import select
 
 from classtrack.api.deps import AdminUser, CurrentUser, SessionDep, TeacherUser
@@ -10,7 +12,6 @@ from classtrack.core.errors import ForbiddenError
 from classtrack.models import (
     ClassInstance,
     MakeupClass,
-    MakeupMode,
     MakeupStatus,
     Role,
     Teacher,
@@ -19,6 +20,7 @@ from classtrack.schemas.makeup import (
     ConflictCheckRequest,
     ConflictReportOut,
     DecisionRequest,
+    FreeRoomOut,
     MakeupCreateRequest,
     MakeupOut,
 )
@@ -57,6 +59,8 @@ async def _decorate(session, makeups: list[MakeupClass]) -> list[MakeupOut]:
             item.original_course_code = original.course_code
             item.original_section = original.section
             item.original_date = original.date
+            item.original_time_slot = original.time_slot
+            item.original_room = original.room
         item.teacher_name = names.get(makeup.teacher_initial)
         out.append(item)
     return out
@@ -84,7 +88,23 @@ async def check_conflict(
     return ConflictReportOut.model_validate(report.as_dict())
 
 
-@router.post("/makeup", response_model=MakeupOut, summary="Schedule a makeup class")
+@router.get(
+    "/makeup/free-rooms",
+    response_model=list[FreeRoomOut],
+    summary="Empty rooms for a date and slot",
+)
+async def free_rooms(
+    session: SessionDep,
+    user: TeacherUser,  # noqa: ARG001
+    on: Date = Query(alias="date"),
+    time_slot: str = Query(),
+) -> list[FreeRoomOut]:
+    """The rooms a teacher may pick for a physical reschedule."""
+    rows = await conflict_service.free_rooms(session, on=on, time_slot=time_slot)
+    return [FreeRoomOut.model_validate(r) for r in rows]
+
+
+@router.post("/makeup", response_model=MakeupOut, summary="Request a makeup class")
 async def create(
     payload: MakeupCreateRequest, session: SessionDep, user: TeacherUser
 ) -> MakeupOut:
@@ -118,16 +138,13 @@ async def list_makeups(
 @router.get(
     "/approvals/pending",
     response_model=list[MakeupOut],
-    summary="Online makeup requests awaiting a decision",
+    summary="Reschedule requests awaiting a decision",
 )
 async def pending(session: SessionDep, user: AdminUser) -> list[MakeupOut]:  # noqa: ARG001
     rows = (
         await session.scalars(
             select(MakeupClass)
-            .where(
-                MakeupClass.status == MakeupStatus.PENDING,
-                MakeupClass.mode == MakeupMode.ONLINE,
-            )
+            .where(MakeupClass.status == MakeupStatus.PENDING)
             .order_by(MakeupClass.created_at)
         )
     ).all()
@@ -137,7 +154,7 @@ async def pending(session: SessionDep, user: AdminUser) -> list[MakeupOut]:  # n
 @router.post(
     "/approvals/{makeup_id}/decide",
     response_model=MakeupOut,
-    summary="Approve or reject an online makeup",
+    summary="Approve or reject a reschedule request",
 )
 async def decide(
     makeup_id: int, payload: DecisionRequest, session: SessionDep, user: AdminUser

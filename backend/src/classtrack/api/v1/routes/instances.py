@@ -11,7 +11,14 @@ from sqlalchemy.orm import selectinload
 from classtrack.api.deps import AdminUser, CurrentUser, SessionDep, scope_teacher
 from classtrack.core.errors import ForbiddenError, NotFoundError, ValidationError
 from classtrack.db.base import utcnow
-from classtrack.models import ClassInstance, ClassStatus, Role, TeacherResponse
+from classtrack.models import (
+    CheckOutcome,
+    CheckRecord,
+    ClassInstance,
+    ClassStatus,
+    Role,
+    TeacherResponse,
+)
 from classtrack.schemas.monitoring import (
     CancelRequest,
     InstanceOut,
@@ -37,12 +44,24 @@ async def list_instances(
     room: str | None = None,
     section: str | None = None,
     status: ClassStatus | None = None,
+    needs_reschedule: bool = False,
     limit: int = Query(default=200, le=1000),
 ) -> list[InstanceOut]:
+    """``needs_reschedule`` selects what the teacher owes a new slot for: missed
+    classes, plus those staff reported absent that the sweep has not yet settled.
+    """
     # A TEACHER is forced onto their own initial regardless of the query.
     initial = scope_teacher(user, teacher)
 
     query = select(ClassInstance).options(selectinload(ClassInstance.check))
+    if needs_reschedule:
+        query = query.outerjoin(CheckRecord, CheckRecord.instance_id == ClassInstance.id).where(
+            (ClassInstance.status == ClassStatus.MISSED)
+            | (
+                ClassInstance.status.is_(None)
+                & (CheckRecord.outcome == CheckOutcome.TEACHER_NOT_FOUND)
+            )
+        )
     if on is not None:
         query = query.where(ClassInstance.date == on)
     if initial is not None:

@@ -92,7 +92,11 @@ async def test_missed_notifies_the_teacher(session, instance, staff, teacher_use
             select(Notification).where(Notification.user_id == teacher_user.id)
         )
     ).all()
-    assert [n.kind for n in notes] == [NotificationKind.MISSED_CLASS]
+    # The staff report warns them at once; the sweep's verdict follows.
+    assert [n.kind for n in notes] == [
+        NotificationKind.CLASS_REPORTED,
+        NotificationKind.MISSED_CLASS,
+    ]
     assert "CSE311" in notes[0].body
 
 

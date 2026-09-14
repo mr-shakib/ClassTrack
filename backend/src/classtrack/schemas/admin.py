@@ -97,6 +97,19 @@ class StaffCreateRequest(BaseModel):
     zones: list[str] = Field(min_length=1)
 
 
+class TeacherOut(BaseModel):
+    initial: str
+    name: str
+    designation: str | None = None
+    has_account: bool = False
+    #: Null when there is no account.
+    account_active: bool | None = None
+
+
+class TeacherAccountRequest(BaseModel):
+    password: str = Field(min_length=6, max_length=128)
+
+
 class ZoneAssignRequest(BaseModel):
     #: Empty list clears the restriction -- the staff member then sees every room.
     zones: list[str] = Field(default_factory=list)

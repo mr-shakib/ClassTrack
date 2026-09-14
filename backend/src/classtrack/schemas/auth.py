@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 from classtrack.models import Role
 from classtrack.schemas.common import ORMModel
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    #: An email address, or a teacher's initial. ``email`` is still accepted as
+    #: the key so existing clients keep working.
+    username: str = Field(
+        min_length=1, max_length=255, validation_alias=AliasChoices("username", "email")
+    )
     password: str = Field(min_length=1)
 
 

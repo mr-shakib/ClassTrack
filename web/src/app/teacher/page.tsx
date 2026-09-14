@@ -14,7 +14,15 @@ import {
 } from "@/components/ui";
 import { ApiError, api, todayISO } from "@/lib/api";
 import { useRequireRole } from "@/lib/auth";
-import type { ClassInstance, Makeup, TeacherReport } from "@/lib/types";
+import type { ClassInstance, Makeup, MakeupStatus, TeacherReport } from "@/lib/types";
+
+const MAKEUP_LABEL: Record<MakeupStatus, string> = {
+  PENDING: "awaiting approval",
+  SCHEDULED: "approved",
+  APPROVED: "approved",
+  REJECTED: "rejected",
+  COMPLETED: "completed",
+};
 
 export default function TeacherPage() {
   const { user, permitted, loading: authLoading } = useRequireRole([
@@ -42,7 +50,7 @@ export default function TeacherPage() {
     try {
       const [todays, missed, mk, report] = await Promise.all([
         api.instances({ date: todayISO() }),
-        api.instances({ status: "MISSED", limit: 50 }),
+        api.instances({ needs_reschedule: true, limit: 50 }),
         api.makeups(),
         api.teacherReport(initial, "2026-09-01", "2026-12-31").catch(() => null),
       ]);
@@ -59,7 +67,11 @@ export default function TeacherPage() {
   }, [initial]);
 
   useEffect(() => {
-    if (permitted) void load();
+    if (!permitted) return;
+    void load();
+    // A staff report can land while the page is open; pick it up without a reload.
+    const timer = setInterval(() => void load(), 60_000);
+    return () => clearInterval(timer);
   }, [permitted, load]);
 
   if (authLoading || !permitted) return <Spinner />;
@@ -107,10 +119,12 @@ export default function TeacherPage() {
         <Card className="border-bad/30">
           <div className="border-b border-line px-4 py-3">
             <h2 className="text-sm font-semibold text-bad">
-              Needs your response ({needsAction.length})
+              Reschedule required ({needsAction.length})
             </h2>
             <p className="mt-0.5 text-xs text-ink-soft">
-              Confirm the record, or dispute it if you believe it is wrong.
+              Staff reported these classes as not held. Request a new time in an
+              empty room — once the Head of Department approves, it is checked
+              like any other class. Dispute the record if it is wrong.
             </p>
           </div>
           <ul className="divide-y divide-line">
@@ -173,6 +187,11 @@ export default function TeacherPage() {
                     {m.date} · {m.time_slot} · {m.mode === "ONLINE" ? "Online" : m.room}
                     {m.original_date ? ` · recovers ${m.original_date}` : ""}
                   </p>
+                  {m.status === "REJECTED" ? (
+                    <p className="mt-1 text-xs text-bad">
+                      Request another slot from the list above.
+                    </p>
+                  ) : null}
                   {m.decision_note ? (
                     <p className="mt-1 text-xs italic text-ink-soft">
                       “{m.decision_note}”
@@ -181,16 +200,14 @@ export default function TeacherPage() {
                 </div>
                 <span
                   className={`rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${
-                    m.status === "APPROVED" || m.status === "COMPLETED"
-                      ? "bg-ok-soft text-ok ring-ok/20"
-                      : m.status === "REJECTED"
-                        ? "bg-bad-soft text-bad ring-bad/20"
-                        : m.status === "PENDING"
-                          ? "bg-warn-soft text-warn ring-warn/20"
-                          : "bg-info-soft text-info ring-info/20"
+                    m.status === "REJECTED"
+                      ? "bg-bad-soft text-bad ring-bad/20"
+                      : m.status === "PENDING"
+                        ? "bg-warn-soft text-warn ring-warn/20"
+                        : "bg-ok-soft text-ok ring-ok/20"
                   }`}
                 >
-                  {m.status.toLowerCase()}
+                  {MAKEUP_LABEL[m.status]}
                 </span>
               </li>
             ))}
@@ -227,6 +244,7 @@ function MissedRow({
   };
 
   const responded = instance.teacher_response != null;
+  const reported = instance.status !== "MISSED";
 
   return (
     <li className="px-4 py-3">
@@ -240,23 +258,30 @@ function MissedRow({
           </p>
         </div>
 
-        {responded ? (
-          <span className="text-xs font-medium text-ink-soft">
-            You marked this {instance.teacher_response?.toLowerCase()}
-          </span>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={() => act("CONFIRMED")} disabled={busy}>
-              Confirm
-            </Button>
-            <Button variant="secondary" onClick={() => setMode("dispute")} disabled={busy}>
-              Dispute
-            </Button>
-            <Link href={`/teacher/makeup?instance=${instance.id}`}>
-              <Button variant="secondary">Schedule makeup</Button>
-            </Link>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {reported ? (
+            // Confirm and dispute answer a settled MISSED record; this one is
+            // not settled yet, and staff may still record a late arrival.
+            <span className="text-xs font-medium text-warn">Reported absent · not final yet</span>
+          ) : responded ? (
+            <span className="text-xs font-medium text-ink-soft">
+              You marked this {instance.teacher_response?.toLowerCase()}
+            </span>
+          ) : (
+            <>
+              <Button variant="ghost" onClick={() => act("CONFIRMED")} disabled={busy}>
+                Confirm
+              </Button>
+              <Button variant="ghost" onClick={() => setMode("dispute")} disabled={busy}>
+                Dispute
+              </Button>
+            </>
+          )}
+          {/* Offered after a response too: the class is still owed either way. */}
+          <Link href={`/teacher/makeup?instance=${instance.id}`}>
+            <Button>Request reschedule</Button>
+          </Link>
+        </div>
       </div>
 
       {mode === "dispute" && !responded ? (

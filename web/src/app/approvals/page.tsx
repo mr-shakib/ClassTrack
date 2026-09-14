@@ -32,10 +32,11 @@ export default function ApprovalsPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
-        <h1 className="text-xl font-semibold">Online class approvals</h1>
+        <h1 className="text-xl font-semibold">Reschedule approvals</h1>
         <p className="mt-0.5 text-sm text-ink-soft">
-          An approved online class stays in schedules and reports, but is excluded
-          from physical room checking.
+          Approve an in-room request and it joins the staff checking list for that
+          room and time. Reject it and the teacher must pick another slot. An
+          approved online class is excluded from room checking.
         </p>
       </div>
 
@@ -47,7 +48,7 @@ export default function ApprovalsPage() {
         <Card>
           <EmptyState
             title="Nothing awaiting a decision"
-            body="Online makeup requests will appear here."
+            body="Reschedule requests from teachers will appear here."
           />
         </Card>
       ) : (
@@ -91,13 +92,13 @@ function RequestCard({ makeup, onDone }: { makeup: Makeup; onDone: () => void })
           </p>
         </div>
         <span className="rounded-full bg-warn-soft px-2.5 py-1 text-xs font-semibold text-warn ring-1 ring-inset ring-warn/20">
-          online · pending
+          {makeup.mode === "ONLINE" ? "online" : "in room"} · pending
         </span>
       </div>
 
-      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-3">
+      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-4">
         <div>
-          <dt className="text-xs text-ink-faint">Proposed</dt>
+          <dt className="text-xs text-ink-faint">New date</dt>
           <dd className="font-medium tabular-nums">{makeup.date}</dd>
         </div>
         <div>
@@ -105,8 +106,19 @@ function RequestCard({ makeup, onDone }: { makeup: Makeup; onDone: () => void })
           <dd className="font-medium tabular-nums">{makeup.time_slot}</dd>
         </div>
         <div>
-          <dt className="text-xs text-ink-faint">Recovers</dt>
-          <dd className="font-medium tabular-nums">{makeup.original_date ?? "—"}</dd>
+          <dt className="text-xs text-ink-faint">Room</dt>
+          <dd className="font-medium">{makeup.mode === "ONLINE" ? "Online" : makeup.room}</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-ink-faint">Missed class</dt>
+          <dd className="font-medium tabular-nums">
+            {makeup.original_date ?? "—"}
+            {makeup.original_time_slot ? (
+              <span className="block text-xs font-normal text-ink-soft">
+                {makeup.original_time_slot} · {makeup.original_room}
+              </span>
+            ) : null}
+          </dd>
         </div>
       </dl>
 

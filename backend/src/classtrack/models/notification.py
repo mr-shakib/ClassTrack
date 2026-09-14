@@ -16,7 +16,12 @@ from classtrack.db.base import Base, TimestampMixin
 
 
 class NotificationKind(str, enum.Enum):
+    #: Staff recorded the teacher as absent or late, before the sweep decides.
+    CLASS_REPORTED = "CLASS_REPORTED"
     MISSED_CLASS = "MISSED_CLASS"
+    #: A physical reschedule request, and the HoD's answer to it.
+    MAKEUP_REQUEST = "MAKEUP_REQUEST"
+    MAKEUP_DECISION = "MAKEUP_DECISION"
     MAKEUP_REMINDER = "MAKEUP_REMINDER"
     ONLINE_REQUEST = "ONLINE_REQUEST"
     ONLINE_DECISION = "ONLINE_DECISION"

@@ -58,7 +58,16 @@ class MakeupOut(ORMModel):
     original_course_code: str | None = None
     original_section: str | None = None
     original_date: Date | None = None
+    original_time_slot: str | None = None
+    original_room: str | None = None
     teacher_name: str | None = None
+
+
+class FreeRoomOut(BaseModel):
+    room: str
+    room_type: str
+    #: Short floor label, e.g. "KT-3".
+    zone: str
 
 
 class DecisionRequest(BaseModel):

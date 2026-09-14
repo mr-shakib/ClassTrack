@@ -16,7 +16,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login", response_model=UserOut, summary="Sign in")
 async def login(payload: LoginRequest, response: Response, session: SessionDep) -> UserOut:
-    user = await auth_service.authenticate(session, payload.email, payload.password)
+    user = await auth_service.authenticate(session, payload.username, payload.password)
     settings = get_settings()
     response.set_cookie(
         settings.session_cookie,
