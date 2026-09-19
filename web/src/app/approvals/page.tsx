@@ -5,6 +5,7 @@ import { shortDay } from "@/components/Rescheduled";
 import { Button, Card, EmptyState, ErrorNote, Spinner, inputClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
 import { ADMIN_ROLES, useRequireRole } from "@/lib/auth";
+import { teacherMatcher } from "@/lib/search";
 import type { Makeup, MakeupMode } from "@/lib/types";
 
 export default function ApprovalsPage() {
@@ -16,14 +17,11 @@ export default function ApprovalsPage() {
   const [mode, setMode] = useState<MakeupMode | "">("");
 
   const shown = useMemo(() => {
-    const q = query.trim().toUpperCase();
+    const matches = teacherMatcher(query, rows.map((m) => m.teacher_initial));
     return rows.filter(
       (m) =>
         (!mode || m.mode === mode) &&
-        (!q ||
-          m.teacher_initial.toUpperCase().startsWith(q) ||
-          (m.teacher_name ?? "").toUpperCase().includes(q) ||
-          (m.original_course_code ?? "").toUpperCase().includes(q)),
+        matches(m.teacher_initial, m.teacher_name, m.original_course_code),
     );
   }, [rows, query, mode]);
   const teachers = new Set(rows.map((m) => m.teacher_initial)).size;

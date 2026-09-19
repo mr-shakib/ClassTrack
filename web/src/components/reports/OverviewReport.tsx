@@ -10,6 +10,7 @@ import {
 import { Button, Card, EmptyState, ErrorNote, Field, Spinner, SummaryCard, inputClass } from "@/components/ui";
 import { SLOTS, api, pdfUrl } from "@/lib/api";
 import { downloadCsv } from "@/lib/csv";
+import { teacherMatcher } from "@/lib/search";
 import type { Overview, ReportFilters, TeacherTally, Zone } from "@/lib/types";
 import PeriodPicker, { type Period, currentMonthPeriod } from "./PeriodPicker";
 
@@ -278,13 +279,9 @@ function TeacherTable({
   const [sort, setSort] = useState<SortKey>("flagged");
 
   const rows = useMemo(() => {
-    const q = query.trim().toUpperCase();
+    const matches = teacherMatcher(query, data.by_teacher.map((r) => r.teacher_initial));
     const list = data.by_teacher.filter(
-      (r) =>
-        (!onlyFlagged || r.flagged) &&
-        (!q ||
-          r.teacher_initial.includes(q) ||
-          (r.teacher_name ?? "").toUpperCase().includes(q)),
+      (r) => (!onlyFlagged || r.flagged) && matches(r.teacher_initial, r.teacher_name),
     );
     const by: Record<SortKey, (a: TeacherTally, b: TeacherTally) => number> = {
       flagged: (a, b) => b.courses_below_minimum - a.courses_below_minimum || a.held - b.held,

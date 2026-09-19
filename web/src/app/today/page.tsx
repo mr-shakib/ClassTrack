@@ -6,6 +6,7 @@ import { MovedToTag, RescheduledTag, rescheduledRowClass } from "@/components/Re
 import StatusBadge from "@/components/StatusBadge";
 import { Card, EmptyState, ErrorNote, Field, Spinner, inputClass } from "@/components/ui";
 import { SLOTS, api, todayISO } from "@/lib/api";
+import { teacherMatcher } from "@/lib/search";
 import { MANAGEMENT_ROLES, useRequireRole } from "@/lib/auth";
 import type { DayRow, DayStatus, Outcome } from "@/lib/types";
 
@@ -59,15 +60,11 @@ export default function DayStatusPage() {
 
   // Everything but the outcome filter: the outcome chips count within this.
   const scoped = useMemo(() => {
-    const q = f.q.trim().toUpperCase();
-    return (data?.rows ?? []).filter(
+    const all = data?.rows ?? [];
+    const matches = teacherMatcher(f.q, all.map((r) => r.teacher_initial));
+    return all.filter(
       (r) =>
-        (!q ||
-          r.teacher_initial.toUpperCase().startsWith(q) ||
-          (r.teacher_name ?? "").toUpperCase().includes(q) ||
-          r.course_code.toUpperCase().includes(q) ||
-          r.room.toUpperCase().includes(q) ||
-          r.section.toUpperCase().includes(q)) &&
+        matches(r.teacher_initial, r.teacher_name, r.course_code, r.room, r.section) &&
         (!f.floor || r.zone_key === f.floor) &&
         (!f.slot || r.time_slot === f.slot) &&
         (!f.makeupOnly || r.is_makeup),
