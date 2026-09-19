@@ -25,6 +25,8 @@ dependencies = [
     # and break on current Python.
     "bcrypt>=4.2",
     "PyJWT>=2.10",
+    # Teacher-wise and summary reports as PDF.
+    "reportlab>=4.2",
 ]
 
 [project.optional-dependencies]

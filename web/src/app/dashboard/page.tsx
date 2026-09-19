@@ -2,14 +2,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { RescheduledTag, rescheduledRowClass } from "@/components/Rescheduled";
 import StatusBadge from "@/components/StatusBadge";
 import { Card, EmptyState, ErrorNote, Spinner, SummaryCard } from "@/components/ui";
 import { api } from "@/lib/api";
-import { ADMIN_ROLES, useRequireRole } from "@/lib/auth";
+import { ADMIN_ROLES, MANAGEMENT_ROLES, useRequireRole } from "@/lib/auth";
 import type { Dashboard } from "@/lib/types";
 
 export default function DashboardPage() {
-  const { permitted, loading: authLoading } = useRequireRole(ADMIN_ROLES);
+  const { user, permitted, loading: authLoading } = useRequireRole(MANAGEMENT_ROLES);
+  // The Coordination Officer sees the queue's size but cannot decide it.
+  const canApprove = user != null && ADMIN_ROLES.includes(user.role);
   const [data, setData] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,10 +50,18 @@ export default function DashboardPage() {
             {data ? new Date(data.as_of).toLocaleTimeString() : "—"}
           </p>
         </div>
-        <span className="flex items-center gap-1.5 text-xs text-ink-faint">
-          <span className="size-2 animate-pulse rounded-full bg-ok" />
-          auto-refreshing
-        </span>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/today"
+            className="rounded-lg px-3 py-1.5 text-sm font-semibold text-brand ring-1 ring-inset ring-brand/30 hover:bg-brand-soft"
+          >
+            Whole day ›
+          </Link>
+          <span className="flex items-center gap-1.5 text-xs text-ink-faint">
+            <span className="size-2 animate-pulse rounded-full bg-ok" />
+            auto-refreshing
+          </span>
+        </div>
       </div>
 
       {error ? <ErrorNote message={error} /> : null}
@@ -90,14 +101,14 @@ export default function DashboardPage() {
             label="Not checked"
             value={a?.not_checked_today ?? 0}
             tone="text-gap"
-            note="see who"
-            href="/unreported"
+            note={canApprove ? "see who" : undefined}
+            href={canApprove ? "/unreported" : undefined}
           />
           <Attention
             label="Reschedule requests"
             value={a?.pending_online ?? 0}
             tone="text-warn"
-            href="/approvals"
+            href={canApprove ? "/approvals" : undefined}
           />
           <Attention
             label="Pending makeups"
@@ -135,7 +146,9 @@ export default function DashboardPage() {
                   <tr
                     key={r.instance_id}
                     className={
-                      r.status === "MISSED"
+                      r.is_makeup
+                        ? rescheduledRowClass
+                        : r.status === "MISSED"
                         ? "bg-bad-soft/40"
                         : r.status === "NOT_CHECKED"
                           ? "bg-gap-soft/40"
@@ -145,9 +158,9 @@ export default function DashboardPage() {
                     <td className="px-4 py-2 font-medium">
                       {r.room}
                       {r.is_makeup ? (
-                        <span className="ml-1.5 rounded bg-info-soft px-1 text-[10px] font-bold uppercase text-info">
-                          MU
-                        </span>
+                        <div className="mt-1">
+                          <RescheduledTag from={r.rescheduled_from} />
+                        </div>
                       ) : null}
                     </td>
                     <td className="px-4 py-2 text-ink-soft">

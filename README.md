@@ -63,8 +63,11 @@ Sign in with any of these — password `classtrack`:
 
 | Account | Role | Lands on |
 |---|---|---|
-| `admin@diu.edu` | Super admin | `/dashboard` |
-| `hod@diu.edu` | Head of department | `/dashboard` |
+| `admin@diu.edu` | Super admin (fallback) | `/dashboard` |
+| `hod@diu.edu` | Head of department — full admin | `/dashboard` |
+| `associate@diu.edu` | Associate head — full admin | `/dashboard` |
+| `coordinator@diu.edu` | Coordination officer — no reports, no approvals | `/dashboard` |
+| `committee@diu.edu` | Committee — checks and corrects classes | `/staff` |
 | `staff1@diu.edu` | Office staff | `/staff` |
 | `teacher@diu.edu` | Teacher | `/teacher` |
 

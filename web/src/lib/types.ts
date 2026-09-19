@@ -4,6 +4,7 @@ export type Role =
   | "SUPER_ADMIN"
   | "HOD"
   | "ASSOCIATE_HEAD"
+  | "COORDINATION_OFFICER"
   | "COMMITTEE"
   | "STAFF"
   | "TEACHER";
@@ -61,6 +62,10 @@ export interface Zone {
   rooms: string[];
 }
 
+export interface Account extends User {
+  is_active: boolean;
+}
+
 export interface StaffMember {
   id: number;
   email: string;
@@ -69,8 +74,23 @@ export interface StaffMember {
   zones: string[];
 }
 
+/** The other end of a reschedule. */
+export interface SlotRef {
+  date: string;
+  time_slot: string;
+  room: string | null;
+  instance_id: number | null;
+  mode: MakeupMode | null;
+  /** The makeup's progress; set on `rescheduled_to` only. */
+  status: MakeupStatus | null;
+}
+
 export interface RoomRow {
   instance_id: number;
+  date: string | null;
+  time_slot: string | null;
+  /** This class's own reporting state -- the teacher search mixes slots and days. */
+  slot_state: "UPCOMING" | "ONGOING" | "CLOSED" | null;
   room: string;
   room_type: string;
   course_code: string;
@@ -81,6 +101,8 @@ export interface RoomRow {
   scheduled_start: string;
   scheduled_end: string;
   is_makeup: boolean;
+  /** Set on a makeup: the missed class it recovers, on another day. */
+  rescheduled_from: SlotRef | null;
   zone: string | null;
   /** "KT-3", "UNZONED" -- matches FloorSummary.key. */
   zone_key: string | null;
@@ -135,6 +157,8 @@ export interface ClassInstance {
   teacher_initial: string;
   is_makeup: boolean;
   status: ClassStatus | null;
+  rescheduled_from: SlotRef | null;
+  rescheduled_to: SlotRef | null;
   teacher_response: TeacherResponseValue | null;
   response_note: string | null;
   check: CheckRecord | null;
@@ -171,6 +195,36 @@ export interface DashboardRow {
   checked_by: string | null;
   checked_at: string | null;
   is_makeup: boolean;
+  rescheduled_from: SlotRef | null;
+}
+
+/** The report bucket every class falls in -- exactly one. */
+export type Outcome =
+  | "CONDUCTED"
+  | "LATE"
+  | "MISSED"
+  | "NOT_CHECKED"
+  | "RESCHEDULED"
+  | "CANCELLED"
+  | "PENDING";
+
+export interface DayRow extends DashboardRow {
+  date: string;
+  start: string;
+  end: string;
+  zone: string;
+  zone_key: string;
+  course_title: string | null;
+  outcome: Outcome;
+  remark: string | null;
+  rescheduled_to: SlotRef | null;
+}
+
+export interface DayStatus {
+  date: string;
+  as_of: string;
+  current_slot: string | null;
+  rows: DayRow[];
 }
 
 export interface Dashboard {
@@ -235,6 +289,101 @@ export interface TeacherAccount {
   account_active: boolean | null;
 }
 
+/** Counts per outcome. Every class falls in exactly one bucket. */
+export interface Tally {
+  total: number;
+  /** Routine classes, excluding makeups. */
+  scheduled: number;
+  /** On time + late: the class happened. */
+  held: number;
+  conducted: number;
+  late: number;
+  missed: number;
+  not_checked: number;
+  rescheduled: number;
+  cancelled: number;
+  pending: number;
+  makeup_held: number;
+  /** Held ÷ (held + missed). Not-checked classes are left out. */
+  conduct_rate: number;
+  avg_late_minutes: number;
+}
+
+export interface FloorTally extends Tally {
+  key: string;
+  label: string;
+  short_label: string;
+}
+
+export interface SlotTally extends Tally {
+  time_slot: string;
+}
+
+export interface TrendPoint extends Tally {
+  date: string;
+}
+
+export interface TeacherTally extends Tally {
+  teacher_initial: string;
+  teacher_name: string | null;
+  courses: number;
+  courses_below_minimum: number;
+  min_course_held: number;
+  /** At least one course is below the minimum so far. */
+  flagged: boolean;
+}
+
+export interface CourseTally extends Tally {
+  teacher_initial: string;
+  teacher_name: string | null;
+  course_code: string;
+  course_title: string | null;
+  section: string;
+  below_minimum: boolean;
+}
+
+export interface ClassRow {
+  instance_id: number;
+  date: string;
+  day: string;
+  time_slot: string;
+  room: string;
+  zone: string;
+  course_code: string;
+  course_title: string | null;
+  section: string;
+  teacher_initial: string;
+  teacher_name: string | null;
+  status: ClassStatus | null;
+  outcome: Outcome;
+  late_minutes: number | null;
+  remark: string | null;
+  is_makeup: boolean;
+  rescheduled_from: SlotRef | null;
+  rescheduled_to: SlotRef | null;
+}
+
+export interface ReportFilters {
+  teacher?: string;
+  floor?: string;
+  course?: string;
+  section?: string;
+  slot?: string;
+}
+
+export interface Overview {
+  range: { from: string; to: string };
+  filters: Record<string, string | null>;
+  min_conducted: number;
+  totals: Tally;
+  granularity: "day" | "week" | "month";
+  trend: TrendPoint[];
+  by_floor: FloorTally[];
+  by_slot: SlotTally[];
+  by_teacher: TeacherTally[];
+  by_course: CourseTally[];
+}
+
 export interface DailyReport {
   date: string;
   total_scheduled: number;
@@ -246,22 +395,36 @@ export interface DailyReport {
   makeup: number;
   online_approved: number;
   unresolved: number;
+  totals: Tally;
+  by_floor: FloorTally[];
+  by_slot: SlotTally[];
+  /** Makeups held on this day for a class missed on another. */
+  rescheduled_in: ClassRow[];
 }
 
 export interface TeacherReport {
   teacher_initial: string;
   teacher_name: string | null;
   range: { from: string; to: string };
+  min_conducted: number;
   total_scheduled: number;
   conducted: number;
+  on_time: number;
   late: number;
   missed: number;
   not_checked: number;
+  rescheduled: number;
+  cancelled: number;
   makeup_scheduled: number;
   makeup_completed: number;
   makeup_pending: number;
   online_approved: number;
   unresolved: number;
+  conduct_rate: number;
+  avg_late_minutes: number;
+  flagged: boolean;
+  courses: CourseTally[];
+  classes: ClassRow[];
 }
 
 export interface StaffReport {

@@ -11,11 +11,11 @@ import {
   inputClass,
 } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
-import { ADMIN_ROLES, useRequireRole } from "@/lib/auth";
+import { MANAGEMENT_ROLES, useRequireRole } from "@/lib/auth";
 import type { StaffMember, Zone } from "@/lib/types";
 
 export default function StaffPage() {
-  const { permitted, loading: authLoading } = useRequireRole(ADMIN_ROLES);
+  const { permitted, loading: authLoading } = useRequireRole(MANAGEMENT_ROLES);
   const [zones, setZones] = useState<Zone[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);

@@ -2,9 +2,15 @@
 
 Base: `/api/v1` · Auth: JWT in an httpOnly cookie · All timestamps ISO-8601, `Asia/Dhaka`.
 
-Roles: `SUPER_ADMIN` (SA) · `HOD` · `ASSOCIATE_HEAD` · `COMMITTEE` (C) · `STAFF` (ST) · `TEACHER` (T)
+Roles: `SUPER_ADMIN` (SA) · `HOD` · `ASSOCIATE_HEAD` · `COORDINATION_OFFICER` (CO) · `COMMITTEE` (C) · `STAFF` (ST) · `TEACHER` (T)
 
-`ASSOCIATE_HEAD` holds every `HOD` permission: wherever HOD is listed below, it is included.
+`HOD` and `ASSOCIATE_HEAD` hold every `SUPER_ADMIN` permission, so wherever SA or HOD is
+listed below, all three are included; SA remains only as a fallback login.
+
+`COORDINATION_OFFICER` runs day-to-day monitoring: everything marked **MGR** below
+(the dashboards, the routine, the calendar, staff coverage, rules, audit) plus checking
+and correcting past checks. They see **no reports** and **cannot decide** reschedule
+requests. `COMMITTEE` may check classes and correct past ones, nothing more.
 
 > Freeze this contract before parallel work starts. Frontend types in `web/lib/types.ts`
 > mirror it exactly.
@@ -108,10 +114,15 @@ and `reason` is optional.
 | `GET` | `/instances` | all (scoped) | Filter by date, teacher, room, status, section |
 | `GET` | `/instances/{id}` | all (scoped) | Detail + check + makeup chain + audit |
 | `POST` | `/instances/{id}/respond` | T | Confirm or dispute a missed class (BR-08) |
-| `POST` | `/instances/{id}/cancel` | HOD, SA | Cancel with reason |
+| `POST` | `/instances/{id}/cancel` | MGR | Cancel with reason |
 
 `TEACHER` callers are force-scoped to their own `teacher_initial` — the filter is applied
 server-side regardless of query parameters.
+
+Every instance carries `rescheduled_from` (on a makeup: the missed class it recovers) and
+`rescheduled_to` (on a missed class: the latest non-rejected request), each
+`{ date, time_slot, room, instance_id, mode, status }` or `null`. Room rows on the checking
+screen and dashboard rows carry `rescheduled_from` too, so a makeup can be marked apart.
 
 ```jsonc
 // POST /instances/1042/respond
@@ -122,8 +133,17 @@ the stored status — the original monitoring record survives (source SRS §9.1)
 
 ## 4. Live dashboard
 
+### `GET /dashboard/day?date=`
+Roles: MGR. Every class on one day with its `status`, its report `outcome`, floor, check,
+and reschedule links. The screen filters by teacher, floor, slot and outcome client-side.
+
+### `GET /checking/search?teacher=&from=&to=`
+Roles: ST, C, MGR. A teacher's checkable classes over a range (default: the last 14 days,
+at most six months), newest first, as room rows with their own `date`, `time_slot` and
+`slot_state`. For finding a past class to correct.
+
 ### `GET /dashboard/live`
-Roles: HOD, SA. Frontend polls every 30s.
+Roles: MGR. Frontend polls every 30s.
 
 ```jsonc
 {
@@ -233,17 +253,34 @@ Once an approved makeup's slot ends without completion, the sweep sends the teac
 
 | Method | Path | Roles | Purpose |
 |---|---|---|---|
-| `GET` | `/reports/daily` | HOD, SA | `?date=` |
-| `GET` | `/reports/teacher` | scoped | `?teacher=&from=&to=` |
+| `GET` | `/reports/overview` | HOD, SA | Any period (monthly, semester) — `?from=&to=&teacher=&floor=&course=&section=&slot=` |
+| `GET` | `/reports/overview/pdf` | HOD, SA | The same, as a department summary PDF |
+| `GET` | `/reports/daily` | HOD, SA | `?date=` — totals, floor-wise and slot-wise, makeups moved onto the day |
+| `GET` | `/reports/teacher` | T (own), HOD, SA | `?teacher=&from=&to=` — per-course tallies and every class |
+| `GET` | `/reports/teacher/pdf` | T (own), HOD, SA | The same, as a PDF listing every class |
 | `GET` | `/reports/staff` | HOD, SA | Monitoring completion rate |
+
+Every class falls in exactly one **outcome**: `CONDUCTED` (on time), `LATE`, `MISSED`,
+`NOT_CHECKED`, `RESCHEDULED` (missed and moved), `CANCELLED` or `PENDING`. **Held** is
+on time + late, including makeups. A recovered class counts once, on the day its makeup
+was held. The **conduct rate** is held ÷ (held + missed): not-checked classes are a staff
+gap and never lower it.
+
+A course-section with fewer than `min_conducted_classes` held (a setting, default 18) is
+`below_minimum`; a teacher with any such course is `flagged`.
+
+`STAFF`, `COMMITTEE` and `COORDINATION_OFFICER` get 403 from every report.
 
 ```jsonc
 // GET /reports/teacher?teacher=TCA&from=2026-09-01&to=2026-12-31
 { "teacher_initial": "TCA", "teacher_name": "Teacher A",
-  "range": { "from": "2026-09-01", "to": "2026-12-31" },
-  "total_scheduled": 120, "conducted": 113, "late": 4, "missed": 3,
-  "makeup_scheduled": 3, "makeup_completed": 2, "makeup_pending": 1,
-  "online_approved": 1, "not_checked": 0 }
+  "range": { "from": "2026-09-01", "to": "2026-12-31" }, "min_conducted": 18,
+  "total_scheduled": 120, "conducted": 113, "on_time": 109, "late": 4, "missed": 3,
+  "not_checked": 0, "rescheduled": 3, "conduct_rate": 97.4, "flagged": false,
+  "courses": [ { "course_code": "CSE311(70_A)", "section": "70_A", "held": 24,
+                 "below_minimum": false, "...": 0 } ],
+  "classes": [ { "date": "2026-09-13", "time_slot": "10:00-11:30", "outcome": "RESCHEDULED",
+                 "rescheduled_to": { "date": "2026-09-20", "time_slot": "04:00-05:30" } } ] }
 ```
 
 ```jsonc
@@ -266,16 +303,18 @@ Once an approved makeup's slot ends without completion, the sweep sends the teac
 
 | Method | Path | Roles | Purpose |
 |---|---|---|---|
-| `POST` | `/admin/routine/ingest` | HOD, SA | Upload PDF (multipart) → report |
-| `GET` | `/admin/routine/{id}/review` | HOD, SA | Parsed sessions + conflicts + skipped cells |
-| `POST` | `/admin/routine/{id}/activate` | HOD, SA | Activate + generate instances |
-| `GET` | `/admin/routines` | HOD, SA | Revision list |
-| `GET/POST` | `/admin/semesters` | SA | Semester CRUD |
-| `GET/POST/DELETE` | `/admin/holidays` | HOD, SA | Calendar |
-| `GET/POST` | `/admin/users` | SA | User management |
-| `GET/PUT` | `/admin/settings` | HOD, SA | Threshold config |
-| `GET` | `/admin/audit` | HOD, SA | `?entity_type=&entity_id=&actor=` |
-| `POST` | `/admin/instances/generate` | SA | Re-run generation (idempotent) |
+| `POST` | `/admin/routine/ingest` | MGR | Upload PDF (multipart) → report |
+| `GET` | `/admin/routine/{id}/review` | MGR | Parsed sessions + conflicts + skipped cells |
+| `POST` | `/admin/routine/{id}/activate` | MGR | Activate + generate instances |
+| `GET` | `/admin/routines` | MGR | Revision list |
+| `GET` | `/admin/semesters` | MGR | Semester list |
+| `POST` | `/admin/semesters` | HOD, SA | Create a semester |
+| `GET/POST/DELETE` | `/admin/holidays` | MGR | Calendar |
+| `GET/POST` | `/admin/users` | HOD, SA | User management |
+| `PATCH` | `/admin/users/{id}` | HOD, SA | Rename, change role, (de)activate, reset password |
+| `GET/PUT` | `/admin/settings` | MGR | Missed threshold, minimum classes per course |
+| `GET` | `/admin/audit` | MGR | `?entity_type=&entity_id=&actor=` |
+| `POST` | `/admin/instances/generate` | HOD, SA | Re-run generation (idempotent) |
 
 ```jsonc
 // POST /admin/routine/ingest   (multipart: file, department, semester, version?)

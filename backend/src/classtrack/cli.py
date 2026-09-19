@@ -46,6 +46,7 @@ _ACCOUNTS = [
     ("admin@diu.edu", "Department Admin", Role.SUPER_ADMIN, None),
     ("hod@diu.edu", "Head of Department", Role.HOD, None),
     ("associate@diu.edu", "Associate Head", Role.ASSOCIATE_HEAD, None),
+    ("coordinator@diu.edu", "Coordination Officer", Role.COORDINATION_OFFICER, None),
     ("committee@diu.edu", "Committee Member", Role.COMMITTEE, None),
     ("staff1@diu.edu", "Office Staff One", Role.STAFF, None),
     ("staff2@diu.edu", "Office Staff Two", Role.STAFF, None),

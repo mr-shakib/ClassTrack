@@ -8,6 +8,7 @@ import {
   formatDay,
   isOpenMakeup,
 } from "@/components/MakeupTracker";
+import { RescheduledTag } from "@/components/Rescheduled";
 import StatusBadge from "@/components/StatusBadge";
 import {
   Button,
@@ -187,10 +188,12 @@ export default function TeacherPage() {
                   <p className="text-lg font-semibold">
                     {inst.course_code} · {inst.section}
                   </p>
-                  <p className="text-base text-ink-soft">
-                    {inst.room}
-                    {inst.is_makeup ? " · makeup class" : ""}
-                  </p>
+                  <p className="text-base text-ink-soft">{inst.room}</p>
+                  {inst.is_makeup ? (
+                    <div className="mt-1">
+                      <RescheduledTag from={inst.rescheduled_from} />
+                    </div>
+                  ) : null}
                 </div>
                 <StatusBadge
                   status={inst.status}

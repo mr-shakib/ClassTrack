@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Card, EmptyState, ErrorNote, Spinner, inputClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
-import { ADMIN_ROLES, useRequireRole } from "@/lib/auth";
+import { MANAGEMENT_ROLES, useRequireRole } from "@/lib/auth";
 import type { TeacherAccount } from "@/lib/types";
 
 type Filter = "all" | "without" | "with";
@@ -15,7 +15,7 @@ const FILTERS: { key: Filter; label: string }[] = [
 ];
 
 export default function TeachersPage() {
-  const { permitted, loading: authLoading } = useRequireRole(ADMIN_ROLES);
+  const { permitted, loading: authLoading } = useRequireRole(MANAGEMENT_ROLES);
   const [rows, setRows] = useState<TeacherAccount[]>([]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");

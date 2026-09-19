@@ -1,4 +1,5 @@
 import type {
+  Account,
   AuditEntry,
   CheckOutcome,
   CheckResponse,
@@ -7,12 +8,17 @@ import type {
   ConflictReport,
   Dashboard,
   DailyReport,
+  DayStatus,
   FreeRoom,
   Holiday,
   IngestionReport,
   Makeup,
   MakeupMode,
   Notification,
+  Overview,
+  ReportFilters,
+  Role,
+  RoomRow,
   Routine,
   RoutineReview,
   Semester,
@@ -108,9 +114,13 @@ export const api = {
       reason?: string | null;
     },
   ) => post<CheckResponse>(`/checking/${instanceId}`, payload),
+  /** A teacher's classes over a range, newest first -- to find one to correct. */
+  searchChecking: (teacher: string, from?: string, to?: string) =>
+    get<RoomRow[]>(`/checking/search${qs({ teacher, from, to })}`),
 
   // --- dashboard ----------------------------------------------------------
   dashboard: () => get<Dashboard>("/dashboard/live"),
+  dayStatus: (date?: string) => get<DayStatus>(`/dashboard/day${qs({ date })}`),
   slots: () => get<{ days: string[]; slots: string[] }>("/meta/slots"),
 
   // --- instances ----------------------------------------------------------
@@ -166,6 +176,8 @@ export const api = {
   dailyReport: (date?: string) => get<DailyReport>(`/reports/daily${qs({ date })}`),
   teacherReport: (teacher?: string, from?: string, to?: string) =>
     get<TeacherReport>(`/reports/teacher${qs({ teacher, from, to })}`),
+  overview: (from: string, to: string, filters: ReportFilters = {}) =>
+    get<Overview>(`/reports/overview${qs({ from, to, ...filters })}`),
   staffReport: (from?: string, to?: string) =>
     get<StaffReport>(`/reports/staff${qs({ from, to })}`),
   unreported: (from?: string, to?: string) =>
@@ -195,6 +207,7 @@ export const api = {
   settings: () => get<Record<string, string>>("/admin/settings"),
   updateSettings: (payload: {
     missed_threshold_minutes?: number;
+    min_conducted_classes?: number;
   }) => put<Record<string, string>>("/admin/settings", payload),
   audit: (params: { entity_type?: string; entity_id?: number; limit?: number }) =>
     get<AuditEntry[]>(`/admin/audit${qs(params)}`),
@@ -207,7 +220,17 @@ export const api = {
     put<{ detail: string }>(`/admin/teachers/${encodeURIComponent(initial)}/password`, {
       password,
     }),
-  users: () => get<(User & { is_active: boolean })[]>("/admin/users"),
+  users: () => get<Account[]>("/admin/users"),
+  createUser: (payload: {
+    email: string;
+    full_name: string;
+    role: Role;
+    password: string;
+  }) => post<Account>("/admin/users", payload),
+  updateUser: (
+    id: number,
+    payload: { full_name?: string; role?: Role; is_active?: boolean; password?: string },
+  ) => request<Account>(`/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   zones: () => get<Zone[]>("/admin/zones"),
   staff: () => get<StaffMember[]>("/admin/staff"),
   createStaff: (payload: {
@@ -218,6 +241,14 @@ export const api = {
   }) => post<StaffMember>("/admin/staff", payload),
   assignZones: (userId: number, zones: string[]) =>
     put<StaffMember>(`/admin/staff/${userId}/zones`, { zones }),
+};
+
+/** Where a report PDF downloads from. Same-origin, so the session cookie goes along. */
+export const pdfUrl = {
+  teacher: (teacher: string, from: string, to: string) =>
+    `/api/v1/reports/teacher/pdf${qs({ teacher, from, to })}`,
+  overview: (from: string, to: string, filters: ReportFilters = {}) =>
+    `/api/v1/reports/overview/pdf${qs({ from, to, ...filters })}`,
 };
 
 /** The routine lattice. Fixed, so the UI need not fetch it to render a picker. */

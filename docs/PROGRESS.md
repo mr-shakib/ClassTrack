@@ -72,7 +72,7 @@ Record anything dropped, so v2 knows where to resume.
 | Editable routine verification grid | Block 12 | Planned deferral (SRS §2.2) | Review is read-only; correct by re-ingesting |
 | Email / SMS notifications | Block 7 | Planned deferral (SRS §2.2) | Add an `EmailChannel` beside `InAppChannel` |
 | Conflict override with reason | Block 7 | Planned deferral (SRS §2.2) | `ConflictReport.overridable` is already threaded through |
-| Monthly / semester / yearly reports | Block 11 | Planned deferral (SRS §2.2) | `report_service` aggregates already take a date range |
+| Monthly / semester / yearly reports | Block 11 | Planned deferral (SRS §2.2) | ✅ Done 2026-09-20 — `/reports/overview` |
 
 ## Decisions changed during the build
 
@@ -119,3 +119,18 @@ docker    api + web images build; full stack verified over a container network
 1. `backend/tests/unit/test_monitoring_rules.py` — the MISSED vs NOT_CHECKED split.
 2. `backend/tests/unit/test_makeup_flow.py::test_approved_online_makeup_is_excluded_from_checking` — AC-08.
 3. `/staff` at a 360px viewport — the one-tap requirement.
+
+---
+
+## 2026-09-20 — Reports, roles and reschedule visibility
+
+| Area | What changed |
+|---|---|
+| Roles | `COORDINATION_OFFICER` added (dashboards, admin screens, correcting past checks; no reports or approvals). Head and Associate Head now hold every Super-admin right. Accounts tab to manage non-teacher logins. |
+| Reports | Monthly / semester / custom period with filters (teacher, floor, slot, course, section) and charts; daily report floor-wise; teacher-wise report listing every class; summary and teacher PDFs (reportlab). |
+| Minimum classes | Course-sections with fewer than `min_conducted_classes` (default 18) held so far are red; their teacher is flagged. |
+| Counting fix | A class recovered by a makeup was counted as conducted twice (original + makeup both `MAKEUP_COMPLETED`). Now one outcome per class; the makeup carries it. Conduct rate no longer counts not-checked classes against the teacher. |
+| Reschedules | Makeups carry `rescheduled_from`, missed classes `rescheduled_to`; a dashed teal "Makeup · from …" tag marks them on every list. |
+| Day status | `/today`: every class on a day, filterable by teacher initials, floor, slot, outcome. |
+| Checking | "Find by teacher" search for correcting past classes. |
+| Approvals | 4-column card grid with teacher/course search and mode filter. |

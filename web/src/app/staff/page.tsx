@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import RoomCard from "@/components/RoomCard";
+import TeacherSearch from "@/components/TeacherSearch";
 import { Card, EmptyState, ErrorNote, Spinner } from "@/components/ui";
 import { SLOTS, api, todayISO } from "@/lib/api";
 import { CHECKING_ROLES, OVERRIDE_ROLES, useAuth, useRequireRole } from "@/lib/auth";
@@ -26,6 +27,7 @@ export default function StaffPage() {
   // committee may correct it afterwards.
   const canOverride = user != null && OVERRIDE_ROLES.includes(user.role);
 
+  const [mode, setMode] = useState<"floor" | "teacher">("floor");
   const [date, setDate] = useState(todayISO());
   const [slot, setSlot] = useState<string | null>(null);
   const [floor, setFloor] = useState<{ key: string; label: string } | null>(null);
@@ -52,12 +54,12 @@ export default function StaffPage() {
   );
 
   useEffect(() => {
-    if (!permitted) return;
+    if (!permitted || mode !== "floor") return;
     void load(true);
     // Refresh so a second staff member's checks show up without a reload.
     const timer = setInterval(() => void load(false), 30_000);
     return () => clearInterval(timer);
-  }, [permitted, load]);
+  }, [permitted, load, mode]);
 
   const patchRow = (instanceId: number, next: Partial<RoomRow>) => {
     setScreen((prev) =>
@@ -103,6 +105,37 @@ export default function StaffPage() {
 
   if (authLoading || !permitted) return <Spinner />;
 
+  const modeSwitch = (
+    <div className="grid grid-cols-2 gap-1 rounded-xl bg-canvas p-1 ring-2 ring-inset ring-line">
+      {(
+        [
+          ["floor", "By floor"],
+          ["teacher", "Find by teacher"],
+        ] as const
+      ).map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => setMode(key)}
+          className={`min-h-12 rounded-lg text-lg font-bold ${
+            mode === key ? "bg-surface text-brand shadow-sm" : "text-ink-soft"
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (mode === "teacher") {
+    return (
+      <div className="mx-auto max-w-5xl space-y-4">
+        {modeSwitch}
+        <TeacherSearch canOverride={canOverride} />
+      </div>
+    );
+  }
+
   const slotIndex = slot ? SLOTS.indexOf(slot as (typeof SLOTS)[number]) : -1;
   const state = screen ? SLOT_STATE_COPY[screen.slot_state] : null;
   const locked = screen ? screen.slot_state !== "ONGOING" : false;
@@ -111,6 +144,7 @@ export default function StaffPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-4">
+      {modeSwitch}
       <div className="rounded-2xl bg-brand px-4 py-4 text-white">
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0">

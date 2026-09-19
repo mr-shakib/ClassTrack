@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, Card, EmptyState, ErrorNote, Spinner } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
-import { ADMIN_ROLES, useRequireRole } from "@/lib/auth";
+import { MANAGEMENT_ROLES, useRequireRole } from "@/lib/auth";
 import type { IngestionReport, Routine, RoutineReview } from "@/lib/types";
 
 export default function RoutinePage() {
-  const { permitted, loading: authLoading } = useRequireRole(ADMIN_ROLES);
+  const { permitted, loading: authLoading } = useRequireRole(MANAGEMENT_ROLES);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [routines, setRoutines] = useState<Routine[]>([]);

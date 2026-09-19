@@ -85,6 +85,19 @@ async def associate_head(session: AsyncSession) -> User:
 
 
 @pytest_asyncio.fixture
+async def coordinator(session: AsyncSession) -> User:
+    user = User(
+        email="coordinator@test.edu",
+        password_hash=hash_password("x"),
+        full_name="Coordination Officer",
+        role=Role.COORDINATION_OFFICER,
+    )
+    session.add(user)
+    await session.flush()
+    return user
+
+
+@pytest_asyncio.fixture
 async def committee(session: AsyncSession) -> User:
     user = User(
         email="committee@test.edu",

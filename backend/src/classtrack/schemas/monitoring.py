@@ -27,10 +27,27 @@ class CheckOut(ORMModel):
     checked_by: str | None = None
 
 
+class SlotRef(BaseModel):
+    """The other end of a reschedule."""
+
+    date: Date
+    time_slot: str
+    room: str | None = None
+    instance_id: int | None = None
+    mode: str | None = None
+    #: The makeup's progress; set on ``rescheduled_to`` only.
+    status: str | None = None
+
+
 class RoomRow(BaseModel):
     """One room card on the staff checking screen."""
 
     instance_id: int
+    date: Date | None = None
+    time_slot: str | None = None
+    #: UPCOMING, ONGOING or CLOSED for this class -- the teacher search mixes
+    #: slots and days, so each card carries its own.
+    slot_state: str | None = None
     room: str
     room_type: str
     course_code: str
@@ -41,6 +58,8 @@ class RoomRow(BaseModel):
     scheduled_start: str
     scheduled_end: str
     is_makeup: bool
+    #: Set on a makeup: the missed class it recovers, on another day.
+    rescheduled_from: SlotRef | None = None
     #: "KT-3", "G1-0", "Other" -- shown so staff can see the card is theirs.
     zone: str | None = None
     #: "KT-3", "UNZONED" -- matches ``FloorSummary.key``.
@@ -108,6 +127,8 @@ class InstanceOut(ORMModel):
     teacher_initial: str
     is_makeup: bool
     status: StatusOut | None = None
+    rescheduled_from: SlotRef | None = None
+    rescheduled_to: SlotRef | None = None
     teacher_response: TeacherResponse | None = None
     response_note: str | None = None
     check: CheckOut | None = None
@@ -153,6 +174,30 @@ class DashboardRow(BaseModel):
     checked_by: str | None = None
     checked_at: str | None = None
     is_makeup: bool = False
+    rescheduled_from: SlotRef | None = None
+
+
+class DayRow(DashboardRow):
+    """One class on the day-status screen."""
+
+    date: Date
+    start: str
+    end: str
+    zone: str
+    zone_key: str
+    course_title: str | None = None
+    #: The report bucket: CONDUCTED, LATE, MISSED, NOT_CHECKED, RESCHEDULED,
+    #: CANCELLED or PENDING.
+    outcome: str
+    remark: str | None = None
+    rescheduled_to: SlotRef | None = None
+
+
+class DayStatus(BaseModel):
+    date: Date
+    as_of: datetime
+    current_slot: str | None
+    rows: list[DayRow]
 
 
 class DashboardOut(BaseModel):

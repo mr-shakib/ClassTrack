@@ -8,7 +8,7 @@ from fastapi import APIRouter, Query
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from classtrack.api.deps import AdminUser, CurrentUser, SessionDep, scope_teacher
+from classtrack.api.deps import CurrentUser, ManagerUser, SessionDep, scope_teacher
 from classtrack.core.errors import ForbiddenError, NotFoundError, ValidationError
 from classtrack.db.base import utcnow
 from classtrack.models import (
@@ -23,8 +23,14 @@ from classtrack.schemas.monitoring import (
     CancelRequest,
     InstanceOut,
     RespondRequest,
+    SlotRef,
 )
-from classtrack.services import audit_service, notification_service, status_engine
+from classtrack.services import (
+    audit_service,
+    notification_service,
+    reschedule_links,
+    status_engine,
+)
 
 router = APIRouter(prefix="/instances", tags=["instances"])
 
@@ -32,6 +38,20 @@ router = APIRouter(prefix="/instances", tags=["instances"])
 def _serialise(inst: ClassInstance) -> InstanceOut:
     out = InstanceOut.model_validate(inst)
     out.status = status_engine.derive(inst)
+    return out
+
+
+async def _serialise_all(session, instances: list[ClassInstance]) -> list[InstanceOut]:
+    """Serialise, and say where each rescheduled class came from or went."""
+    moved_from, moved_to = await reschedule_links.links_for(session, instances)
+    out = []
+    for inst in instances:
+        item = _serialise(inst)
+        if inst.id in moved_from:
+            item.rescheduled_from = SlotRef.model_validate(moved_from[inst.id])
+        if inst.id in moved_to:
+            item.rescheduled_to = SlotRef.model_validate(moved_to[inst.id])
+        out.append(item)
     return out
 
 
@@ -74,7 +94,7 @@ async def list_instances(
         query = query.where(ClassInstance.status == status)
 
     query = query.order_by(ClassInstance.date, ClassInstance.start_min).limit(limit)
-    return [_serialise(i) for i in (await session.scalars(query)).all()]
+    return await _serialise_all(session, list((await session.scalars(query)).all()))
 
 
 @router.get("/{instance_id}", response_model=InstanceOut, summary="One instance")
@@ -153,7 +173,7 @@ async def cancel(
     instance_id: int,
     payload: CancelRequest,
     session: SessionDep,
-    user: AdminUser,
+    user: ManagerUser,
 ) -> InstanceOut:
     inst = await session.get(ClassInstance, instance_id)
     if inst is None:

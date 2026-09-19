@@ -1,17 +1,32 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { MakeupTimes, ModeBadge } from "@/components/MakeupTracker";
-import { Button, Card, EmptyState, ErrorNote, Spinner, bigInputClass } from "@/components/ui";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { shortDay } from "@/components/Rescheduled";
+import { Button, Card, EmptyState, ErrorNote, Spinner, inputClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
 import { ADMIN_ROLES, useRequireRole } from "@/lib/auth";
-import type { Makeup } from "@/lib/types";
+import type { Makeup, MakeupMode } from "@/lib/types";
 
 export default function ApprovalsPage() {
   const { permitted, loading: authLoading } = useRequireRole(ADMIN_ROLES);
   const [rows, setRows] = useState<Makeup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [mode, setMode] = useState<MakeupMode | "">("");
+
+  const shown = useMemo(() => {
+    const q = query.trim().toUpperCase();
+    return rows.filter(
+      (m) =>
+        (!mode || m.mode === mode) &&
+        (!q ||
+          m.teacher_initial.toUpperCase().startsWith(q) ||
+          (m.teacher_name ?? "").toUpperCase().includes(q) ||
+          (m.original_course_code ?? "").toUpperCase().includes(q)),
+    );
+  }, [rows, query, mode]);
+  const teachers = new Set(rows.map((m) => m.teacher_initial)).size;
 
   const load = useCallback(async () => {
     try {
@@ -31,17 +46,39 @@ export default function ApprovalsPage() {
   if (authLoading || !permitted) return <Spinner />;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">
-          Reschedule approvals{rows.length > 0 ? ` (${rows.length})` : ""}
-        </h1>
-        <p className="mt-1 text-base text-ink-soft">
-          Approve an in-room request and it joins the staff checking list for that room
-          and time. Reject it and the teacher must pick another slot. An approved online
-          class is excluded from room checking. Open the teacher&apos;s Drive link here if
-          they attached one; otherwise they add it after the class.
-        </p>
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="max-w-3xl">
+          <h1 className="text-2xl font-bold tracking-tight">
+            Reschedule approvals{rows.length > 0 ? ` (${rows.length})` : ""}
+          </h1>
+          <p className="mt-1 text-base text-ink-soft">
+            {rows.length > 0
+              ? `${rows.length} request${rows.length === 1 ? "" : "s"} from ${teachers} teacher${teachers === 1 ? "" : "s"}, oldest first. `
+              : ""}
+            An approved in-room class joins staff checking for that room and time; an approved
+            online class is left out of it. A rejected teacher must pick another slot.
+          </p>
+        </div>
+        {rows.length > 1 ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              className={`${inputClass} w-52`}
+              placeholder="Teacher initial or course"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <select
+              className={`${inputClass} w-auto`}
+              value={mode}
+              onChange={(e) => setMode(e.target.value as MakeupMode | "")}
+            >
+              <option value="">In room and online</option>
+              <option value="PHYSICAL">In room only</option>
+              <option value="ONLINE">Online only</option>
+            </select>
+          </div>
+        ) : null}
       </div>
 
       {error ? <ErrorNote message={error} /> : null}
@@ -55,9 +92,13 @@ export default function ApprovalsPage() {
             body="Reschedule requests from teachers will appear here."
           />
         </Card>
+      ) : shown.length === 0 ? (
+        <Card>
+          <EmptyState title="No request matches" body="Clear the search to see them all." />
+        </Card>
       ) : (
-        <div className="space-y-4">
-          {rows.map((m) => (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {shown.map((m) => (
             <RequestCard key={m.id} makeup={m} onDone={load} />
           ))}
         </div>
@@ -84,69 +125,89 @@ function RequestCard({ makeup, onDone }: { makeup: Makeup; onDone: () => void })
     }
   };
 
+  const online = makeup.mode === "ONLINE";
+
   return (
-    <article className="overflow-hidden rounded-2xl border-2 border-line bg-surface">
-      <header className="flex flex-wrap items-start justify-between gap-3 p-4 sm:p-5">
-        <div className="min-w-0">
-          <p className="text-2xl font-bold tracking-tight">
+    <article className="flex flex-col overflow-hidden rounded-2xl border-2 border-line bg-surface">
+      <header className="space-y-2 p-4">
+        <div className="flex items-start justify-between gap-2">
+          <p className="min-w-0 truncate text-xl font-bold tracking-tight">
             {makeup.original_course_code ?? "—"}
           </p>
-          <p className="text-lg text-ink-soft">
-            Section {makeup.original_section ?? "—"} ·{" "}
-            {makeup.teacher_name ?? makeup.teacher_initial} ({makeup.teacher_initial})
-          </p>
+          <span
+            className={`shrink-0 rounded-lg px-2 py-1 text-xs font-bold uppercase tracking-wide ${
+              online ? "bg-info-soft text-info" : "bg-brand-soft text-brand"
+            }`}
+          >
+            {online ? "Online" : "In room"}
+          </span>
         </div>
-        <ModeBadge makeup={makeup} />
+        <p className="text-sm text-ink-soft">
+          <span className="font-semibold text-ink">{makeup.teacher_initial}</span>
+          {makeup.teacher_name ? ` · ${makeup.teacher_name}` : ""}
+          <br />
+          Section {makeup.original_section ?? "—"}
+        </p>
       </header>
 
-      <div className="space-y-4 px-4 pb-5 sm:px-5">
-        <MakeupTimes makeup={makeup} newLabel="Requested new time" />
+      <div className="flex-1 space-y-2.5 px-4 pb-4">
+        <div className="rounded-xl bg-canvas px-3 py-2">
+          <p className="text-xs font-bold uppercase tracking-wide text-ink-faint">Missed</p>
+          <p className="text-sm font-semibold">
+            {makeup.original_date ? shortDay(makeup.original_date) : "—"}
+            <span className="font-normal text-ink-soft">
+              {" "}
+              · {[makeup.original_time_slot, makeup.original_room].filter(Boolean).join(" · ")}
+            </span>
+          </p>
+        </div>
+        <div className="rounded-xl bg-brand-soft px-3 py-2 ring-2 ring-inset ring-brand/20">
+          <p className="text-xs font-bold uppercase tracking-wide text-brand">Requested</p>
+          <p className="text-base font-bold">{shortDay(makeup.date)}</p>
+          <p className="text-sm font-semibold tabular-nums">
+            {makeup.time_slot} · {online ? "Online" : `Room ${makeup.room}`}
+          </p>
+        </div>
         {makeup.reason ? (
-          <p className="rounded-xl border-2 border-line px-4 py-3 text-base">
-            <span className="font-semibold">Reason: </span>
+          <p className="line-clamp-3 text-sm text-ink-soft" title={makeup.reason}>
+            <span className="font-semibold text-ink">Reason: </span>
             {makeup.reason}
           </p>
         ) : null}
-        {makeup.mode === "ONLINE" ? (
+        {online ? (
           makeup.drive_link ? (
             <a
               href={makeup.drive_link}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex min-h-14 items-center justify-between gap-3 rounded-xl bg-info-soft px-4 py-3 text-lg font-bold text-info ring-2 ring-inset ring-info/25 hover:bg-info/10"
+              className="flex items-center justify-between gap-2 rounded-xl bg-info-soft px-3 py-2 text-sm font-bold text-info ring-1 ring-inset ring-info/25 hover:bg-info/10"
             >
-              <span>Drive link from the teacher</span>
-              <span aria-hidden className="shrink-0 whitespace-nowrap">
-                Open ↗
-              </span>
+              <span>Drive link</span>
+              <span aria-hidden>Open ↗</span>
             </a>
           ) : (
-            <p className="rounded-xl bg-canvas px-4 py-3 text-base text-ink-soft">
-              No Drive link attached to this request.
-            </p>
+            <p className="text-xs text-ink-faint">No Drive link attached.</p>
           )
         ) : null}
       </div>
 
-      <footer className="space-y-3 border-t-2 border-line bg-canvas p-4 sm:p-5">
+      <footer className="space-y-2 border-t-2 border-line bg-canvas p-3">
         <input
-          className={bigInputClass}
+          className={inputClass}
           placeholder="Note for the teacher (optional)"
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />
 
         {error ? (
-          <p className="rounded-xl bg-bad-soft px-4 py-3 text-base font-semibold text-bad">
-            {error}
-          </p>
+          <p className="rounded-lg bg-bad-soft px-3 py-2 text-sm font-semibold text-bad">{error}</p>
         ) : null}
 
-        <div className="grid grid-cols-2 gap-3">
-          <Button size="xl" onClick={() => decide("APPROVE")} disabled={busy}>
+        <div className="grid grid-cols-2 gap-2">
+          <Button size="lg" onClick={() => decide("APPROVE")} disabled={busy}>
             Approve
           </Button>
-          <Button size="xl" variant="danger" onClick={() => decide("REJECT")} disabled={busy}>
+          <Button size="lg" variant="danger" onClick={() => decide("REJECT")} disabled={busy}>
             Reject
           </Button>
         </div>

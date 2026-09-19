@@ -16,13 +16,21 @@ from classtrack.models.notification import Notification, NotificationKind
 from classtrack.models.routine import ClassSession, Routine
 from classtrack.models.setting import SETTING_DEFAULTS, Setting
 from classtrack.models.teacher import Teacher
-from classtrack.models.user import ADMIN_ROLES, CHECKING_ROLES, OVERRIDE_ROLES, Role, User
+from classtrack.models.user import (
+    ADMIN_ROLES,
+    CHECKING_ROLES,
+    MANAGEMENT_ROLES,
+    OVERRIDE_ROLES,
+    Role,
+    User,
+)
 
 __all__ = [
     "ADMIN_ROLES",
     "BLOCKING_KINDS",
     "CHECKING_ROLES",
     "MAKEUP_ELIGIBLE",
+    "MANAGEMENT_ROLES",
     "OVERRIDE_ROLES",
     "SETTING_DEFAULTS",
     "AuditLog",

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ApiError, api } from "@/lib/api";
 import type { CheckOutcome, RoomRow } from "@/lib/types";
+import { RescheduledTag, shortDay } from "./Rescheduled";
 
 /**
  * One room on the checking screen.
@@ -22,11 +23,14 @@ export default function RoomCard({
   onChanged,
   locked = false,
   canOverride = false,
+  showWhen = false,
 }: {
   row: RoomRow;
   onChanged: (next: Partial<RoomRow>) => void;
   locked?: boolean;
   canOverride?: boolean;
+  /** Show the date and time -- for lists that mix days and slots. */
+  showWhen?: boolean;
 }) {
   const [busy, setBusy] = useState<CheckOutcome | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +42,19 @@ export default function RoomCard({
   const [remark, setRemark] = useState(row.check?.remark ?? "");
 
   const submitted = row.check != null;
+  // A makeup gets a dashed teal frame, so it stands apart from routine classes.
+  const frame = row.is_makeup ? "border-dashed border-info/60" : "border-line";
+  const when =
+    showWhen && row.date ? (
+      <div className="mb-1 text-sm font-semibold text-brand">
+        {shortDay(row.date)} · {row.scheduled_start}–{row.scheduled_end}
+      </div>
+    ) : null;
+  const makeupTag = row.is_makeup ? (
+    <div className="mt-2">
+      <RescheduledTag from={row.rescheduled_from} size="lg" />
+    </div>
+  ) : null;
 
   const nowHHMM = () => {
     const d = new Date();
@@ -107,15 +124,20 @@ export default function RoomCard({
     }[outcome];
 
     return (
-      <div className="overflow-hidden rounded-2xl border-2 border-line bg-surface">
-        <div className="flex items-baseline justify-between gap-2 px-4 pt-3">
-          <span className="text-2xl font-bold tracking-tight">{row.room}</span>
-          <span className="text-base font-semibold tabular-nums text-ink-soft">
-            {row.scheduled_start}
-          </span>
+      <div className={`overflow-hidden rounded-2xl border-2 bg-surface ${frame}`}>
+        <div className="px-4 pt-3">
+          {when}
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-2xl font-bold tracking-tight">{row.room}</span>
+            <span className="text-base font-semibold tabular-nums text-ink-soft">
+              {row.scheduled_start}
+            </span>
+          </div>
         </div>
         <div className="px-4 pb-3 text-base text-ink-soft">
           {row.course_code} · {row.section}
+          {showWhen ? ` · ${row.teacher_initial}` : ""}
+          {makeupTag}
         </div>
 
         <div className={`flex items-center gap-2 px-4 py-3 text-lg font-bold ${done.className}`}>
@@ -150,7 +172,8 @@ export default function RoomCard({
   // --- reporting closed for the day, nothing to do -------------------------
   if (locked && !overriding) {
     return (
-      <div className="rounded-2xl border-2 border-line bg-surface p-4 opacity-80">
+      <div className={`rounded-2xl border-2 bg-surface p-4 opacity-80 ${frame}`}>
+        {when}
         <div className="flex items-baseline justify-between gap-2">
           <span className="text-2xl font-bold tracking-tight">{row.room}</span>
           <span className="text-base font-semibold tabular-nums text-ink-soft">
@@ -160,10 +183,17 @@ export default function RoomCard({
         <div className="mt-0.5 text-base text-ink-soft">
           {row.course_code} · {row.section}
         </div>
-        <div className="mt-3 rounded-xl bg-gap-soft px-3 py-2.5 text-base font-semibold text-gap">
-          Not reported — the day is over
-        </div>
-        {canOverride ? (
+        {makeupTag}
+        {row.slot_state === "UPCOMING" ? (
+          <div className="mt-3 rounded-xl bg-canvas px-3 py-2.5 text-base font-semibold text-ink-soft">
+            Not started yet — opens at {row.scheduled_start}
+          </div>
+        ) : (
+          <div className="mt-3 rounded-xl bg-gap-soft px-3 py-2.5 text-base font-semibold text-gap">
+            Not reported — the day is over
+          </div>
+        )}
+        {canOverride && row.slot_state !== "UPCOMING" ? (
           <button
             className="mt-2 w-full rounded-xl border-2 border-brand/30 px-3 py-2.5 text-base font-semibold text-brand"
             onClick={() => setOverriding(true)}
@@ -179,6 +209,7 @@ export default function RoomCard({
   if (confirmingLate) {
     return (
       <div className="rounded-2xl border-2 border-warn bg-surface p-4">
+        {when}
         <div className="text-2xl font-bold tracking-tight">{row.room}</div>
         <div className="mt-0.5 text-base text-ink-soft">
           {row.course_code} · {row.section}
@@ -217,7 +248,8 @@ export default function RoomCard({
 
   // --- the default: three big choices --------------------------------------
   return (
-    <div className="rounded-2xl border-2 border-line bg-surface p-4">
+    <div className={`rounded-2xl border-2 bg-surface p-4 ${frame}`}>
+      {when}
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-2xl font-bold tracking-tight">{row.room}</span>
         <span className="text-base font-semibold tabular-nums text-ink-soft">
@@ -232,11 +264,7 @@ export default function RoomCard({
         {row.teacher_name ?? row.teacher_initial}
       </div>
 
-      {row.is_makeup ? (
-        <div className="mt-2 inline-block rounded-lg bg-info-soft px-2.5 py-1 text-sm font-bold uppercase tracking-wide text-info">
-          Makeup class
-        </div>
-      ) : null}
+      {makeupTag}
 
       {overriding ? (
         <div className="mt-3 rounded-xl bg-brand-soft p-3">

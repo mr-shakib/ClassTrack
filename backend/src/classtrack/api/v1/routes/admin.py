@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import APIRouter, File, Form, Query, UploadFile
 from sqlalchemy import delete, select, update
 
-from classtrack.api.deps import AdminUser, SessionDep, SuperAdminUser
+from classtrack.api.deps import AdminUser, ManagerUser, SessionDep
 from classtrack.core.errors import NotFoundError, ValidationError
 from classtrack.core.security import hash_password
 from classtrack.models import (
@@ -39,6 +39,7 @@ from classtrack.schemas.admin import (
     TeacherOut,
     UserIn,
     UserOut,
+    UserUpdate,
     ZoneAssignRequest,
     ZoneOut,
 )
@@ -60,7 +61,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 @router.post("/routine/ingest", summary="Ingest a routine PDF")
 async def ingest(
     session: SessionDep,
-    user: AdminUser,
+    user: ManagerUser,
     file: UploadFile = File(...),
     department: str = Form("cse"),
     semester: str | None = Form(None),
@@ -180,7 +181,7 @@ def _scan_conflicts(sessions: list[ClassSession]) -> list[dict]:
 async def review(
     routine_id: int,
     session: SessionDep,
-    user: AdminUser,  # noqa: ARG001
+    user: ManagerUser,  # noqa: ARG001
     limit: int = Query(default=500, le=5000),
 ) -> RoutineReview:
     routine = await session.get(Routine, routine_id)
@@ -215,14 +216,14 @@ async def review(
 
 
 @router.get("/routines", response_model=list[RoutineOut], summary="Routine revisions")
-async def list_routines(session: SessionDep, user: AdminUser) -> list[RoutineOut]:  # noqa: ARG001
+async def list_routines(session: SessionDep, user: ManagerUser) -> list[RoutineOut]:  # noqa: ARG001
     rows = (await session.scalars(select(Routine).order_by(Routine.id.desc()))).all()
     return [RoutineOut.model_validate(r) for r in rows]
 
 
 @router.post("/routine/{routine_id}/activate", summary="Activate and generate instances")
 async def activate(
-    routine_id: int, payload: ActivateRequest, session: SessionDep, user: AdminUser
+    routine_id: int, payload: ActivateRequest, session: SessionDep, user: ManagerUser
 ) -> dict:
     """Make this revision live and materialise its monitoring instances (BR-01)."""
     routine = await session.get(Routine, routine_id)
@@ -264,7 +265,7 @@ async def activate(
 @router.post("/instances/generate", summary="Re-run instance generation")
 async def generate(
     session: SessionDep,
-    user: SuperAdminUser,  # noqa: ARG001
+    user: AdminUser,  # noqa: ARG001
     semester_id: int | None = None,
 ) -> dict:
     """Idempotent -- existing instances keep their status and check records."""
@@ -277,7 +278,7 @@ async def generate(
 
 
 @router.get("/semesters", response_model=list[SemesterOut], summary="Semesters")
-async def list_semesters(session: SessionDep, user: AdminUser) -> list[SemesterOut]:  # noqa: ARG001
+async def list_semesters(session: SessionDep, user: ManagerUser) -> list[SemesterOut]:  # noqa: ARG001
     rows = (await session.scalars(select(Semester).order_by(Semester.id.desc()))).all()
     return [SemesterOut.model_validate(s) for s in rows]
 
@@ -286,7 +287,7 @@ async def list_semesters(session: SessionDep, user: AdminUser) -> list[SemesterO
 async def create_semester(
     payload: SemesterIn,
     session: SessionDep,
-    user: SuperAdminUser,  # noqa: ARG001
+    user: AdminUser,  # noqa: ARG001
 ) -> SemesterOut:
     if payload.end_date < payload.start_date:
         raise ValidationError("The semester ends before it starts.")
@@ -300,13 +301,13 @@ async def create_semester(
 
 
 @router.get("/holidays", response_model=list[HolidayOut], summary="Academic calendar")
-async def list_holidays(session: SessionDep, user: AdminUser) -> list[HolidayOut]:  # noqa: ARG001
+async def list_holidays(session: SessionDep, user: ManagerUser) -> list[HolidayOut]:  # noqa: ARG001
     rows = (await session.scalars(select(Holiday).order_by(Holiday.date))).all()
     return [HolidayOut.model_validate(h) for h in rows]
 
 
 @router.post("/holidays", response_model=HolidayOut, summary="Add a calendar day")
-async def add_holiday(payload: HolidayIn, session: SessionDep, user: AdminUser) -> HolidayOut:
+async def add_holiday(payload: HolidayIn, session: SessionDep, user: ManagerUser) -> HolidayOut:
     semester_id = payload.semester_id
     if semester_id is None:
         semester = await session.scalar(select(Semester).where(Semester.is_active))
@@ -340,7 +341,7 @@ async def add_holiday(payload: HolidayIn, session: SessionDep, user: AdminUser) 
 
 
 @router.delete("/holidays/{holiday_id}", response_model=Message, summary="Remove a day")
-async def remove_holiday(holiday_id: int, session: SessionDep, user: AdminUser) -> Message:
+async def remove_holiday(holiday_id: int, session: SessionDep, user: ManagerUser) -> Message:
     holiday = await session.get(Holiday, holiday_id)
     if holiday is None:
         raise NotFoundError(f"No calendar entry with id {holiday_id}")
@@ -361,7 +362,7 @@ async def remove_holiday(holiday_id: int, session: SessionDep, user: AdminUser) 
 
 
 @router.get("/users", response_model=list[UserOut], summary="Users")
-async def list_users(session: SessionDep, user: SuperAdminUser) -> list[UserOut]:  # noqa: ARG001
+async def list_users(session: SessionDep, user: AdminUser) -> list[UserOut]:  # noqa: ARG001
     rows = (await session.scalars(select(User).order_by(User.id))).all()
     return [UserOut.model_validate(u) for u in rows]
 
@@ -370,7 +371,7 @@ async def list_users(session: SessionDep, user: SuperAdminUser) -> list[UserOut]
 async def create_user(
     payload: UserIn,
     session: SessionDep,
-    user: SuperAdminUser,  # noqa: ARG001
+    user: AdminUser,  # noqa: ARG001
 ) -> UserOut:
     email = payload.email.strip().lower()
     if await session.scalar(select(User).where(User.email == email)):
@@ -399,17 +400,70 @@ async def create_user(
     return UserOut.model_validate(created)
 
 
+@router.patch("/users/{user_id}", response_model=UserOut, summary="Change a user")
+async def update_user(
+    user_id: int,
+    payload: UserUpdate,
+    session: SessionDep,
+    user: AdminUser,
+) -> UserOut:
+    """Rename, change the role of, deactivate or reset the password of an account."""
+    target = await session.get(User, user_id)
+    if target is None:
+        raise NotFoundError(f"No user with id {user_id}")
+
+    changes = payload.model_dump(exclude_none=True)
+    if not changes:
+        raise ValidationError("Nothing to change.")
+    # Locking yourself out, or out of administration, is never what was meant.
+    if target.id == user.id and (
+        payload.is_active is False or (payload.role is not None and payload.role is not user.role)
+    ):
+        raise ValidationError("You cannot deactivate your own account or change its role.")
+    if payload.role is Role.TEACHER and not target.teacher_initial:
+        raise ValidationError(
+            "A teacher account needs a teacher initial. Create it from the Teachers tab."
+        )
+
+    before = {"role": target.role.value, "is_active": target.is_active}
+    if payload.full_name is not None:
+        target.full_name = payload.full_name.strip()
+    if payload.role is not None:
+        target.role = payload.role
+    if payload.is_active is not None:
+        target.is_active = payload.is_active
+    if payload.password is not None:
+        target.password_hash = hash_password(payload.password)
+
+    audit_service.record(
+        session,
+        actor_id=user.id,
+        entity_type="user",
+        entity_id=target.id,
+        action="user_updated",
+        before=before,
+        # Never the password itself: only that it changed.
+        after={
+            "role": target.role.value,
+            "is_active": target.is_active,
+            "password_changed": payload.password is not None,
+        },
+    )
+    await session.commit()
+    return UserOut.model_validate(target)
+
+
 # --- staff coverage --------------------------------------------------------
 
 
 @router.get("/zones", response_model=list[ZoneOut], summary="Buildings and floors")
-async def zones(session: SessionDep, user: AdminUser) -> list[ZoneOut]:  # noqa: ARG001
+async def zones(session: SessionDep, user: ManagerUser) -> list[ZoneOut]:  # noqa: ARG001
     """The zones the active routine uses, derived from its room names."""
     return [ZoneOut.model_validate(z) for z in await assignment_service.available_zones(session)]
 
 
 @router.get("/staff", response_model=list[StaffOut], summary="Office staff and their floors")
-async def staff(session: SessionDep, user: AdminUser) -> list[StaffOut]:  # noqa: ARG001
+async def staff(session: SessionDep, user: ManagerUser) -> list[StaffOut]:  # noqa: ARG001
     rows = (
         await session.scalars(
             select(User).where(User.role == Role.STAFF).order_by(User.full_name)
@@ -432,7 +486,7 @@ async def staff(session: SessionDep, user: AdminUser) -> list[StaffOut]:  # noqa
 async def create_staff(
     payload: StaffCreateRequest,
     session: SessionDep,
-    user: AdminUser,
+    user: ManagerUser,
 ) -> StaffOut:
     """One step: the account and the floors it covers.
 
@@ -462,7 +516,7 @@ async def assign_zones(
     user_id: int,
     payload: ZoneAssignRequest,
     session: SessionDep,
-    user: AdminUser,
+    user: ManagerUser,
 ) -> StaffOut:
     """Replace this staff member's coverage.
 
@@ -482,13 +536,13 @@ async def assign_zones(
 
 
 @router.get("/settings", summary="Monitoring rules")
-async def get_settings_values(session: SessionDep, user: AdminUser) -> dict[str, str]:  # noqa: ARG001
+async def get_settings_values(session: SessionDep, user: ManagerUser) -> dict[str, str]:  # noqa: ARG001
     return await settings_service.get_all(session)
 
 
 @router.put("/settings", summary="Change monitoring rules")
 async def put_settings(
-    payload: SettingsIn, session: SessionDep, user: AdminUser
+    payload: SettingsIn, session: SessionDep, user: ManagerUser
 ) -> dict[str, str]:
     changes = payload.model_dump(exclude_none=True)
     if not changes:
@@ -510,7 +564,7 @@ async def put_settings(
 @router.get("/audit", response_model=list[AuditOut], summary="Audit trail")
 async def audit(
     session: SessionDep,
-    user: AdminUser,  # noqa: ARG001
+    user: ManagerUser,  # noqa: ARG001
     entity_type: str | None = None,
     entity_id: int | None = None,
     actor: int | None = None,
@@ -544,7 +598,7 @@ async def audit(
 @router.get("/teachers", response_model=list[TeacherOut], summary="Faculty directory")
 async def teachers(
     session: SessionDep,
-    user: AdminUser,  # noqa: ARG001
+    user: ManagerUser,  # noqa: ARG001
     q: str | None = None,
 ) -> list[TeacherOut]:
     query = select(Teacher).order_by(Teacher.initial).limit(500)
@@ -573,7 +627,7 @@ async def teachers(
     summary="Create a teacher's sign-in account",
 )
 async def create_teacher_account(
-    initial: str, payload: TeacherAccountRequest, session: SessionDep, user: AdminUser
+    initial: str, payload: TeacherAccountRequest, session: SessionDep, user: ManagerUser
 ) -> TeacherOut:
     """The teacher then signs in with their initial and this password."""
     account = await account_service.create_teacher_account(
@@ -598,7 +652,7 @@ async def create_teacher_account(
     summary="Reset a teacher's password",
 )
 async def reset_teacher_password(
-    initial: str, payload: TeacherAccountRequest, session: SessionDep, user: AdminUser
+    initial: str, payload: TeacherAccountRequest, session: SessionDep, user: ManagerUser
 ) -> Message:
     await account_service.reset_teacher_password(
         session, initial=initial, password=payload.password, actor=user

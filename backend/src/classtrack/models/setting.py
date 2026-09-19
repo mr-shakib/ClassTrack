@@ -16,6 +16,8 @@ from classtrack.db.base import Base, utcnow
 #: Keys the admin UI exposes, with their defaults.
 SETTING_DEFAULTS: dict[str, str] = {
     "missed_threshold_minutes": "30",
+    #: A course-section with fewer classes held than this so far is shown red.
+    "min_conducted_classes": "18",
     "timezone": "Asia/Dhaka",
     "department": "cse",
 }

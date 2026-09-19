@@ -11,13 +11,13 @@ import {
   inputClass,
 } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
-import { ADMIN_ROLES, useRequireRole } from "@/lib/auth";
+import { MANAGEMENT_ROLES, useRequireRole } from "@/lib/auth";
 import type { Holiday } from "@/lib/types";
 
 const KINDS = ["HOLIDAY", "EXAM", "CLOSED", "SPECIAL"] as const;
 
 export default function CalendarPage() {
-  const { permitted, loading: authLoading } = useRequireRole(ADMIN_ROLES);
+  const { permitted, loading: authLoading } = useRequireRole(MANAGEMENT_ROLES);
   const [rows, setRows] = useState<Holiday[]>([]);
   const [date, setDate] = useState("");
   const [title, setTitle] = useState("");

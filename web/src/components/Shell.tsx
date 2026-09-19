@@ -5,18 +5,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { ADMIN_ROLES, CHECKING_ROLES, useAuth } from "@/lib/auth";
+import { ADMIN_ROLES, CHECKING_ROLES, MANAGEMENT_ROLES, ROLE_LABELS, useAuth } from "@/lib/auth";
 import type { Role } from "@/lib/types";
 import { Button } from "./ui";
 
 const NAV: { href: string; label: string; roles: Role[] }[] = [
   { href: "/staff", label: "Checking", roles: CHECKING_ROLES },
-  { href: "/dashboard", label: "Dashboard", roles: ADMIN_ROLES },
+  { href: "/dashboard", label: "Dashboard", roles: MANAGEMENT_ROLES },
+  { href: "/today", label: "Day status", roles: MANAGEMENT_ROLES },
   { href: "/unreported", label: "Unreported", roles: ADMIN_ROLES },
   { href: "/teacher", label: "My classes", roles: ["TEACHER"] },
   { href: "/approvals", label: "Approvals", roles: ADMIN_ROLES },
   { href: "/reports", label: "Reports", roles: ["TEACHER", ...ADMIN_ROLES] },
-  { href: "/admin", label: "Admin", roles: ADMIN_ROLES },
+  { href: "/admin", label: "Admin", roles: MANAGEMENT_ROLES },
 ];
 
 function Bell() {
@@ -176,7 +177,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             <div className="hidden text-right sm:block">
               <div className="text-sm font-medium leading-tight">{user.full_name}</div>
               <div className="text-xs leading-tight text-ink-faint">
-                {user.role.replaceAll("_", " ").toLowerCase()}
+                {ROLE_LABELS[user.role]}
                 {user.teacher_initial ? ` · ${user.teacher_initial}` : ""}
               </div>
             </div>

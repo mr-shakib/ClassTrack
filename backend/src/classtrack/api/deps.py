@@ -15,7 +15,7 @@ from classtrack.core.config import get_settings
 from classtrack.core.errors import AuthError, ForbiddenError
 from classtrack.core.security import decode_token
 from classtrack.db.session import get_session
-from classtrack.models import ADMIN_ROLES, CHECKING_ROLES, Role, User
+from classtrack.models import ADMIN_ROLES, CHECKING_ROLES, MANAGEMENT_ROLES, Role, User
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
@@ -60,13 +60,15 @@ def require_role(*roles: Role):
     return guard
 
 
-#: Submit a classroom check -- staff, plus admins and the committee, who may also
-#: override one after the window closes.
+#: Submit a classroom check -- staff, plus management and the committee, who may
+#: also correct one after its day is over.
 CheckingUser = Annotated[User, Depends(require_role(*CHECKING_ROLES))]
-#: See every teacher's data, approve online makeups, manage the routine.
+#: Full administration: reports, the approval queue, accounts and semesters.
+#: The Head and Associate Head hold it, so neither needs a separate admin login.
 AdminUser = Annotated[User, Depends(require_role(*ADMIN_ROLES))]
-#: Manage users and semesters.
-SuperAdminUser = Annotated[User, Depends(require_role(Role.SUPER_ADMIN))]
+#: The live views and the admin screens -- admins plus the Coordination Officer,
+#: who sees no reports and decides no reschedule requests.
+ManagerUser = Annotated[User, Depends(require_role(*MANAGEMENT_ROLES))]
 #: Schedule a makeup class.
 TeacherUser = Annotated[User, Depends(require_role(Role.TEACHER, *ADMIN_ROLES))]
 
@@ -75,10 +77,17 @@ def scope_teacher(user: User, requested: str | None) -> str | None:
     """Resolve which teacher's data a caller may read.
 
     A TEACHER is forced onto their own initial regardless of what they asked
-    for; admins may ask for anyone, or for everyone (None).
+    for; everyone else may ask for anyone, or for everyone (None).
     """
     if user.role is Role.TEACHER:
         if requested and requested.upper() != (user.teacher_initial or "").upper():
             raise ForbiddenError("You may only view your own records.")
         return user.teacher_initial
     return requested.upper() if requested else None
+
+
+def scope_report_teacher(user: User, requested: str | None) -> str | None:
+    """Like ``scope_teacher``, for reports: only a teacher and the admins read them."""
+    if user.role is not Role.TEACHER and user.role not in ADMIN_ROLES:
+        raise ForbiddenError("Reports are not available to your role.")
+    return scope_teacher(user, requested)

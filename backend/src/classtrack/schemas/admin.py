@@ -62,6 +62,14 @@ class UserIn(BaseModel):
     teacher_initial: str | None = None
 
 
+class UserUpdate(BaseModel):
+    full_name: str | None = Field(default=None, min_length=2, max_length=255)
+    role: Role | None = None
+    is_active: bool | None = None
+    #: Set a new password. Left out, the current one stays.
+    password: str | None = Field(default=None, min_length=6)
+
+
 class UserOut(ORMModel):
     id: int
     email: str
@@ -117,6 +125,7 @@ class ZoneAssignRequest(BaseModel):
 
 class SettingsIn(BaseModel):
     missed_threshold_minutes: int | None = Field(default=None, ge=1, le=180)
+    min_conducted_classes: int | None = Field(default=None, ge=1, le=200)
 
 
 class AuditOut(ORMModel):

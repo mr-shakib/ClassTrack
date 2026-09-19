@@ -62,9 +62,28 @@ With this file, replace `compose.prod.yaml` with `compose.nginx.yaml` (and add
 docker compose -f deploy/compose.prod.yaml exec api classtrack seed
 ```
 
-This loads the faculty directory, creates the four demo accounts, and opens a
+This loads the faculty directory, creates the demo accounts, and opens a
 semester. **Change every password before going live** — they are all
-`classtrack`.
+`classtrack`. After the first deploy, create further accounts (Coordination
+Officer, Committee) from **Admin → Accounts**, not by re-running `seed`: it
+would add any demo account that is missing, with the default password.
+
+## Updating an existing deployment
+
+Back up first, then pull and rebuild. The API container applies any new
+migration before it accepts traffic, so no manual schema step is needed.
+
+```bash
+cd /srv/classtrack/app
+docker compose -f deploy/compose.prod.yaml cp api:/data/classtrack.db ../backup-$(date +%F-%H%M).db
+git pull --ff-only
+docker compose -f deploy/compose.prod.yaml up -d --build
+docker compose -f deploy/compose.prod.yaml logs --tail 50 api   # look for "Running upgrade"
+```
+
+To roll back, check out the previous commit, rebuild, and restore the backup
+taken above (a schema downgrade is refused while accounts hold a role the older
+code does not know).
 
 ## Load the routine
 

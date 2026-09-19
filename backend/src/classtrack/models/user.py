@@ -15,20 +15,28 @@ from classtrack.db.base import Base, TimestampMixin
 
 
 class Role(str, enum.Enum):
+    #: Kept as a fallback login; the Head and Associate Head hold the same rights.
     SUPER_ADMIN = "SUPER_ADMIN"
     HOD = "HOD"
     #: Deputy to the HoD, with the same permissions.
     ASSOCIATE_HEAD = "ASSOCIATE_HEAD"
-    #: Reviews monitoring records and may override a reported check.
+    #: Runs day-to-day monitoring: the live dashboard, the routine, the calendar
+    #: and staff coverage, and corrects past checks. Sees no reports and decides
+    #: no reschedule requests.
+    COORDINATION_OFFICER = "COORDINATION_OFFICER"
+    #: Reports classes and corrects a past check, nothing more.
     COMMITTEE = "COMMITTEE"
     STAFF = "STAFF"
     TEACHER = "TEACHER"
 
 
-#: Roles permitted to see every teacher's data.
+#: Full administration: reports, approvals, accounts and semesters.
 ADMIN_ROLES = (Role.HOD, Role.ASSOCIATE_HEAD, Role.SUPER_ADMIN)
-#: Roles permitted to correct a check after its window closed, with a reason.
-OVERRIDE_ROLES = (*ADMIN_ROLES, Role.COMMITTEE)
+#: Day-to-day management: the live views and the admin screens, but not the
+#: reports or the approval queue.
+MANAGEMENT_ROLES = (*ADMIN_ROLES, Role.COORDINATION_OFFICER)
+#: Roles permitted to correct a check after its day is over.
+OVERRIDE_ROLES = (*MANAGEMENT_ROLES, Role.COMMITTEE)
 #: Roles permitted to submit a classroom check.
 CHECKING_ROLES = (Role.STAFF, *OVERRIDE_ROLES)
 
@@ -57,6 +65,10 @@ class User(Base, TimestampMixin):
     @property
     def is_admin(self) -> bool:
         return self.role in ADMIN_ROLES
+
+    @property
+    def is_manager(self) -> bool:
+        return self.role in MANAGEMENT_ROLES
 
     @property
     def can_override(self) -> bool:

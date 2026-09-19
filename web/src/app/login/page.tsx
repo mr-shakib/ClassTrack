@@ -11,6 +11,7 @@ const DEMO = [
   ["admin@diu.edu", "Super admin"],
   ["hod@diu.edu", "Head of department"],
   ["associate@diu.edu", "Associate head"],
+  ["coordinator@diu.edu", "Coordination officer"],
   ["committee@diu.edu", "Committee"],
   ["staff1@diu.edu", "Office staff"],
   ["teacher@diu.edu", "Teacher"],

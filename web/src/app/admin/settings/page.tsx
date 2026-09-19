@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, ErrorNote, Field, Spinner, inputClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
-import { ADMIN_ROLES, useRequireRole } from "@/lib/auth";
+import { MANAGEMENT_ROLES, useRequireRole } from "@/lib/auth";
 
 export default function SettingsPage() {
-  const { permitted, loading: authLoading } = useRequireRole(ADMIN_ROLES);
+  const { permitted, loading: authLoading } = useRequireRole(MANAGEMENT_ROLES);
   const [values, setValues] = useState<Record<string, string>>({});
   const [missed, setMissed] = useState("");
+  const [minimum, setMinimum] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -18,6 +19,7 @@ export default function SettingsPage() {
       const v = await api.settings();
       setValues(v);
       setMissed(v.missed_threshold_minutes ?? "30");
+      setMinimum(v.min_conducted_classes ?? "18");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load the rules.");
     }
@@ -33,8 +35,11 @@ export default function SettingsPage() {
     setError(null);
     setNotice(null);
     try {
-      await api.updateSettings({ missed_threshold_minutes: Number(missed) });
-      setNotice("Saved. The next sweep uses the new value.");
+      await api.updateSettings({
+        missed_threshold_minutes: Number(missed),
+        min_conducted_classes: Number(minimum),
+      });
+      setNotice("Saved. The next sweep and every report use the new values.");
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not save.");
@@ -50,8 +55,8 @@ export default function SettingsPage() {
       <Card className="p-4">
         <h2 className="text-sm font-semibold">Monitoring rules</h2>
         <p className="mt-1 text-sm text-ink-soft">
-          This rule decides when a reported absence becomes Missed, so change it with
-          care.
+          The first rule decides when a reported absence becomes Missed, so change it
+          with care.
         </p>
 
         <form onSubmit={save} className="mt-4 space-y-4">
@@ -69,6 +74,20 @@ export default function SettingsPage() {
             />
           </Field>
 
+          <Field
+            label="Minimum classes per course"
+            hint="A course-section with fewer classes held than this so far is shown red in the reports."
+          >
+            <input
+              type="number"
+              min={1}
+              max={200}
+              className={inputClass}
+              value={minimum}
+              onChange={(e) => setMinimum(e.target.value)}
+            />
+          </Field>
+
           {error ? <ErrorNote message={error} /> : null}
           {notice ? (
             <div className="rounded-lg border border-ok/20 bg-ok-soft px-3 py-2 text-sm text-ok">
@@ -77,7 +96,7 @@ export default function SettingsPage() {
           ) : null}
 
           <Button type="submit" disabled={busy}>
-            {busy ? "Saving…" : "Save rule"}
+            {busy ? "Saving…" : "Save rules"}
           </Button>
         </form>
       </Card>
@@ -101,7 +120,7 @@ export default function SettingsPage() {
         <h2 className="text-sm font-semibold">Other settings</h2>
         <dl className="mt-2 grid grid-cols-2 gap-2 text-sm">
           {Object.entries(values)
-            .filter(([k]) => !k.endsWith("_minutes"))
+            .filter(([k]) => !k.endsWith("_minutes") && k !== "min_conducted_classes")
             .map(([k, v]) => (
               <div key={k} className="rounded-lg bg-canvas px-3 py-2">
                 <dt className="text-xs text-ink-faint">{k.replace(/_/g, " ")}</dt>

@@ -23,7 +23,7 @@ from classtrack.models import (
     User,
 )
 from classtrack.routine.lattice import SLOTS, slot_bounds
-from classtrack.services import status_engine, zones
+from classtrack.services import report_service, reschedule_links, status_engine, zones
 
 #: Statuses excluded from physical room checking.
 #: BR-12: an approved online makeup must not appear on the staff screen.
@@ -60,6 +60,98 @@ async def _teacher_names(session: AsyncSession, initials: set[str]) -> dict[str,
     return {t.initial: t.name for t in rows}
 
 
+async def _checker_names(session: AsyncSession, instances) -> dict[int, str]:
+    ids = {i.check.checked_by_id for i in instances if i.check}
+    if not ids:
+        return {}
+    return {
+        u.id: u.full_name
+        for u in (await session.scalars(select(User).where(User.id.in_(ids)))).all()
+    }
+
+
+def _hhmm(minutes: int) -> str:
+    return f"{minutes // 60:02d}:{minutes % 60:02d}"
+
+
+def _room_row(
+    inst: ClassInstance,
+    *,
+    names: dict[str, str],
+    checkers: dict[int, str],
+    moved_from: dict[int, dict],
+    now: datetime,
+) -> dict:
+    check = None
+    if inst.check:
+        check = {
+            "outcome": inst.check.outcome,
+            "arrival_time": inst.check.arrival_time,
+            "late_minutes": inst.check.late_minutes,
+            "remark": inst.check.remark,
+            "checked_at": inst.check.checked_at,
+            "checked_by": checkers.get(inst.check.checked_by_id),
+        }
+    return {
+        "instance_id": inst.id,
+        "date": inst.date,
+        "time_slot": inst.time_slot,
+        "slot_state": status_engine.slot_state(inst.date, inst.start_min),
+        "room": inst.room,
+        "room_type": inst.room_type,
+        "course_code": inst.course_code,
+        "course_title": inst.course_title,
+        "section": inst.section,
+        "teacher_initial": inst.teacher_initial,
+        "teacher_name": names.get(inst.teacher_initial),
+        "scheduled_start": _hhmm(inst.start_min),
+        "scheduled_end": _hhmm(inst.end_min),
+        "is_makeup": inst.is_makeup,
+        "rescheduled_from": moved_from.get(inst.id),
+        "zone": zones.room_zone(inst.room).short_label,
+        "zone_key": zones.zone_key(inst.room),
+        "status": status_engine.derive(inst, now=now),
+        "check": check,
+    }
+
+
+async def _room_rows(session: AsyncSession, instances, now: datetime) -> list[dict]:
+    names = await _teacher_names(session, {i.teacher_initial for i in instances})
+    checkers = await _checker_names(session, instances)
+    moved_from, _moved_to = await reschedule_links.links_for(session, instances)
+    return [
+        _room_row(i, names=names, checkers=checkers, moved_from=moved_from, now=now)
+        for i in instances
+    ]
+
+
+async def search_by_teacher(
+    session: AsyncSession, *, teacher_initial: str, start: Date, end: Date
+) -> list[dict]:
+    """A teacher's checkable classes over a range, newest first.
+
+    For correcting a past record: finding it by teacher is quicker than walking
+    back through each day, slot and floor.
+    """
+    now = status_engine.now_local()
+    instances = (
+        await session.scalars(
+            select(ClassInstance)
+            .where(
+                ClassInstance.teacher_initial == teacher_initial.upper(),
+                ClassInstance.date >= start,
+                ClassInstance.date <= end,
+                ClassInstance.status.not_in(EXCLUDED_FROM_CHECKING)
+                | ClassInstance.status.is_(None),
+            )
+            .options(selectinload(ClassInstance.check))
+            .order_by(ClassInstance.date.desc(), ClassInstance.start_min.desc())
+            .limit(300)
+        )
+    ).all()
+    return await _room_rows(session, instances, now)
+
+
 async def checking_screen(
     session: AsyncSession,
     *,
@@ -80,7 +172,7 @@ async def checking_screen(
     now = status_engine.now_local()
     on = on or now.date()
     slot = slot or current_slot(now)
-    start_min, end_min = slot_bounds(slot)
+    start_min, _end_min = slot_bounds(slot)
 
     instances = (
         await session.scalars(
@@ -97,46 +189,7 @@ async def checking_screen(
         )
     ).all()
 
-    names = await _teacher_names(session, {i.teacher_initial for i in instances})
-    checker_ids = {i.check.checked_by_id for i in instances if i.check}
-    checkers: dict[int, str] = {}
-    if checker_ids:
-        checkers = {
-            u.id: u.full_name
-            for u in (await session.scalars(select(User).where(User.id.in_(checker_ids)))).all()
-        }
-
-    rooms = []
-    for inst in instances:
-        check = None
-        if inst.check:
-            check = {
-                "outcome": inst.check.outcome,
-                "arrival_time": inst.check.arrival_time,
-                "late_minutes": inst.check.late_minutes,
-                "remark": inst.check.remark,
-                "checked_at": inst.check.checked_at,
-                "checked_by": checkers.get(inst.check.checked_by_id),
-            }
-        rooms.append(
-            {
-                "instance_id": inst.id,
-                "room": inst.room,
-                "room_type": inst.room_type,
-                "course_code": inst.course_code,
-                "course_title": inst.course_title,
-                "section": inst.section,
-                "teacher_initial": inst.teacher_initial,
-                "teacher_name": names.get(inst.teacher_initial),
-                "scheduled_start": f"{start_min // 60:02d}:{start_min % 60:02d}",
-                "scheduled_end": f"{end_min // 60:02d}:{end_min % 60:02d}",
-                "is_makeup": inst.is_makeup,
-                "zone": zones.room_zone(inst.room).short_label,
-                "zone_key": zones.zone_key(inst.room),
-                "status": status_engine.derive(inst, now=now),
-                "check": check,
-            }
-        )
+    rooms = await _room_rows(session, instances, now)
 
     mine = set(my_zones or [])
     floors = []
@@ -186,13 +239,8 @@ async def dashboard(session: AsyncSession) -> dict:
 
     in_slot = [i for i in todays if i.time_slot == slot]
     names = await _teacher_names(session, {i.teacher_initial for i in in_slot})
-    checker_ids = {i.check.checked_by_id for i in in_slot if i.check}
-    checkers: dict[int, str] = {}
-    if checker_ids:
-        checkers = {
-            u.id: u.full_name
-            for u in (await session.scalars(select(User).where(User.id.in_(checker_ids)))).all()
-        }
+    checkers = await _checker_names(session, in_slot)
+    moved_from, _moved_to = await reschedule_links.links_for(session, in_slot)
 
     summary = {
         "scheduled_now": len(in_slot),
@@ -226,6 +274,7 @@ async def dashboard(session: AsyncSession) -> dict:
                     else None
                 ),
                 "is_makeup": inst.is_makeup,
+                "rescheduled_from": moved_from.get(inst.id),
             }
         )
 
@@ -254,4 +303,70 @@ async def dashboard(session: AsyncSession) -> dict:
         "summary": summary,
         "rows": rows,
         "attention": attention,
+    }
+
+
+async def day_status(session: AsyncSession, *, on: Date | None = None) -> dict:
+    """Every class on one day, with its status and the report bucket it falls in.
+
+    One day is a few hundred rows at most, so the screen filters them itself --
+    by teacher, floor, slot or status -- without a round trip per keystroke.
+    """
+    now = status_engine.now_local()
+    on = on or now.date()
+    instances = (
+        await session.scalars(
+            select(ClassInstance)
+            .where(ClassInstance.date == on)
+            .options(selectinload(ClassInstance.check))
+            .order_by(ClassInstance.start_min, ClassInstance.room)
+        )
+    ).all()
+
+    names = await _teacher_names(session, {i.teacher_initial for i in instances})
+    checkers = await _checker_names(session, instances)
+    moved_from, moved_to = await reschedule_links.links_for(session, instances)
+    done = await reschedule_links.completed_makeup_ids(
+        session, {i.makeup_id for i in instances if i.is_makeup and i.makeup_id}
+    )
+
+    rows = []
+    for inst in instances:
+        zone = zones.room_zone(inst.room)
+        rows.append(
+            {
+                "instance_id": inst.id,
+                "date": inst.date,
+                "room": inst.room,
+                "zone": zone.short_label,
+                "zone_key": zone.key,
+                "teacher_initial": inst.teacher_initial,
+                "teacher_name": names.get(inst.teacher_initial),
+                "course_code": inst.course_code,
+                "course_title": inst.course_title,
+                "section": inst.section,
+                "time_slot": inst.time_slot,
+                "start": _hhmm(inst.start_min),
+                "end": _hhmm(inst.end_min),
+                "status": status_engine.derive(inst, now=now),
+                "outcome": report_service.classify(inst, makeup_done=inst.makeup_id in done),
+                "late_minutes": inst.check.late_minutes if inst.check else None,
+                "remark": inst.check.remark if inst.check else None,
+                "checked_by": checkers.get(inst.check.checked_by_id) if inst.check else None,
+                "checked_at": (
+                    status_engine.to_local(inst.check.checked_at).strftime("%H:%M")
+                    if inst.check
+                    else None
+                ),
+                "is_makeup": inst.is_makeup,
+                "rescheduled_from": moved_from.get(inst.id),
+                "rescheduled_to": moved_to.get(inst.id),
+            }
+        )
+
+    return {
+        "date": on,
+        "as_of": now,
+        "current_slot": current_slot(now) if on == now.date() else None,
+        "rows": rows,
     }
