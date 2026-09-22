@@ -1,13 +1,17 @@
 """Makeup class workflow (BR-09 .. BR-13).
 
-A teacher whose class was missed requests a reschedule. Every request is parked
-as PENDING until an HoD decides, and only on approval is a monitoring instance
-created. The two modes then diverge in exactly one way:
+A teacher whose class was missed reschedules it. The two modes differ in who
+decides:
 
-* **PHYSICAL** -- the request names an empty room. The approved instance enters
-  room-wise staff checking like any other class (BR-10). A rejection returns
-  the original to MISSED, because the teacher still owes the class.
-* **ONLINE** -- the approved instance is excluded from physical checking (BR-12).
+* **PHYSICAL** -- the teacher names an empty room and the class is scheduled on
+  the spot, with no approval: picking a room nobody is using settles nothing an
+  HoD would have to weigh. Its instance is created there and then, so the class
+  enters room-wise staff checking like any other (BR-10) and the room is
+  occupied from that moment -- nobody else is offered it, or can reschedule
+  into it, for that day and slot (BR-14).
+* **ONLINE** -- no room is claimed and no staff member ever sees the class, so
+  it is parked as PENDING until an HoD decides (BR-11). The approved instance
+  is excluded from physical checking (BR-12).
 
 Every makeup keeps a non-null reference to the missed class it recovers (BR-13),
 so a report can always show Missed -> Makeup Scheduled -> Makeup Completed.
@@ -37,6 +41,7 @@ from classtrack.models import (
     Semester,
     User,
 )
+from classtrack.routine import clock
 from classtrack.routine.lattice import SLOTS, slot_bounds
 from classtrack.services import (
     audit_service,
@@ -78,9 +83,9 @@ def needs_reschedule(instance: ClassInstance) -> bool:
 
     The threshold exists so staff can correct a report if the teacher turns up
     late. It is not a reason to make a teacher who already knows they cannot
-    come wait half an hour before asking for a new slot. Requesting one settles
-    the question: the class leaves the unresolved set, so the sweep no longer
-    touches it, and a rejection lands it on MISSED.
+    come wait half an hour before taking a new slot. Taking one settles the
+    question: the class leaves the unresolved set, so the sweep no longer
+    touches it.
     """
     if instance.status is ClassStatus.MISSED:
         return True
@@ -102,7 +107,7 @@ def _new_instance(
     ``session_id`` is null: a makeup has no routine template behind it, which is
     also why the ``(session_id, date)`` unique key does not constrain it.
     """
-    start_min, end_min = slot_bounds(makeup.time_slot)
+    start_min, end_min = makeup.bounds()
     day = instance_service.day_name(makeup.date) or "Saturday"
     return ClassInstance(
         session_id=None,
@@ -133,16 +138,48 @@ async def _active_semester_id(session: AsyncSession, fallback: int) -> int:
     return semester.id if semester else fallback
 
 
-def _require_future(on: Date, time_slot: str, now: datetime | None) -> None:
-    """A reschedule into a slot that has already started can never be checked."""
-    if time_slot not in SLOTS:
-        return  # conflict_service reports the bad slot with its own message
-    start_min, _end = slot_bounds(time_slot)
+def _require_future(on: Date, time_slot: str, start_min: int | None, now: datetime | None) -> None:
+    """A reschedule into a time that has already started can never be held."""
+    if start_min is None:
+        if time_slot not in SLOTS:
+            return  # conflict_service reports the bad slot with its own message
+        start_min, _end = slot_bounds(time_slot)
     if status_engine.slot_start_at(on, start_min) <= (now or status_engine.now_local()):
         raise ValidationError(
-            "That time has already passed. Pick a slot later than now.",
+            "That time has already passed. Pick a time later than now.",
             detail={"date": on.isoformat(), "time_slot": time_slot},
         )
+
+
+def period_for(
+    *, time_slot: str | None, start_time: str | None
+) -> tuple[str, int | None, int | None]:
+    """Resolve what the teacher asked for into ``(label, start_min, end_min)``.
+
+    Bounds come back null for a lattice slot: the lattice already knows them,
+    and storing a second copy would let the two disagree.
+    """
+    if start_time:
+        return clock.period_from_start(start_time)
+    if not time_slot:
+        raise ValidationError("Choose when the class will be held.")
+    return time_slot, None, None
+
+
+def _period(
+    mode: MakeupMode, time_slot: str | None, start_time: str | None
+) -> tuple[str, int | None, int | None]:
+    """As :func:`period_for`, but only an online class may name its own time.
+
+    A class in a room has to sit in a cell, because a cell is what the staff
+    screen walks -- nobody would ever be sent to check a 19:30 class in KT-305.
+    """
+    if start_time and mode is not MakeupMode.ONLINE:
+        raise ValidationError(
+            "A class in a room runs in one of the routine's time slots. "
+            "Pick a slot, or hold the class online to choose your own time."
+        )
+    return period_for(time_slot=time_slot, start_time=start_time)
 
 
 async def create(
@@ -152,16 +189,23 @@ async def create(
     user: User,
     mode: MakeupMode,
     on: Date,
-    time_slot: str,
+    time_slot: str | None = None,
+    start_time: str | None = None,
     room: str | None = None,
     reason: str | None = None,
     drive_link: str | None = None,
     now: datetime | None = None,
 ) -> MakeupClass:
-    """Request a reschedule for a missed class. Nothing is scheduled until approved.
+    """Reschedule a missed class.
 
-    An online request may carry a Drive link for the approver to open while
-    deciding; it also counts when the class is later marked done.
+    An in-room reschedule is final the moment it is made: the room was free,
+    the teacher has taken it, and it is theirs for that day and slot. An online
+    one still waits for an HoD, and may carry a Drive link for them to open
+    while deciding; that link also counts when the class is later marked done.
+
+    ``time_slot`` puts the class in a routine slot. ``start_time`` -- online
+    only -- is a 24-hour ``HH:MM`` the teacher chose off the clock, and runs the
+    standard class length from there, on any day at any hour.
     """
     original = await _load_original(session, original_instance_id, user)
 
@@ -171,14 +215,17 @@ async def create(
     if mode is MakeupMode.ONLINE:
         room = None
         link = _clean_link(drive_link)
-    _require_future(on, time_slot, now)
+    slot, start_min, end_min = _period(mode, time_slot, start_time)
+    _require_future(on, slot, start_min, now)
 
     semester_id = await _active_semester_id(session, original.semester_id)
 
     report = await conflict_service.check(
         session,
         on=on,
-        time_slot=time_slot,
+        time_slot=slot,
+        start_min=start_min,
+        end_min=end_min,
         teacher_initial=original.teacher_initial,
         room=room,
         section=original.section,
@@ -192,15 +239,18 @@ async def create(
             detail=report.as_dict(),
         )
 
+    physical = mode is MakeupMode.PHYSICAL
     makeup = MakeupClass(
         original_instance_id=original.id,
         teacher_initial=original.teacher_initial,
         mode=mode,
         date=on,
-        time_slot=time_slot,
+        time_slot=slot,
+        start_min=start_min,
+        end_min=end_min,
         room=room.upper() if room else None,
         reason=reason,
-        status=MakeupStatus.PENDING,
+        status=MakeupStatus.SCHEDULED if physical else MakeupStatus.PENDING,
         drive_link=link,
     )
     session.add(makeup)
@@ -208,12 +258,21 @@ async def create(
 
     before = {"status": original.status.value if original.status else None}
 
-    # BR-11: no instance yet -- an unapproved class is not scheduled, so staff
-    # have nothing to check until the HoD says yes.
-    original.status = (
-        ClassStatus.MAKEUP_REQUESTED if mode is MakeupMode.PHYSICAL else ClassStatus.ONLINE_PENDING
-    )
-    await notification_service.notify_makeup_request(session, makeup, original)
+    if physical:
+        # The room is taken from here on: the instance occupies the cell, so
+        # conflict_service refuses it to everyone else (BR-14), and the staff
+        # of that floor get the class on their screen at the new time (BR-10).
+        instance = _new_instance(original=original, makeup=makeup, semester_id=semester_id)
+        instance.makeup_id = makeup.id
+        session.add(instance)
+        await session.flush()
+        makeup.created_instance_id = instance.id
+        original.status = ClassStatus.MAKEUP_SCHEDULED
+        await notification_service.notify_makeup_scheduled(session, makeup, original)
+    else:
+        # BR-11: no instance yet -- an unapproved online class is not scheduled.
+        original.status = ClassStatus.ONLINE_PENDING
+        await notification_service.notify_online_request(session, makeup, original)
 
     original.resolved_at = utcnow()
 
@@ -228,10 +287,11 @@ async def create(
             "mode": mode.value,
             "status": makeup.status.value,
             "date": on.isoformat(),
-            "time_slot": time_slot,
+            "time_slot": slot,
             "room": makeup.room,
             "drive_link": link,
             "original_status": original.status.value,
+            "created_instance_id": makeup.created_instance_id,
         },
         reason=reason,
     )
@@ -248,7 +308,12 @@ async def decide(
     note: str | None = None,
     now: datetime | None = None,
 ) -> MakeupClass:
-    """Approve or reject a reschedule request (BR-10, BR-11, BR-12)."""
+    """Approve or reject a reschedule request (BR-11, BR-12).
+
+    Only online requests reach here: an in-room one schedules itself. The
+    physical branches remain for requests made before that rule, which are
+    still sitting in the queue waiting for an answer.
+    """
     makeup = await session.get(MakeupClass, makeup_id)
     if makeup is None:
         raise NotFoundError(f"No makeup class with id {makeup_id}")
@@ -271,13 +336,15 @@ async def decide(
     semester_id = await _active_semester_id(session, original.semester_id)
 
     if approve:
-        _require_future(makeup.date, makeup.time_slot, now)
-        # The cell was free when requested, but a class may have been placed in
+        _require_future(makeup.date, makeup.time_slot, makeup.start_min, now)
+        # The time was free when requested, but a class may have been placed in
         # it since. Re-check, ignoring this request's own claim on the room.
         report = await conflict_service.check(
             session,
             on=makeup.date,
             time_slot=makeup.time_slot,
+            start_min=makeup.start_min,
+            end_min=makeup.end_min,
             teacher_initial=makeup.teacher_initial,
             room=makeup.room,
             section=original.section,
@@ -336,7 +403,7 @@ async def decide(
 
 def ends_at(makeup: MakeupClass) -> datetime:
     """When the rescheduled class ends -- the earliest it can be marked done."""
-    _start, end_min = slot_bounds(makeup.time_slot)
+    _start, end_min = makeup.bounds()
     return status_engine.slot_end_at(makeup.date, end_min)
 
 

@@ -22,6 +22,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from classtrack.db.base import Base, TimestampMixin
+from classtrack.routine.lattice import slot_bounds
 
 
 class MakeupMode(str, enum.Enum):
@@ -30,9 +31,10 @@ class MakeupMode(str, enum.Enum):
 
 
 class MakeupStatus(str, enum.Enum):
-    #: Physical makeup, approved and already in the checking schedule.
+    #: In-room makeup, holding its room and already in the checking schedule.
+    #: An in-room reschedule starts here: an empty room needs no approval.
     SCHEDULED = "SCHEDULED"
-    #: Awaiting an HoD decision. Both modes start here (BR-11).
+    #: Awaiting an HoD decision. Only an online makeup starts here (BR-11).
     PENDING = "PENDING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
@@ -57,8 +59,15 @@ class MakeupClass(Base, TimestampMixin):
 
     mode: Mapped[MakeupMode] = mapped_column(Enum(MakeupMode, native_enum=False), nullable=False)
     date: Mapped[date] = mapped_column(Date, nullable=False)
-    #: Must be a canonical lattice slot label.
+    #: A canonical lattice slot label, or -- for an online class held at a time
+    #: the teacher chose -- a plain 24-hour ``"HH:MM-HH:MM"`` label.
     time_slot: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: Set only for an online class off the lattice, where ``time_slot`` is a
+    #: label rather than a grid coordinate and cannot be read back through
+    #: ``slot_bounds``. Null means: this is a lattice slot, ask the lattice.
+    #: Always read both through ``makeup_service.bounds()``, never directly.
+    start_min: Mapped[int | None] = mapped_column(Integer)
+    end_min: Mapped[int | None] = mapped_column(Integer)
     #: Null when the mode is ONLINE.
     room: Mapped[str | None] = mapped_column(String(64))
     reason: Mapped[str | None] = mapped_column(Text)
@@ -66,6 +75,18 @@ class MakeupClass(Base, TimestampMixin):
     status: Mapped[MakeupStatus] = mapped_column(
         Enum(MakeupStatus, native_enum=False), nullable=False
     )
+
+    def bounds(self) -> tuple[int, int]:
+        """When this makeup runs, in minutes past midnight.
+
+        An online class the teacher timed themselves carries its own bounds,
+        because its ``time_slot`` is a label the lattice knows nothing about.
+        Every other makeup sits in a cell, and the lattice owns those. Read the
+        two fields through here and never separately.
+        """
+        if self.start_min is not None and self.end_min is not None:
+            return self.start_min, self.end_min
+        return slot_bounds(self.time_slot)
 
     decided_by_id: Mapped[int | None] = mapped_column(ForeignKey("user.id", ondelete="SET NULL"))
     decision_note: Mapped[str | None] = mapped_column(Text)

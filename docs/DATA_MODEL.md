@@ -168,7 +168,8 @@ value is ignored.
 | `teacher_initial` | str(16) | |
 | `mode` | enum | `PHYSICAL` · `ONLINE` |
 | `date` | date | |
-| `time_slot` | str(32) | must be a valid lattice slot |
+| `time_slot` | str(32) | a lattice slot, or `"HH:MM-HH:MM"` for an `ONLINE` class held at a time the teacher chose |
+| `start_min` · `end_min` | int | null on the lattice; set only for that chosen time. Read both via `MakeupClass.bounds()` |
 | `room` | str(64) | null when `ONLINE` |
 | `reason` | text | |
 | `status` | enum | `SCHEDULED` · `PENDING` · `APPROVED` · `REJECTED` · `COMPLETED` |
@@ -188,7 +189,10 @@ ix_makeup_status · ix_makeup_teacher · ix_makeup_original (original_instance_i
 `PHYSICAL` → status `SCHEDULED`, and a `class_instance` with `is_makeup=1` is created
 immediately so it enters room-wise checking (BR-10).
 `ONLINE` → status `PENDING`; the instance is created only on approval, and is excluded from
-staff checking (BR-12).
+staff checking (BR-12). Because nobody walks past an online class, it need not sit in a
+lattice cell at all: the teacher may give a start time off the clock, any hour of any day,
+and it runs 90 minutes from there. `start_min`/`end_min` carry that period, since the label
+in `time_slot` is then no longer a grid coordinate `slot_bounds()` can read back.
 
 ### 3.7 `notification`
 

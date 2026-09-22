@@ -44,8 +44,9 @@ class ClassStatus(str, enum.Enum):
     LATE = "LATE"
     MISSED = "MISSED"
     NOT_CHECKED = "NOT_CHECKED"
-    #: A physical reschedule is waiting for the HoD. Rejection returns the class
-    #: to MISSED, because the teacher still owes it.
+    #: No longer set: an in-room reschedule once waited for the HoD, and goes
+    #: straight to MAKEUP_SCHEDULED now. Rows from then still carry it, and a
+    #: rejection still returns them to MISSED.
     MAKEUP_REQUESTED = "MAKEUP_REQUESTED"
     MAKEUP_SCHEDULED = "MAKEUP_SCHEDULED"
     MAKEUP_COMPLETED = "MAKEUP_COMPLETED"

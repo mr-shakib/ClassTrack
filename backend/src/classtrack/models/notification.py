@@ -19,9 +19,13 @@ class NotificationKind(str, enum.Enum):
     #: Staff recorded the teacher as absent or late, before the sweep decides.
     CLASS_REPORTED = "CLASS_REPORTED"
     MISSED_CLASS = "MISSED_CLASS"
-    #: A physical reschedule request, and the HoD's answer to it.
-    MAKEUP_REQUEST = "MAKEUP_REQUEST"
+    #: An in-room reschedule, which books itself and needs no decision.
+    MAKEUP_SCHEDULED = "MAKEUP_SCHEDULED"
+    #: An HoD's answer to a reschedule request.
     MAKEUP_DECISION = "MAKEUP_DECISION"
+    #: No longer written: an in-room reschedule once needed an HoD's approval,
+    #: and rows from then still read back through this kind.
+    MAKEUP_REQUEST = "MAKEUP_REQUEST"
     MAKEUP_REMINDER = "MAKEUP_REMINDER"
     ONLINE_REQUEST = "ONLINE_REQUEST"
     ONLINE_DECISION = "ONLINE_DECISION"

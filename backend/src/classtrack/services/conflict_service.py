@@ -23,10 +23,10 @@ from classtrack.models import (
     ClassStatus,
     Holiday,
     MakeupClass,
-    MakeupMode,
     MakeupStatus,
     Routine,
 )
+from classtrack.routine import clock
 from classtrack.routine.lattice import SLOTS
 from classtrack.services import zones
 
@@ -74,20 +74,30 @@ async def check(
     on: Date,
     time_slot: str,
     teacher_initial: str,
+    start_min: int | None = None,
+    end_min: int | None = None,
     room: str | None = None,
     section: str | None = None,
     semester_id: int | None = None,
     exclude_instance_id: int | None = None,
     exclude_makeup_id: int | None = None,
 ) -> ConflictReport:
-    """Validate a proposed makeup slot.
+    """Validate a proposed makeup time.
 
     ``room`` is None for an online makeup, which occupies no room and therefore
     cannot conflict on one.
+
+    ``start_min``/``end_min`` are set only for an online class held at a time
+    the teacher chose off the clock. Such a period is not a cell, so it cannot
+    be compared by slot equality: it is matched by overlap instead, against
+    every class on the day. That is the single exception to the lattice rule,
+    and it is safe precisely because such a class holds no room -- see
+    ``routine/clock.py``.
     """
     report = ConflictReport()
+    free_clock = start_min is not None and end_min is not None
 
-    if time_slot not in SLOTS:
+    if not free_clock and time_slot not in SLOTS:
         report.conflicts.append(
             Conflict("SLOT", f"{time_slot!r} is not a routine slot.")
         )
@@ -107,15 +117,20 @@ async def check(
             Conflict("HOLIDAY", f"{on:%d %B %Y} is {holiday.title} ({holiday.kind.value}).")
         )
 
-    occupants = await _occupants(session, on, time_slot, exclude_instance_id)
+    occupants = await _occupants(
+        session, on, time_slot, exclude_instance_id, start_min=start_min, end_min=end_min
+    )
 
+    # Name the occupant's own time, not the proposed one: an overlapping class
+    # runs at a different time, and "already teaches ... at 10:00-11:30" is what
+    # tells the teacher which class is in the way.
     for occupant in occupants:
         if occupant.teacher_initial == teacher_initial:
             report.conflicts.append(
                 Conflict(
                     "TEACHER",
                     f"{teacher_initial} already teaches {occupant.course_code} "
-                    f"in {occupant.room} at {time_slot}.",
+                    f"in {occupant.room} at {occupant.time_slot}.",
                     occupant.id,
                 )
             )
@@ -124,7 +139,7 @@ async def check(
                 Conflict(
                     "ROOM",
                     f"{occupant.room} is occupied by {occupant.course_code} "
-                    f"({occupant.section}) at {time_slot}.",
+                    f"({occupant.section}) at {occupant.time_slot}.",
                     occupant.id,
                 )
             )
@@ -133,26 +148,31 @@ async def check(
                 Conflict(
                     "SECTION",
                     f"Section {section} already has {occupant.course_code} "
-                    f"in {occupant.room} at {time_slot}.",
+                    f"in {occupant.room} at {occupant.time_slot}.",
                     occupant.id,
                 )
             )
 
-    # A pending physical request has no instance yet, but it has claimed its
-    # room: two teachers must not be offered, and then approved into, one cell.
-    for pending in await _pending_requests(session, on, time_slot, exclude_makeup_id):
+    # An undecided request has no instance yet, but the teacher is spoken for
+    # at that time: they must not be approved into a time they have filled.
+    pending_requests = await _pending_requests(
+        session, on, time_slot, exclude_makeup_id, start_min=start_min, end_min=end_min
+    )
+    for pending in pending_requests:
         if pending.teacher_initial == teacher_initial:
             report.conflicts.append(
                 Conflict(
                     "TEACHER",
-                    f"{teacher_initial} already has a reschedule request for {time_slot}.",
+                    f"{teacher_initial} already has a reschedule request "
+                    f"for {pending.time_slot}.",
                 )
             )
         if room is not None and pending.room == room.upper():
             report.conflicts.append(
                 Conflict(
                     "ROOM",
-                    f"{pending.room} is requested by {pending.teacher_initial} at {time_slot}.",
+                    f"{pending.room} is requested by {pending.teacher_initial} "
+                    f"at {pending.time_slot}.",
                 )
             )
 
@@ -164,13 +184,27 @@ async def _occupants(
     on: Date,
     time_slot: str,
     exclude_instance_id: int | None = None,
+    *,
+    start_min: int | None = None,
+    end_min: int | None = None,
 ) -> list[ClassInstance]:
-    """Everything already occupying a cell. One index seek."""
+    """Everything already occupying the proposed time.
+
+    Normally that is one cell, found by slot equality on an index seek. With
+    bounds -- a free-clock online class, which is no cell at all -- it is every
+    class of the day whose own period overlaps, matched on ``start_min`` and
+    ``end_min``, which every instance carries.
+    """
     query = select(ClassInstance).where(
         ClassInstance.date == on,
-        ClassInstance.time_slot == time_slot,
         ClassInstance.status.not_in(_VACATED) | ClassInstance.status.is_(None),
     )
+    if start_min is not None and end_min is not None:
+        query = query.where(
+            ClassInstance.start_min < end_min, ClassInstance.end_min > start_min
+        )
+    else:
+        query = query.where(ClassInstance.time_slot == time_slot)
     if exclude_instance_id is not None:
         query = query.where(ClassInstance.id != exclude_instance_id)
     return list((await session.scalars(query)).all())
@@ -181,16 +215,31 @@ async def _pending_requests(
     on: Date,
     time_slot: str,
     exclude_makeup_id: int | None = None,
+    *,
+    start_min: int | None = None,
+    end_min: int | None = None,
 ) -> list[MakeupClass]:
+    """Requests still awaiting a decision, whatever their mode.
+
+    An in-room reschedule is never one of these -- it becomes an instance the
+    moment it is made, and blocks through ``_occupants`` from then on. What is
+    left is online requests, which hold no room but do hold their teacher, and
+    any in-room request from before that rule that is still in the queue.
+
+    The queue is small, so a free-clock proposal resolves each row's bounds in
+    Python rather than in SQL: a row that sits in a cell keeps its bounds in the
+    lattice, not in its columns, and only ``bounds()`` knows which is which.
+    """
     query = select(MakeupClass).where(
         MakeupClass.date == on,
-        MakeupClass.time_slot == time_slot,
         MakeupClass.status == MakeupStatus.PENDING,
-        MakeupClass.mode == MakeupMode.PHYSICAL,
     )
     if exclude_makeup_id is not None:
         query = query.where(MakeupClass.id != exclude_makeup_id)
-    return list((await session.scalars(query)).all())
+    rows = list((await session.scalars(query)).all())
+    if start_min is None or end_min is None:
+        return [m for m in rows if m.time_slot == time_slot]
+    return [m for m in rows if clock.overlaps(start_min, end_min, *m.bounds())]
 
 
 async def free_rooms(session: AsyncSession, *, on: Date, time_slot: str) -> list[dict]:
@@ -198,7 +247,8 @@ async def free_rooms(session: AsyncSession, *, on: Date, time_slot: str) -> list
 
     The room universe is the live routine, the same source the staff floors
     come from, so a room offered here is always one some staff member checks.
-    A room is taken by a class still holding its cell or by a pending request.
+    A room is taken by any class still holding its cell -- which includes a
+    reschedule someone has already made, since that books its room at once.
     """
     if time_slot not in SLOTS:
         return []

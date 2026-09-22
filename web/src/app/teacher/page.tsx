@@ -136,9 +136,9 @@ export default function TeacherPage() {
               Reschedule required ({needsAction.length})
             </h2>
             <p className="mt-1 text-base text-ink-soft">
-              Staff reported these classes as not held. Request a new time — once the
-              Head of Department approves, it is checked like any other class. Dispute
-              the record if it is wrong.
+              Staff reported these classes as not held. Pick a new time and an empty
+              room — it is booked straight away, with no approval, and checked like any
+              other class. Dispute the record if it is wrong.
             </p>
           </div>
           <ul className="divide-y-2 divide-line">

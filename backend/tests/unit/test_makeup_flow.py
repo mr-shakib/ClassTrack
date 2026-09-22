@@ -135,7 +135,7 @@ async def test_staff_report_notifies_the_teacher_once(session, instance, staff, 
 
 
 async def test_reschedule_can_be_requested_as_soon_as_staff_report_absence(
-    session, instance, staff, teacher_user, hod
+    session, instance, staff, teacher_user
 ):
     """The notification says reschedule, so the teacher must be able to, at once."""
     await check_service.submit(
@@ -147,7 +147,7 @@ async def test_reschedule_can_be_requested_as_soon_as_staff_report_absence(
     )
     assert instance.status is None  # the threshold has not passed
 
-    makeup = await makeup_service.create(
+    await makeup_service.create(
         session,
         original_instance_id=instance.id,
         user=teacher_user,
@@ -156,20 +156,17 @@ async def test_reschedule_can_be_requested_as_soon_as_staff_report_absence(
         time_slot=FREE_SLOT,
         room="KT-305",
     )
-    assert instance.status is ClassStatus.MAKEUP_REQUESTED
+    assert instance.status is ClassStatus.MAKEUP_SCHEDULED
 
-    # The sweep only settles unresolved rows, so it must leave the request alone.
+    # The sweep only settles unresolved rows, so it must leave the class alone.
     await sweep.sweep_once(session, now=at(10, 31))
-    assert instance.status is ClassStatus.MAKEUP_REQUESTED
-
-    await makeup_service.decide(session, makeup_id=makeup.id, user=hod, approve=False)
-    assert instance.status is ClassStatus.MISSED
+    assert instance.status is ClassStatus.MAKEUP_SCHEDULED
 
 
-# --- BR-10: a physical reschedule enters checking once approved ------------
+# --- BR-10: an in-room reschedule books itself and enters checking ---------
 
 
-async def test_physical_request_enters_checking_only_after_approval(
+async def test_physical_reschedule_needs_no_approval_and_is_checked_at_once(
     session, instance, staff, teacher_user, hod
 ):
     await _make_missed(session, instance, staff)
@@ -186,23 +183,15 @@ async def test_physical_request_enters_checking_only_after_approval(
     )
     await session.commit()
 
-    assert makeup.status is MakeupStatus.PENDING
-    assert instance.status is ClassStatus.MAKEUP_REQUESTED
-    assert makeup.created_instance_id is None
-    assert await _kinds_for(session, hod) == [NotificationKind.MAKEUP_REQUEST]
-
-    screen = await checking_service.checking_screen(session, on=LATER, slot=FREE_SLOT)
-    assert screen["rooms"] == [], "An unapproved reschedule must not be checked"
-
-    decided = await makeup_service.decide(session, makeup_id=makeup.id, user=hod, approve=True)
-    await session.commit()
-
-    assert decided.status is MakeupStatus.SCHEDULED
+    assert makeup.status is MakeupStatus.SCHEDULED
     assert instance.status is ClassStatus.MAKEUP_SCHEDULED
-    assert NotificationKind.MAKEUP_DECISION in await _kinds_for(session, teacher_user)
+    assert makeup.created_instance_id is not None
+    # Nothing to decide, so the HoD is told what happened, not asked about it.
+    assert await _kinds_for(session, hod) == [NotificationKind.MAKEUP_SCHEDULED]
+    assert NotificationKind.MAKEUP_SCHEDULED in await _kinds_for(session, teacher_user)
 
     screen = await checking_service.checking_screen(session, on=LATER, slot=FREE_SLOT)
-    row = next(r for r in screen["rooms"] if r["instance_id"] == decided.created_instance_id)
+    row = next(r for r in screen["rooms"] if r["instance_id"] == makeup.created_instance_id)
     assert row["is_makeup"] is True
     assert row["room"] == "KT-305"
     assert row["course_code"] == instance.course_code
@@ -210,7 +199,7 @@ async def test_physical_request_enters_checking_only_after_approval(
     # And staff can report it at the new time like any other class.
     checked = await check_service.submit(
         session,
-        instance_id=decided.created_instance_id,
+        instance_id=makeup.created_instance_id,
         user=staff,
         outcome=CheckOutcome.RUNNING,
         now=at(16, 5, day=LATER),
@@ -218,11 +207,12 @@ async def test_physical_request_enters_checking_only_after_approval(
     assert checked.status is ClassStatus.RUNNING
 
 
-async def test_rejected_physical_request_returns_the_class_to_missed(
-    session, instance, staff, teacher_user, hod
+async def test_a_booked_room_is_closed_to_every_other_teacher(
+    session, instance, staff, teacher_user
 ):
+    """The point of booking on the spot: the cell is gone the moment it is taken."""
     await _make_missed(session, instance, staff)
-    makeup = await makeup_service.create(
+    await makeup_service.create(
         session,
         original_instance_id=instance.id,
         user=teacher_user,
@@ -231,31 +221,22 @@ async def test_rejected_physical_request_returns_the_class_to_missed(
         time_slot=FREE_SLOT,
         room="KT-305",
     )
-    await session.commit()
+    await session.flush()
 
-    decided = await makeup_service.decide(
-        session, makeup_id=makeup.id, user=hod, approve=False, note="Room is booked"
-    )
-    await session.commit()
+    assert await conflict_service.free_rooms(session, on=LATER, time_slot=FREE_SLOT) == []
 
-    assert decided.status is MakeupStatus.REJECTED
-    assert decided.created_instance_id is None
-    assert instance.status is ClassStatus.MISSED
-
-    # The class is still owed, so the teacher can ask again.
-    again = await makeup_service.create(
+    report = await conflict_service.check(
         session,
-        original_instance_id=instance.id,
-        user=teacher_user,
-        mode=MakeupMode.PHYSICAL,
         on=LATER,
         time_slot=FREE_SLOT,
+        teacher_initial="OTH",
         room="KT-305",
     )
-    assert again.status is MakeupStatus.PENDING
+    assert not report.ok
+    assert [c.type for c in report.conflicts] == ["ROOM"]
 
 
-async def test_free_rooms_leave_out_occupied_and_requested_rooms(
+async def test_free_rooms_leave_out_occupied_and_booked_rooms(
     session, instance, staff, teacher_user
 ):
     await _make_missed(session, instance, staff)
@@ -283,20 +264,20 @@ async def test_free_rooms_leave_out_occupied_and_requested_rooms(
     assert await free() == {"KT-305"}
 
 
-async def test_approval_rechecks_that_the_room_is_still_free(
+async def test_approval_rechecks_that_the_slot_is_still_free(
     session, instance, staff, teacher_user, hod
 ):
+    """An online request waits, and the cell can fill while it does."""
     await _make_missed(session, instance, staff)
     makeup = await makeup_service.create(
         session,
         original_instance_id=instance.id,
         user=teacher_user,
-        mode=MakeupMode.PHYSICAL,
+        mode=MakeupMode.ONLINE,
         on=LATER,
         time_slot=FREE_SLOT,
-        room="KT-305",
     )
-    session.add(_occupant(instance, room="KT-305"))
+    session.add(_occupant(instance, room="KT-305", teacher=instance.teacher_initial))
     await session.flush()
 
     with pytest.raises(ConflictError):
@@ -416,7 +397,7 @@ async def test_rejected_online_makeup_creates_no_instance(
 
 
 async def test_makeup_keeps_its_link_to_the_original(
-    session, instance, staff, teacher_user, hod
+    session, instance, staff, teacher_user
 ):
     await _make_missed(session, instance, staff)
     original_id = instance.id
@@ -430,7 +411,6 @@ async def test_makeup_keeps_its_link_to_the_original(
         time_slot=FREE_SLOT,
         room="KT-305",
     )
-    await makeup_service.decide(session, makeup_id=makeup.id, user=hod, approve=True)
     await session.commit()
 
     completed = await makeup_service.complete(
@@ -453,6 +433,7 @@ AFTER_MAKEUP = at(17, 40, day=LATER)
 
 
 async def _approved(session, instance, staff, teacher_user, hod, mode, note=None):
+    """A makeup ready to be held: booked outright if in a room, approved if online."""
     await _make_missed(session, instance, staff)
     makeup = await makeup_service.create(
         session,
@@ -463,9 +444,10 @@ async def _approved(session, instance, staff, teacher_user, hod, mode, note=None
         time_slot=FREE_SLOT,
         room="KT-305" if mode is MakeupMode.PHYSICAL else None,
     )
-    await makeup_service.decide(
-        session, makeup_id=makeup.id, user=hod, approve=True, note=note
-    )
+    if mode is MakeupMode.ONLINE:
+        await makeup_service.decide(
+            session, makeup_id=makeup.id, user=hod, approve=True, note=note
+        )
     await session.flush()
     return makeup
 
@@ -478,18 +460,18 @@ async def _latest_for(session, user):
     )
 
 
-async def test_approval_tells_the_teacher_which_class_moved_and_where(
+async def test_booking_tells_the_teacher_which_class_moved_and_where(
     session, instance, staff, teacher_user, hod
 ):
     makeup = await _approved(
-        session, instance, staff, teacher_user, hod, MakeupMode.PHYSICAL, note="Go ahead"
+        session, instance, staff, teacher_user, hod, MakeupMode.PHYSICAL
     )
     sent = await _latest_for(session, teacher_user)
 
-    assert sent.kind is NotificationKind.MAKEUP_DECISION
-    assert "approved" in sent.title and "in class" in sent.title
+    assert sent.kind is NotificationKind.MAKEUP_SCHEDULED
+    assert "Rescheduled" in sent.title and "KT-305" in sent.title
     for detail in (instance.course_code, instance.section, "13 September 2026", SLOT,
-                   "20 September 2026", FREE_SLOT, "in room KT-305", "Go ahead"):
+                   "20 September 2026", FREE_SLOT, "in room KT-305"):
         assert detail in sent.body
     assert sent.link == f"/teacher#makeup-{makeup.id}"
 
@@ -816,3 +798,185 @@ async def test_invalid_slot_is_rejected(session, instance, staff, teacher_user):
         )
     types = {c["type"] for c in exc.value.detail["conflicts"]}
     assert "SLOT" in types
+
+
+# --- an online class may be held at any time of any day --------------------
+
+#: 19:30 on LATER, well outside the six routine slots.
+EVENING = "19:30"
+
+
+async def test_online_makeup_can_be_held_at_a_time_off_the_routine(
+    session, instance, staff, teacher_user, hod
+):
+    await _make_missed(session, instance, staff)
+
+    makeup = await makeup_service.create(
+        session,
+        original_instance_id=instance.id,
+        user=teacher_user,
+        mode=MakeupMode.ONLINE,
+        on=LATER,
+        start_time=EVENING,
+    )
+    await session.commit()
+
+    assert makeup.time_slot == "19:30-21:00"
+    assert makeup.bounds() == (19 * 60 + 30, 21 * 60)
+    assert makeup.status is MakeupStatus.PENDING
+
+    decided = await makeup_service.decide(
+        session, makeup_id=makeup.id, user=hod, approve=True
+    )
+    await session.commit()
+
+    held = await session.get(ClassInstance, decided.created_instance_id)
+    assert (held.time_slot, held.start_min, held.end_min) == ("19:30-21:00", 1170, 1260)
+    # BR-12 still holds: nobody is sent to a room at half past seven.
+    screen = await checking_service.checking_screen(session, on=LATER, slot=FREE_SLOT)
+    assert decided.created_instance_id not in [r["instance_id"] for r in screen["rooms"]]
+
+
+async def test_a_chosen_time_can_be_marked_done_only_once_it_ends(
+    session, instance, staff, teacher_user, hod
+):
+    """The 'in SLOTS' guards used to make an off-lattice makeup uncompletable."""
+    await _make_missed(session, instance, staff)
+    makeup = await makeup_service.create(
+        session,
+        original_instance_id=instance.id,
+        user=teacher_user,
+        mode=MakeupMode.ONLINE,
+        on=LATER,
+        start_time=EVENING,
+        drive_link=DRIVE,
+    )
+    await makeup_service.decide(session, makeup_id=makeup.id, user=hod, approve=True)
+
+    with pytest.raises(ValidationError, match="ends at 21:00"):
+        await makeup_service.complete(
+            session, makeup_id=makeup.id, user=teacher_user, now=at(20, 0, day=LATER)
+        )
+
+    # The sweep reaches an off-lattice makeup too. It used to skip anything it
+    # could not find in SLOTS, so this one would never have been chased.
+    assert (await sweep.sweep_once(session, now=at(20, 0, day=LATER)))["reminded"] == 0
+    assert (await sweep.sweep_once(session, now=at(21, 5, day=LATER)))["reminded"] == 1
+
+    done = await makeup_service.complete(
+        session, makeup_id=makeup.id, user=teacher_user, now=at(21, 5, day=LATER)
+    )
+    assert done.status is MakeupStatus.COMPLETED
+
+
+async def test_a_chosen_time_that_overlaps_the_teachers_own_class_is_refused(
+    session, instance, staff, teacher_user
+):
+    """FREE_SLOT runs 16:00-17:30, so 16:45 lands in the middle of it."""
+    await _make_missed(session, instance, staff)
+    session.add(_occupant(instance, room="KT-909", teacher=instance.teacher_initial))
+    await session.flush()
+
+    with pytest.raises(ConflictError) as exc:
+        await makeup_service.create(
+            session,
+            original_instance_id=instance.id,
+            user=teacher_user,
+            mode=MakeupMode.ONLINE,
+            on=LATER,
+            start_time="16:45",
+        )
+    conflicts = exc.value.detail["conflicts"]
+    assert {c["type"] for c in conflicts} == {"TEACHER"}
+    # The message names the class in the way, at its own time -- not at 16:45.
+    assert FREE_SLOT in conflicts[0]["message"]
+
+
+async def test_a_chosen_time_clear_of_the_teachers_day_is_allowed(
+    session, instance, staff, teacher_user
+):
+    """Touching at the edge is not overlapping: FREE_SLOT ends exactly at 17:30."""
+    await _make_missed(session, instance, staff)
+    session.add(_occupant(instance, room="KT-909", teacher=instance.teacher_initial))
+    await session.flush()
+
+    makeup = await makeup_service.create(
+        session,
+        original_instance_id=instance.id,
+        user=teacher_user,
+        mode=MakeupMode.ONLINE,
+        on=LATER,
+        start_time="17:30",
+    )
+    assert makeup.time_slot == "17:30-19:00"
+
+
+async def test_two_online_classes_of_one_teacher_may_not_overlap(
+    session, instance, staff, teacher_user
+):
+    """A pending request holds its teacher even though it holds no room."""
+    await _make_missed(session, instance, staff)
+    await makeup_service.create(
+        session,
+        original_instance_id=instance.id,
+        user=teacher_user,
+        mode=MakeupMode.ONLINE,
+        on=LATER,
+        start_time=EVENING,
+    )
+    await session.flush()
+
+    report = await conflict_service.check(
+        session,
+        on=LATER,
+        time_slot="20:00-21:30",
+        start_min=20 * 60,
+        end_min=21 * 60 + 30,
+        teacher_initial=instance.teacher_initial,
+    )
+    assert [c.type for c in report.conflicts] == ["TEACHER"]
+
+
+async def test_a_class_in_a_room_may_not_pick_its_own_time(
+    session, instance, staff, teacher_user
+):
+    await _make_missed(session, instance, staff)
+    with pytest.raises(ValidationError, match="routine's time slots"):
+        await makeup_service.create(
+            session,
+            original_instance_id=instance.id,
+            user=teacher_user,
+            mode=MakeupMode.PHYSICAL,
+            on=LATER,
+            start_time=EVENING,
+            room="KT-305",
+        )
+
+
+async def test_a_chosen_time_must_be_a_real_clock_time(
+    session, instance, staff, teacher_user
+):
+    await _make_missed(session, instance, staff)
+    for bad in ("half seven", "25:00", "7:30pm", ""):
+        with pytest.raises(ValidationError, match=r"24-hour clock|when the class"):
+            await makeup_service.create(
+                session,
+                original_instance_id=instance.id,
+                user=teacher_user,
+                mode=MakeupMode.ONLINE,
+                on=LATER,
+                start_time=bad,
+            )
+
+
+async def test_a_class_may_not_run_past_midnight(session, instance, staff, teacher_user):
+    await _make_missed(session, instance, staff)
+    with pytest.raises(ValidationError, match="past midnight"):
+        await makeup_service.create(
+            session,
+            original_instance_id=instance.id,
+            user=teacher_user,
+            mode=MakeupMode.ONLINE,
+            on=LATER,
+            start_time="23:15",
+        )

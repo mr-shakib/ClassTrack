@@ -143,7 +143,9 @@ export const api = {
   // --- makeup -------------------------------------------------------------
   checkConflict: (payload: {
     date: string;
-    time_slot: string;
+    /** A routine slot, or `start_time` — exactly one of the two. */
+    time_slot?: string | null;
+    start_time?: string | null;
     teacher_initial?: string | null;
     room?: string | null;
     section?: string | null;
@@ -154,7 +156,10 @@ export const api = {
     original_instance_id: number;
     mode: MakeupMode;
     date: string;
-    time_slot: string;
+    /** A routine slot, or `start_time` — exactly one of the two. */
+    time_slot?: string | null;
+    /** ONLINE only: a 24-hour `HH:MM` off the clock; the class runs 90 minutes. */
+    start_time?: string | null;
     room?: string | null;
     reason?: string | null;
     /** ONLINE only, optional: for the HoD or Associate Head to open while deciding. */

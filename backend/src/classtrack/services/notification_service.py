@@ -164,21 +164,23 @@ def _reschedule_link(instance: ClassInstance) -> str:
     return f"/teacher/makeup?instance={instance.id}"
 
 
-async def notify_makeup_request(
+async def notify_online_request(
     session: AsyncSession, makeup: MakeupClass, instance: ClassInstance
 ) -> None:
-    """Tell the HoD a reschedule needs a decision (BR-11)."""
-    online = makeup.mode is MakeupMode.ONLINE
-    where = "online" if online else f"in {makeup.room}"
+    """Tell the HoD an online reschedule needs a decision (BR-11).
+
+    Only online requests reach a decision at all: one held in an empty room
+    books itself, and announces itself through ``notify_makeup_scheduled``.
+    """
     for admin in await _admins(session):
         await _dispatch(
             session,
             user_id=admin.id,
-            kind=NotificationKind.ONLINE_REQUEST if online else NotificationKind.MAKEUP_REQUEST,
-            title="Online makeup request" if online else "Reschedule request",
+            kind=NotificationKind.ONLINE_REQUEST,
+            title="Online makeup request",
             body=(
                 f"{makeup.teacher_initial} requested to reschedule {_describe(instance)} "
-                f"to {makeup.date:%d %B %Y} at {makeup.time_slot}, {where}."
+                f"to {makeup.date:%d %B %Y} at {makeup.time_slot}, online."
                 + (" A Drive link is attached for review." if makeup.drive_link else "")
             ),
             link="/approvals",
@@ -194,6 +196,51 @@ def _rescheduled_to(makeup: MakeupClass) -> str:
     return f"{makeup.date:%A %d %B %Y} at {makeup.time_slot}, {where}"
 
 
+def _missed(original: ClassInstance) -> str:
+    return (
+        f"{original.course_code} for section {original.section} "
+        f"({original.date:%d %B %Y}, {original.time_slot}, {original.room})"
+    )
+
+
+async def notify_makeup_scheduled(
+    session: AsyncSession, makeup: MakeupClass, original: ClassInstance
+) -> None:
+    """Confirm an in-room reschedule, which needed no decision (BR-10).
+
+    Nothing lands in the approvals queue for this one, so the admins are told
+    here instead: the room is gone from that cell and they should know why.
+    """
+    body = (
+        f"Your missed class {_missed(original)} is rescheduled to "
+        f"{_rescheduled_to(makeup)}. Room {makeup.room} is now held for you, and "
+        "staff will check it at that time. Mark the class done after you hold it."
+    )
+    user = await _user_for_teacher(session, makeup.teacher_initial)
+    if user is not None:
+        await _dispatch(
+            session,
+            user_id=user.id,
+            kind=NotificationKind.MAKEUP_SCHEDULED,
+            title=f"Rescheduled — {original.course_code} in {makeup.room}",
+            body=body,
+            link=_makeup_link(makeup),
+        )
+    for admin in await _admins(session):
+        await _dispatch(
+            session,
+            user_id=admin.id,
+            kind=NotificationKind.MAKEUP_SCHEDULED,
+            title="Class rescheduled into an empty room",
+            body=(
+                f"{makeup.teacher_initial} rescheduled {_describe(original)} to "
+                f"{_rescheduled_to(makeup)}. An empty room needs no approval, so it is "
+                "booked and in staff checking."
+            ),
+            link="/today",
+        )
+
+
 async def notify_makeup_decision(
     session: AsyncSession, makeup: MakeupClass, original: ClassInstance
 ) -> None:
@@ -203,10 +250,7 @@ async def notify_makeup_decision(
         return
     online = makeup.mode is MakeupMode.ONLINE
     approved = makeup.status is not MakeupStatus.REJECTED
-    missed = (
-        f"{original.course_code} for section {original.section} "
-        f"({original.date:%d %B %Y}, {original.time_slot}, {original.room})"
-    )
+    missed = _missed(original)
     if approved:
         title = f"Reschedule approved — {original.course_code} {'online' if online else 'in class'}"
         body = f"Your missed class {missed} is rescheduled to {_rescheduled_to(makeup)}."

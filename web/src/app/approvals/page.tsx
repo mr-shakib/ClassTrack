@@ -25,6 +25,9 @@ export default function ApprovalsPage() {
     );
   }, [rows, query, mode]);
   const teachers = new Set(rows.map((m) => m.teacher_initial)).size;
+  // Only online classes are decided here, so the mode filter is worth showing
+  // only while an in-room request from the old approval rule is still queued.
+  const mixedModes = new Set(rows.map((m) => m.mode)).size > 1;
 
   const load = useCallback(async () => {
     try {
@@ -54,8 +57,9 @@ export default function ApprovalsPage() {
             {rows.length > 0
               ? `${rows.length} request${rows.length === 1 ? "" : "s"} from ${teachers} teacher${teachers === 1 ? "" : "s"}, oldest first. `
               : ""}
-            An approved in-room class joins staff checking for that room and time; an approved
-            online class is left out of it. A rejected teacher must pick another slot.
+            Only online classes come here: a teacher who takes an empty room is already
+            booked into it. An approved online class is left out of staff checking, and a
+            rejected teacher must hold it in a room instead.
           </p>
         </div>
         {rows.length > 1 ? (
@@ -66,15 +70,17 @@ export default function ApprovalsPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
-            <select
-              className={`${inputClass} w-auto`}
-              value={mode}
-              onChange={(e) => setMode(e.target.value as MakeupMode | "")}
-            >
-              <option value="">In room and online</option>
-              <option value="PHYSICAL">In room only</option>
-              <option value="ONLINE">Online only</option>
-            </select>
+            {mixedModes ? (
+              <select
+                className={`${inputClass} w-auto`}
+                value={mode}
+                onChange={(e) => setMode(e.target.value as MakeupMode | "")}
+              >
+                <option value="">In room and online</option>
+                <option value="PHYSICAL">In room only</option>
+                <option value="ONLINE">Online only</option>
+              </select>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -87,7 +93,7 @@ export default function ApprovalsPage() {
         <Card>
           <EmptyState
             title="Nothing awaiting a decision"
-            body="Reschedule requests from teachers will appear here."
+            body="Requests to hold a missed class online appear here. One moved into an empty room does not: it is booked without a decision."
           />
         </Card>
       ) : shown.length === 0 ? (

@@ -193,12 +193,13 @@ actions — **Running** · **Late** · **Teacher Not Found**. Remark is secondar
 
 ```
 MISSED ─> teacher confirms ─> chooses mode
-                               ├─ PHYSICAL ─> conflict check ─> MAKEUP_SCHEDULED
-                               │                                 └─> enters room-wise checking
-                               └─ ONLINE  ─> ONLINE_PENDING ─> HoD decision
-                                                                ├─ approve ─> ONLINE_APPROVED
-                                                                │             (excluded from checking)
-                                                                └─ reject  ─> ONLINE_REJECTED
+                               ├─ PHYSICAL ─> empty room, routine slot ─> MAKEUP_SCHEDULED
+                               │                                          └─> enters room-wise checking
+                               └─ ONLINE ─> a routine slot, or any time off the clock
+                                            └─> ONLINE_PENDING ─> HoD decision
+                                                                  ├─ approve ─> ONLINE_APPROVED
+                                                                  │             (excluded from checking)
+                                                                  └─ reject  ─> ONLINE_REJECTED
 ```
 
 Every makeup permanently references its original missed instance (BR-13). The final record
@@ -218,6 +219,12 @@ On the lattice this is three indexed lookups against `class_instance` for the pr
 
 v1 **blocks** on any conflict. The override-with-mandatory-reason path (source SRS §11) is
 deferred; `ConflictReport` already carries an `overridable` flag for it.
+
+**The one exception to slot equality.** An online makeup may be held at a time the teacher
+picks off the clock, on any day at any hour. Such a period is not a lattice cell, so it is
+matched by interval **overlap** on `start_min`/`end_min` instead. This does not weaken the
+lattice: an online class holds no room, so the room lookup it would have broken never runs
+for it. Room occupancy remains slot equality, everywhere, always.
 
 ## 10. Reporting
 

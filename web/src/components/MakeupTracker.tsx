@@ -5,7 +5,11 @@ import { ApiError, api } from "@/lib/api";
 import type { Makeup } from "@/lib/types";
 import { Button, bigInputClass } from "./ui";
 
-const STEPS = ["Requested", "Approved", "Class time", "Done"] as const;
+/** An online class waits for a decision; one in a room is booked outright. */
+const STEPS = {
+  ONLINE: ["Requested", "Approved", "Class time", "Done"],
+  PHYSICAL: ["Booked", "Class time", "Done"],
+} as const;
 
 /** "Sunday, 20 September 2026" -- spelled out, so nobody misreads a date. */
 export const formatDay = (iso: string) =>
@@ -20,11 +24,13 @@ export const formatDay = (iso: string) =>
 export const isOpenMakeup = (m: Makeup) =>
   m.status === "PENDING" || m.status === "SCHEDULED" || m.status === "APPROVED";
 
-/** The step the makeup is waiting on, as an index into STEPS. */
-function currentStep(m: Makeup, ended: boolean): number {
-  if (m.status === "COMPLETED") return STEPS.length;
-  if (m.status === "PENDING") return 1;
-  return ended ? 3 : 2;
+/** The steps of this makeup, and the index of the one it is waiting on. */
+function progress(m: Makeup, ended: boolean): { steps: readonly string[]; step: number } {
+  const steps = STEPS[m.mode];
+  if (m.status === "COMPLETED") return { steps, step: steps.length };
+  if (m.status === "PENDING") return { steps, step: 1 };
+  // Booked or approved: the class itself is the next thing that has to happen.
+  return { steps, step: steps.length - (ended ? 1 : 2) };
 }
 
 function CheckIcon() {
@@ -93,10 +99,10 @@ export function MakeupTimes({
   );
 }
 
-function Steps({ step }: { step: number }) {
+function Steps({ steps, step }: { steps: readonly string[]; step: number }) {
   return (
-    <ol className="grid grid-cols-4 gap-2">
-      {STEPS.map((label, i) => {
+    <ol className={`grid gap-2 ${steps.length === 3 ? "grid-cols-3" : "grid-cols-4"}`}>
+      {steps.map((label, i) => {
         const done = i < step;
         const current = i === step;
         return (
@@ -186,7 +192,7 @@ export function MakeupCard({
 
         <div className="space-y-5 px-4 pb-5 sm:px-5">
           <MakeupTimes makeup={m} />
-          <Steps step={currentStep(m, ended)} />
+          <Steps {...progress(m, ended)} />
           {m.decision_note ? (
             <p className="rounded-xl border-2 border-line px-4 py-3 text-base">
               <span className="font-semibold">Head of Department: </span>“{m.decision_note}”
@@ -217,13 +223,17 @@ export function MakeupCard({
             </>
           ) : !ended ? (
             <>
-              <p className="text-lg font-bold text-ok">Approved — hold the class at the new time</p>
+              <p className="text-lg font-bold text-ok">
+                {online
+                  ? "Approved — hold the class at the new time"
+                  : "Booked — hold the class at the new time"}
+              </p>
               <p className="mt-1 text-base">
                 {online
                   ? m.drive_link
                     ? "It is not checked in a room. Your Drive link is saved — after the class, come back here and mark it done."
                     : "It is not checked in a room. After it ends, come back here and submit its Drive link."
-                  : `Staff will check room ${m.room}. After the class, come back here and mark it done.`}
+                  : `Room ${m.room} is held for you and staff will check it. After the class, come back here and mark it done.`}
               </p>
             </>
           ) : online ? (

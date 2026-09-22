@@ -41,6 +41,11 @@ rather than interval arithmetic.
 
 > ⚠️ Do not replace slot-label equality with time-range overlap logic.
 
+The one class that escapes the grid is an **online makeup**, which the teacher may hold at
+any time of any day. It occupies no room and no staff member checks it, so the lattice buys
+it nothing; it is matched by overlap instead (`routine/clock.py`). Room occupancy is still
+slot equality, everywhere.
+
 ## Quick start
 
 ```bash

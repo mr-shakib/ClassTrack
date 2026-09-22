@@ -61,8 +61,8 @@ def _copy(instance: ClassInstance, **changes) -> ClassInstance:
     return ClassInstance(**fields)
 
 
-async def _makeup_held(session, instance, staff, teacher_user, hod):
-    """Miss the class, reschedule it into a room, approve it and hold it."""
+async def _makeup_held(session, instance, staff, teacher_user):
+    """Miss the class, reschedule it into a room and hold it."""
     await check_service.submit(
         session, instance_id=instance.id, user=staff,
         outcome=CheckOutcome.TEACHER_NOT_FOUND, now=at(10, 5),
@@ -72,9 +72,6 @@ async def _makeup_held(session, instance, staff, teacher_user, hod):
         session, original_instance_id=instance.id, user=teacher_user,
         mode=MakeupMode.PHYSICAL, on=LATER, time_slot=FREE_SLOT, room="KT-305",
         now=at(12, 0),
-    )
-    await makeup_service.decide(
-        session, makeup_id=makeup.id, user=hod, approve=True, now=at(12, 5)
     )
     await check_service.submit(
         session, instance_id=makeup.created_instance_id, user=staff,
@@ -115,9 +112,9 @@ async def test_online_makeup_counts_once_marked_done(instance):
 
 
 async def test_a_recovered_class_is_credited_once_on_the_makeup_day(
-    session, instance, staff, teacher_user, hod
+    session, instance, staff, teacher_user
 ):
-    makeup = await _makeup_held(session, instance, staff, teacher_user, hod)
+    makeup = await _makeup_held(session, instance, staff, teacher_user)
 
     report = await report_service.teacher_report(
         session, teacher_initial="TCA", **RANGE
@@ -139,9 +136,9 @@ async def test_a_recovered_class_is_credited_once_on_the_makeup_day(
 
 
 async def test_a_makeup_is_listed_on_the_day_it_is_held(
-    session, instance, staff, teacher_user, hod
+    session, instance, staff, teacher_user
 ):
-    makeup = await _makeup_held(session, instance, staff, teacher_user, hod)
+    makeup = await _makeup_held(session, instance, staff, teacher_user)
 
     day = await report_service.daily(session, on=LATER)
     assert [c["instance_id"] for c in day["rescheduled_in"]] == [makeup.created_instance_id]
@@ -235,8 +232,8 @@ async def test_classes_can_be_found_by_teacher_initial(session, instance):
     assert rows[0]["slot_state"] == "CLOSED"
 
 
-async def test_pdfs_render(session, instance, staff, teacher_user, hod):
-    await _makeup_held(session, instance, staff, teacher_user, hod)
+async def test_pdfs_render(session, instance, staff, teacher_user):
+    await _makeup_held(session, instance, staff, teacher_user)
     instance_row = await report_service.teacher_report(session, teacher_initial="TCA", **RANGE)
     assert pdf_service.teacher_pdf(instance_row).startswith(b"%PDF")
 

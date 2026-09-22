@@ -17,6 +17,19 @@ import type { ClassInstance, ConflictReport, FreeRoom, MakeupMode, Role } from "
 
 const TEACHER_PAGE_ROLES: Role[] = ["TEACHER", ...ADMIN_ROLES];
 
+/** A class runs 90 minutes, the same as every slot on the routine. */
+const CLASS_MINUTES = 90;
+
+/** The latest start that still finishes before midnight, as the input's `max`. */
+const LATEST_START = "22:30";
+
+/** "19:30" → "19:30-21:00", the label the backend will store. */
+function endsLabel(start: string): string {
+  const [h, m] = start.split(":").map(Number);
+  const end = h * 60 + m + CLASS_MINUTES;
+  return `${start}-${String(Math.floor(end / 60) % 24).padStart(2, "0")}:${String(end % 60).padStart(2, "0")}`;
+}
+
 function MakeupForm() {
   const { permitted, loading: authLoading } = useRequireRole(TEACHER_PAGE_ROLES);
   const params = useSearchParams();
@@ -27,6 +40,8 @@ function MakeupForm() {
   const [mode, setMode] = useState<MakeupMode>("PHYSICAL");
   const [date, setDate] = useState("");
   const [slot, setSlot] = useState<string>(SLOTS[5]);
+  // Online only: a time the teacher picks off the clock, in 24-hour HH:MM.
+  const [startTime, setStartTime] = useState("");
   const [room, setRoom] = useState("");
   const [rooms, setRooms] = useState<FreeRoom[] | null>(null);
   const [roomsLoading, setRoomsLoading] = useState(false);
@@ -80,10 +95,20 @@ function MakeupForm() {
     if (rooms && room && !rooms.some((r) => r.room === room)) setRoom("");
   }, [rooms, room]);
 
+  const online = mode === "ONLINE";
+  // An online class may be held at any time, so the teacher picks one off the
+  // clock instead of taking a routine slot.
+  const ownTime = online && startTime !== "";
+
   // The room list already excludes occupied rooms; this still catches the
-  // teacher or section being busy at that time, and holidays (BR-14).
+  // teacher or section being busy at that time, and holidays (BR-14). For a
+  // time off the clock it is the only check there is, so it matters more.
   const validate = useCallback(async () => {
-    if (!date || !slot || !original || (mode === "PHYSICAL" && !room)) {
+    if (!date || !original || (mode === "PHYSICAL" && !room)) {
+      setReport(null);
+      return;
+    }
+    if (online ? !startTime : !slot) {
       setReport(null);
       return;
     }
@@ -92,7 +117,8 @@ function MakeupForm() {
       setReport(
         await api.checkConflict({
           date,
-          time_slot: slot,
+          time_slot: ownTime ? null : slot,
+          start_time: ownTime ? startTime : null,
           room: mode === "PHYSICAL" ? room : null,
           section: original.section,
         }),
@@ -102,7 +128,7 @@ function MakeupForm() {
     } finally {
       setChecking(false);
     }
-  }, [date, slot, room, mode, original]);
+  }, [date, slot, startTime, online, ownTime, room, mode, original]);
 
   useEffect(() => {
     const timer = setTimeout(() => void validate(), 350);
@@ -118,7 +144,8 @@ function MakeupForm() {
         original_instance_id: instanceId,
         mode,
         date,
-        time_slot: slot,
+        time_slot: ownTime ? null : slot,
+        start_time: ownTime ? startTime : null,
         room: mode === "PHYSICAL" ? room : null,
         reason: reason || null,
         drive_link: mode === "ONLINE" && driveLink.trim() ? driveLink.trim() : null,
@@ -127,7 +154,11 @@ function MakeupForm() {
       setTimeout(() => router.push("/teacher"), 2500);
     } catch (err) {
       setError(
-        err instanceof ApiError ? err.message : "Could not send the reschedule request.",
+        err instanceof ApiError
+          ? err.message
+          : mode === "PHYSICAL"
+            ? "Could not book the room."
+            : "Could not send the reschedule request.",
       );
     } finally {
       setBusy(false);
@@ -153,14 +184,19 @@ function MakeupForm() {
   if (done) {
     return (
       <div className="mx-auto max-w-2xl rounded-2xl bg-ok px-6 py-8 text-center text-white">
-        <p className="text-2xl font-bold">Reschedule requested</p>
+        <p className="text-2xl font-bold">
+          {mode === "ONLINE" ? "Reschedule requested" : "Class rescheduled"}
+        </p>
         <p className="mt-2 text-lg">
-          Sent to the Head of Department. You will get a notification when they decide.{" "}
-          {mode === "ONLINE"
-            ? driveLink.trim()
-              ? "Your Drive link was sent with the request."
-              : "After the class, submit its Drive link."
-            : `Once approved, staff will check ${room} on ${formatDay(date)} at ${slot}.`}
+          {online
+            ? `Sent to the Head of Department for ${formatDay(date)} at ${
+                ownTime ? endsLabel(startTime) : slot
+              }. You will get a notification when they decide. ${
+                driveLink.trim()
+                  ? "Your Drive link was sent with the request."
+                  : "After the class, submit its Drive link."
+              }`
+            : `${room} is booked for you on ${formatDay(date)} at ${slot}. Staff will check it at that time.`}
         </p>
         <p className="mt-3 text-base opacity-80">Taking you back to My classes…</p>
       </div>
@@ -175,10 +211,11 @@ function MakeupForm() {
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Request a reschedule</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Reschedule a class</h1>
         <p className="mt-1 text-base text-ink-soft">
-          Pick a new time and an empty room. The Head of Department approves it, and
-          then staff check it like any other class.
+          Pick a new time and an empty room: it is booked at once, with no approval,
+          and staff check it like any other class. Online instead lets you hold it at
+          any time of any day, once the Head of Department approves.
         </p>
       </div>
 
@@ -220,8 +257,8 @@ function MakeupForm() {
             </div>
             <p className="mt-2 text-base text-ink-soft">
               {mode === "PHYSICAL"
-                ? "Staff check it in the room you pick, at the new time."
-                : "Not checked in a room. You can add a Drive link now, or after the class."}
+                ? "Booked as soon as you pick an empty room. Staff check it there, at the new time."
+                : "Hold it at any time of any day — nobody checks a room for it. Needs approval. You can add a Drive link now, or after the class."}
             </p>
           </div>
 
@@ -236,19 +273,40 @@ function MakeupForm() {
                 required
               />
             </Field>
-            <Field label="Time" size="lg" hint="Classes run on fixed 90-minute slots.">
-              <select
-                className={bigInputClass}
-                value={slot}
-                onChange={(e) => setSlot(e.target.value)}
+            {online ? (
+              <Field
+                label="Start time"
+                size="lg"
+                hint={
+                  startTime
+                    ? `Runs ${endsLabel(startTime)} — ${CLASS_MINUTES} minutes.`
+                    : "Any time, any day. The class runs 90 minutes from there."
+                }
               >
-                {SLOTS.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </Field>
+                <input
+                  type="time"
+                  className={bigInputClass}
+                  value={startTime}
+                  max={LATEST_START}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  required
+                />
+              </Field>
+            ) : (
+              <Field label="Time" size="lg" hint="Classes run on fixed 90-minute slots.">
+                <select
+                  className={bigInputClass}
+                  value={slot}
+                  onChange={(e) => setSlot(e.target.value)}
+                >
+                  {SLOTS.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
           </div>
 
           {mode === "PHYSICAL" ? (
@@ -361,16 +419,27 @@ function MakeupForm() {
             size="xl"
             className="w-full"
             disabled={
-              busy || blocked || !date || !original || (mode === "PHYSICAL" && !room)
+              busy ||
+              blocked ||
+              !date ||
+              !original ||
+              (online ? !startTime : false) ||
+              (mode === "PHYSICAL" && !room)
             }
           >
             {busy
-              ? "Sending…"
+              ? mode === "PHYSICAL"
+                ? "Booking…"
+                : "Sending…"
               : blocked
                 ? "Resolve the conflict first"
-                : mode === "PHYSICAL" && !room
-                  ? "Pick an empty room"
-                  : "Send for approval"}
+                : mode === "PHYSICAL"
+                  ? room
+                    ? `Book ${room}`
+                    : "Pick an empty room"
+                  : !startTime
+                    ? "Pick a start time"
+                    : "Send for approval"}
           </Button>
         </form>
       </Card>

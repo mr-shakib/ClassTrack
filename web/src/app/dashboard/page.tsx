@@ -105,9 +105,10 @@ export default function DashboardPage() {
             href={canApprove ? "/unreported" : undefined}
           />
           <Attention
-            label="Reschedule requests"
+            label="Online requests"
             value={a?.pending_online ?? 0}
             tone="text-warn"
+            note={canApprove ? "to decide" : undefined}
             href={canApprove ? "/approvals" : undefined}
           />
           <Attention

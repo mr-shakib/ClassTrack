@@ -34,7 +34,6 @@ from sqlalchemy.orm import selectinload
 from classtrack.db.base import utcnow
 from classtrack.db.session import get_sessionmaker
 from classtrack.models import CheckOutcome, ClassInstance, ClassStatus, MakeupClass, MakeupStatus
-from classtrack.routine.lattice import SLOTS, slot_bounds
 from classtrack.services import audit_service, notification_service, settings_service
 from classtrack.services.status_engine import (
     day_ends_at,
@@ -145,9 +144,7 @@ async def _remind_unfinished_makeups(session: AsyncSession, now: datetime) -> in
 
     reminded = 0
     for makeup in due:
-        if makeup.time_slot not in SLOTS:
-            continue
-        _start, end_min = slot_bounds(makeup.time_slot)
+        _start, end_min = makeup.bounds()
         if now < slot_end_at(makeup.date, end_min):
             continue
         original = await session.get(ClassInstance, makeup.original_instance_id)

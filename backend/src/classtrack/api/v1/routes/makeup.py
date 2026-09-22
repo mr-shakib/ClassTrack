@@ -15,7 +15,6 @@ from classtrack.models import (
     Role,
     Teacher,
 )
-from classtrack.routine.lattice import SLOTS
 from classtrack.schemas.makeup import (
     CompleteRequest,
     ConflictCheckRequest,
@@ -63,8 +62,7 @@ async def _decorate(session, makeups: list[MakeupClass]) -> list[MakeupOut]:
             item.original_time_slot = original.time_slot
             item.original_room = original.room
         item.teacher_name = names.get(makeup.teacher_initial)
-        if makeup.time_slot in SLOTS:
-            item.ends_at = makeup_service.ends_at(makeup)
+        item.ends_at = makeup_service.ends_at(makeup)
         out.append(item)
     return out
 
@@ -80,10 +78,15 @@ async def check_conflict(
     initial = payload.teacher_initial
     if user.role is Role.TEACHER:
         initial = user.teacher_initial
+    slot, start_min, end_min = makeup_service.period_for(
+        time_slot=payload.time_slot, start_time=payload.start_time
+    )
     report = await conflict_service.check(
         session,
         on=payload.date,
-        time_slot=payload.time_slot,
+        time_slot=slot,
+        start_min=start_min,
+        end_min=end_min,
         teacher_initial=initial or "",
         room=payload.room,
         section=payload.section,
@@ -118,6 +121,7 @@ async def create(
         mode=payload.mode,
         on=payload.date,
         time_slot=payload.time_slot,
+        start_time=payload.start_time,
         room=payload.room,
         reason=payload.reason,
         drive_link=payload.drive_link,

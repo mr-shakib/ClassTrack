@@ -168,7 +168,7 @@ Roles: MGR. Frontend polls every 30s.
 |---|---|---|---|
 | `GET` | `/makeup/free-rooms` | T, HOD, SA | `?date=&time_slot=` — empty rooms of the active routine |
 | `POST` | `/makeup/check-conflict` | T, HOD, SA | Validate before submitting (BR-14) |
-| `POST` | `/makeup` | T, HOD, SA | Request a reschedule |
+| `POST` | `/makeup` | T, HOD, SA | Reschedule a missed class |
 | `GET` | `/makeup` | scoped | List; teachers see their own |
 | `POST` | `/makeup/{id}/complete` | T (own), HOD, SA | Mark done after the class ends; `{ "drive_link": "https://..." }` required for `ONLINE` |
 
@@ -183,14 +183,30 @@ Roles: MGR. Frontend polls every 30s.
                    "instance_id": 1120 } ] }
 ```
 
-Conflict types: `TEACHER` · `ROOM` · `SECTION` · `HOLIDAY`.
+Conflict types: `TEACHER` · `ROOM` · `SECTION` · `HOLIDAY` · `SLOT`.
+
+`check-conflict` takes `start_time` in place of `time_slot` too, and the form uses it to
+validate an online class as the teacher picks the time. A period off the clock is matched by
+**overlap** against every class on the day rather than by slot equality, because it is not a
+cell and really can half-cover one; each conflict names the clashing class at *its* own time.
+A class that merely touches another's edge — starting exactly as it ends — does not clash.
 
 ```jsonc
 // POST /makeup
 { "original_instance_id": 1042, "mode": "PHYSICAL",
   "date": "2026-09-20", "time_slot": "02:30-04:00",
   "room": "KT-305", "reason": "Was on official duty" }
+
+// POST /makeup — online, at a time off the clock
+{ "original_instance_id": 1042, "mode": "ONLINE",
+  "date": "2026-09-25", "start_time": "19:30" }
 ```
+
+Send **either** `time_slot` (a routine slot) **or** `start_time`, never both; `422`
+otherwise. `start_time` is a 24-hour `HH:MM` and is `ONLINE` only — a class in a room has to
+sit in a cell, because a cell is what the staff screen walks. The class runs 90 minutes from
+that time, on any day at any hour, and is stored with a plain `"19:30-21:00"` time slot. It
+must finish before midnight, so the latest start is `22:30`.
 
 An `ONLINE` request may include an optional `drive_link` (a full `http(s)://` address; `422`
 otherwise). The HoD or Associate Head sees it in `/approvals/pending`, and it counts when the
@@ -200,12 +216,13 @@ The original must be `MISSED`, or unresolved with a `TEACHER_NOT_FOUND` check �
 can ask as soon as staff report them absent, without waiting for the missed threshold.
 `GET /instances?needs_reschedule=true` lists exactly those classes.
 
-Every request starts `PENDING` with no instance, and the HoD is notified.
+| Mode | When | Makeup starts | Original becomes | Decision |
+|---|---|---|---|---|
+| `PHYSICAL` | A routine slot | `SCHEDULED`, with its `is_makeup=1` instance already created | `MAKEUP_SCHEDULED` | None. An empty room is the whole decision, so the class is booked on the spot; the teacher and the HoD are told it happened. |
+| `ONLINE` | A routine slot, or any time off the clock | `PENDING`, with no instance | `ONLINE_PENDING` | The HoD is notified and decides (BR-11). |
 
-| Mode | Original becomes |
-|---|---|
-| `PHYSICAL` | `MAKEUP_REQUESTED`. The room counts as taken for `free-rooms` and conflict checks. |
-| `ONLINE` | `ONLINE_PENDING` |
+A booked room is taken from that moment: its instance occupies the cell, so
+`free-rooms` drops it and `check-conflict` reports `ROOM` against it for everyone else.
 
 `409` with the conflict report if validation fails; `422` if the slot has already started.
 v1 does not accept an override.
@@ -217,19 +234,23 @@ and again when the sweep marks the class `MISSED` (`MISSED_CLASS`).
 
 | Method | Path | Roles | Purpose |
 |---|---|---|---|
-| `GET` | `/approvals/pending` | HOD, SA | Queue of pending requests, both modes |
+| `GET` | `/approvals/pending` | HOD, SA | Queue of pending requests |
 | `POST` | `/approvals/{makeup_id}/decide` | HOD, SA | Approve or reject |
 
 ```jsonc
 { "decision": "APPROVE", "note": "Approved for this week only" }
 ```
 
+Only `ONLINE` requests reach this queue: an in-room reschedule books itself at
+`POST /makeup`. Requests made before that rule can still be sitting here, so the
+`PHYSICAL` column below stays valid for them.
+
 Approval re-runs the conflict check; `409` if the cell has been taken since.
 
-| Decision | `PHYSICAL` | `ONLINE` |
+| Decision | `PHYSICAL` (legacy queue only) | `ONLINE` |
 |---|---|---|
 | `APPROVE` | Makeup → `SCHEDULED`, original → `MAKEUP_SCHEDULED`. An `is_makeup=1` instance is created and **appears in `/checking/rooms`** for that room and slot (BR-10). | Makeup → `APPROVED`, original → `ONLINE_APPROVED`. The instance is **excluded from `/checking/rooms`** (BR-12, AC-08). |
-| `REJECT` | Makeup → `REJECTED`, original → back to `MISSED`, so the teacher requests again. | Makeup → `REJECTED`, original → `ONLINE_REJECTED`. |
+| `REJECT` | Makeup → `REJECTED`, original → back to `MISSED`, so the teacher reschedules again. | Makeup → `REJECTED`, original → `ONLINE_REJECTED`. |
 
 The teacher is notified either way. The notification names the missed class (course, section,
 original date, slot and room), the new date and slot, and whether it is in a room or online. It

@@ -134,3 +134,17 @@ docker    api + web images build; full stack verified over a container network
 | Day status | `/today`: every class on a day, filterable by teacher initials, floor, slot, outcome. |
 | Checking | "Find by teacher" search for correcting past classes. |
 | Approvals | 4-column card grid with teacher/course search and mode filter. |
+
+---
+
+## 2026-09-23 — An empty room needs no approval
+
+| Area | What changed |
+|---|---|
+| Reschedule | A reschedule into an empty room is booked the moment it is made: the makeup starts `SCHEDULED`, its `is_makeup=1` instance is created at once, and the original goes straight to `MAKEUP_SCHEDULED`. This is what SRS §8 and the implementation plan always described; the code had drifted into asking the HoD first. |
+| Room holding | Because the instance exists immediately, the cell is occupied: `/makeup/free-rooms` drops the room and `check-conflict` reports `ROOM` against it, so no second teacher can reschedule into that room, day and slot. |
+| Approvals | Only online requests reach `/approvals/pending` now. The queue still decides in-room requests left over from the old rule, and the mode filter appears only while such a request is queued. |
+| Notifications | New `MAKEUP_SCHEDULED` kind: the teacher is told the room is held, the HoD is told what happened instead of being asked. `MAKEUP_REQUEST` is no longer written. |
+| Online time | An online class may now be held at **any time of any day** — the teacher picks a start off the clock and it runs 90 minutes, instead of taking one of the six routine slots. New nullable `makeup_class.start_min`/`end_min` (migration `b6d4e9f10275`) carry the period, read through `MakeupClass.bounds()`. |
+| Lattice | Such a period is not a cell, so it is matched by interval **overlap** in `routine/clock.py` rather than slot equality. This is the only exception, and it is safe because an online class holds no room — room occupancy is still slot equality everywhere. Conflicts now name the clashing class at *its* own time, which is what makes an overlap legible. |
+| Bug found on the way | The `time_slot not in SLOTS` guards in `sweep` and the makeup route would have silently skipped any off-lattice makeup — never reminding the teacher, never sending `ends_at`. Both now read `bounds()`; a regression test covers the sweep. |
