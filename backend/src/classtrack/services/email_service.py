@@ -24,6 +24,10 @@ RESEND_URL = "https://api.resend.com/emails"
 
 _OUTBOX = "email_outbox"
 
+#: Closes every message.
+FOOTER_CREDIT = "Developed by Shakib Howlader"
+FOOTER_URL = "https://shakibhowlader.online"
+
 
 @dataclass(frozen=True)
 class Email:
@@ -45,9 +49,10 @@ def take(session: AsyncSession) -> list[Email]:
 
 
 def _text(email: Email) -> str:
-    if email.link is None:
-        return email.body
-    return f"{email.body}\n\n{email.link_label or 'Open ClassTrack'}: {email.link}"
+    text = email.body
+    if email.link is not None:
+        text += f"\n\n{email.link_label or 'Open ClassTrack'}: {email.link}"
+    return f"{text}\n\n--\n{FOOTER_CREDIT}\n{FOOTER_URL}"
 
 
 def _html(email: Email) -> str:
@@ -62,10 +67,16 @@ def _html(email: Email) -> str:
             'border-radius:6px;text-decoration:none;display:inline-block">'
             f"{html.escape(email.link_label or 'Open ClassTrack')}</a></p>"
         )
+    footer = (
+        '<p style="margin:32px 0 0;padding-top:12px;border-top:1px solid #e5e7eb;'
+        f'font-size:12px;color:#6b7280">{html.escape(FOOTER_CREDIT)} &middot; '
+        f'<a href="{FOOTER_URL}" style="color:#6b7280">{FOOTER_URL.removeprefix("https://")}</a>'
+        "</p>"
+    )
     return (
         '<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;'
         'font-size:15px;line-height:1.5;color:#111827;max-width:560px">'
-        f"{paragraphs}{button}</div>"
+        f"{paragraphs}{button}{footer}</div>"
     )
 
 

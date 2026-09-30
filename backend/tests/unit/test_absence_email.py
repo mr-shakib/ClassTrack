@@ -137,6 +137,8 @@ async def test_send_posts_to_resend(monkeypatch):
     assert sent["subject"] == "Reported absent"
     assert "Request a reschedule: https://class.example.edu/teacher" in sent["text"]
     assert "&lt;Teacher&gt;" in sent["html"]
+    assert sent["text"].endswith("Developed by Shakib Howlader\nhttps://shakibhowlader.online")
+    assert 'href="https://shakibhowlader.online"' in sent["html"]
 
 
 async def test_no_key_sends_nothing(monkeypatch):
