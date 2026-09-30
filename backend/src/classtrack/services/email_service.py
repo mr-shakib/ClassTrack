@@ -24,8 +24,8 @@ RESEND_URL = "https://api.resend.com/emails"
 
 _OUTBOX = "email_outbox"
 
-#: Closes every message.
-FOOTER_CREDIT = "Developed by Shakib Howlader"
+#: Closes every message. The name links to the site in the HTML part.
+FOOTER_NAME = "Shakib Howlader"
 FOOTER_URL = "https://shakibhowlader.online"
 
 
@@ -52,7 +52,7 @@ def _text(email: Email) -> str:
     text = email.body
     if email.link is not None:
         text += f"\n\n{email.link_label or 'Open ClassTrack'}: {email.link}"
-    return f"{text}\n\n--\n{FOOTER_CREDIT}\n{FOOTER_URL}"
+    return f"{text}\n\n--\nDeveloped by {FOOTER_NAME}\n{FOOTER_URL}"
 
 
 def _html(email: Email) -> str:
@@ -69,9 +69,8 @@ def _html(email: Email) -> str:
         )
     footer = (
         '<p style="margin:32px 0 0;padding-top:12px;border-top:1px solid #e5e7eb;'
-        f'font-size:12px;color:#6b7280">{html.escape(FOOTER_CREDIT)} &middot; '
-        f'<a href="{FOOTER_URL}" style="color:#6b7280">{FOOTER_URL.removeprefix("https://")}</a>'
-        "</p>"
+        f'font-size:12px;color:#6b7280">Developed by <a href="{FOOTER_URL}" '
+        f'style="color:#6b7280">{html.escape(FOOTER_NAME)}</a></p>'
     )
     return (
         '<div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;'

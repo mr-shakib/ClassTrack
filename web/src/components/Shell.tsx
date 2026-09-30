@@ -192,14 +192,14 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
       <footer className="border-t border-line">
         <p className="mx-auto max-w-7xl px-4 py-4 text-center text-xs text-ink-faint">
-          Developed by Shakib Howlader ·{" "}
+          Developed by{" "}
           <a
             href="https://shakibhowlader.online"
             target="_blank"
             rel="noopener noreferrer"
             className="font-medium text-ink-soft hover:text-brand hover:underline"
           >
-            shakibhowlader.online
+            Shakib Howlader
           </a>
         </p>
       </footer>
