@@ -24,6 +24,9 @@ class Teacher(Base, TimestampMixin):
     designation: Mapped[str | None] = mapped_column(String(255))
     department: Mapped[str | None] = mapped_column(String(64))
     office_room: Mapped[str | None] = mapped_column(String(64))
+    #: Where absence reports are mailed. Distinct from the account's sign-in
+    #: address, which for a teacher is a placeholder that is never mailed.
+    email: Mapped[str | None] = mapped_column(String(255))
     image_url: Mapped[str | None] = mapped_column(String(512))
 
     def __repr__(self) -> str:

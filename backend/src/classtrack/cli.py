@@ -53,29 +53,49 @@ _ACCOUNTS = [
 ]
 
 
-async def _load_teachers(session, path: Path) -> int:
-    """Load the faculty directory, keyed on the initial the routine uses."""
+def _clean_email(raw: object) -> str | None:
+    """The directory has stray spaces, a trailing comma and one "Undefined"."""
+    value = str(raw or "").strip().rstrip(",;").strip()
+    if value.count("@") != 1 or " " in value:
+        return None
+    return value
+
+
+async def _load_teachers(session, path: Path) -> tuple[int, int]:
+    """Load the faculty directory, keyed on the initial the routine uses.
+
+    A teacher already present keeps their record but gains an email address if
+    they have none, so reloading fills in a directory loaded before addresses
+    were kept. Returns (teachers added, addresses filled in).
+    """
     records = json.loads(path.read_text())
-    existing = set((await session.scalars(select(Teacher.initial))).all())
-    added = 0
+    existing = {t.initial: t for t in (await session.scalars(select(Teacher))).all()}
+    added = filled = 0
     for row in records:
         name, initial = split_name_initial(row.get("Name_Initial", ""))
-        if not initial or initial in existing:
+        if not initial:
             continue
-        session.add(
-            Teacher(
-                initial=initial,
-                name=name,
-                designation=row.get("Designation") or None,
-                department="cse",
-                office_room=row.get("Assigned Room Number") or None,
-                image_url=row.get("Image") or None,
-            )
+        email = _clean_email(row.get("Email"))
+        if initial in existing:
+            teacher = existing[initial]
+            if teacher.email is None and email:
+                teacher.email = email
+                filled += 1
+            continue
+        teacher = Teacher(
+            initial=initial,
+            name=name,
+            designation=row.get("Designation") or None,
+            department="cse",
+            office_room=row.get("Assigned Room Number") or None,
+            image_url=row.get("Image") or None,
+            email=email,
         )
-        existing.add(initial)
+        session.add(teacher)
+        existing[initial] = teacher
         added += 1
     await session.flush()
-    return added
+    return added, filled
 
 
 async def seed(teachers_path: Path | None = None) -> None:
@@ -88,9 +108,9 @@ async def seed(teachers_path: Path | None = None) -> None:
 
         path = teachers_path or _find_teachers_file()
         if path is not None and path.exists():
-            added = await _load_teachers(session, path)
+            added, filled = await _load_teachers(session, path)
             total = await session.scalar(select(func.count(Teacher.id)))
-            print(f"  faculty:   +{added} (total {total})")
+            print(f"  faculty:   +{added} (total {total}), {filled} email(s) filled in")
         else:
             print("  faculty:   skipped, no teachers.json found")
 
@@ -135,6 +155,24 @@ async def seed(teachers_path: Path | None = None) -> None:
 
         await session.commit()
     print("✅ seed complete")
+
+
+async def faculty(teachers_path: Path | None = None) -> None:
+    """Load or refresh the faculty directory alone.
+
+    Unlike ``seed`` this creates no accounts, so it is safe on a live install --
+    ``seed`` would re-add any demo account since removed, with the default password.
+    """
+    path = teachers_path or _find_teachers_file()
+    if path is None or not path.exists():
+        raise FileNotFoundError("no teachers.json found; pass --teachers")
+    async with get_sessionmaker()() as session:
+        added, filled = await _load_teachers(session, path)
+        missing = await session.scalar(
+            select(func.count(Teacher.id)).where(Teacher.email.is_(None))
+        )
+        await session.commit()
+    print(f"  faculty:   +{added}, {filled} email(s) filled in, {missing} still without one")
 
 
 async def ingest(path: str, department: str, semester: str | None, activate: bool) -> None:
@@ -210,6 +248,11 @@ def main() -> None:
     p_seed = sub.add_parser("seed", help="Create settings, faculty, accounts, semester")
     p_seed.add_argument("--teachers", type=Path, default=None)
 
+    p_fac = sub.add_parser(
+        "faculty", help="Load the faculty directory and fill in missing emails (no accounts)"
+    )
+    p_fac.add_argument("--teachers", type=Path, default=None)
+
     p_ing = sub.add_parser("ingest", help="Ingest a routine PDF")
     p_ing.add_argument("path")
     p_ing.add_argument("--department", default="cse")
@@ -236,6 +279,8 @@ def main() -> None:
         try:
             if args.command == "seed":
                 await seed(args.teachers)
+            elif args.command == "faculty":
+                await faculty(args.teachers)
             elif args.command == "ingest":
                 await ingest(args.path, args.department, args.semester, args.activate)
             elif args.command == "demo-routine":

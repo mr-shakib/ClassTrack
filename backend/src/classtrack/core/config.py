@@ -52,6 +52,15 @@ class Settings(BaseSettings):
     #: Seconds between sweep passes. 0 disables the loop (used by tests).
     sweep_interval_seconds: int = 60
 
+    # --- email ----------------------------------------------------------------
+    #: Resend API key. Unset disables email; in-app notifications are unaffected.
+    #: Leave it unset in development: the faculty directory holds real addresses.
+    resend_api_key: str | None = None
+    #: Must be on a domain verified in Resend.
+    email_from: str = "ClassTrack <noreply@bitstreamhq.com>"
+    #: Public origin for links in emails, e.g. "https://class.bitstreamhq.com".
+    public_url: str | None = None
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_origins(cls, v: object) -> object:

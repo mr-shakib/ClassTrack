@@ -12,6 +12,7 @@ from typing import Protocol
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from classtrack.core.config import get_settings
 from classtrack.db.base import utcnow
 from classtrack.models import (
     ADMIN_ROLES,
@@ -22,8 +23,10 @@ from classtrack.models import (
     MakeupStatus,
     Notification,
     NotificationKind,
+    Teacher,
     User,
 )
+from classtrack.services import email_service
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +133,12 @@ async def notify_reported(
     only becomes MISSED once the threshold passes, and staff may still amend it
     if the teacher arrives. ``notify_missed`` is the one that asks for a
     reschedule.
+
+    An absence is also emailed, to the faculty address rather than the account,
+    so it reaches a teacher who has not been given an account yet.
     """
+    if outcome is CheckOutcome.TEACHER_NOT_FOUND:
+        await _email_absent(session, instance)
     user = await _user_for_teacher(session, instance.teacher_initial)
     if user is None:
         logger.warning(
@@ -162,6 +170,39 @@ async def notify_reported(
 
 def _reschedule_link(instance: ClassInstance) -> str:
     return f"/teacher/makeup?instance={instance.id}"
+
+
+async def _email_absent(session: AsyncSession, instance: ClassInstance) -> None:
+    teacher = await session.scalar(
+        select(Teacher).where(Teacher.initial == instance.teacher_initial)
+    )
+    if teacher is None or not teacher.email:
+        logger.warning(
+            "No email on file for teacher %s; absence email skipped", instance.teacher_initial
+        )
+        return
+    public_url = get_settings().public_url
+    email_service.queue(
+        session,
+        email_service.Email(
+            to=teacher.email,
+            subject=(
+                f"Reported absent: {instance.course_code}, "
+                f"{instance.date:%d %b} {instance.time_slot}"
+            ),
+            body=(
+                f"Dear {teacher.name},\n\n"
+                f"Office staff found no teacher in room {instance.room} for your "
+                f"{_describe(instance)}.\n\n"
+                "If you cannot hold this class, please request a reschedule in ClassTrack. "
+                "If you are on your way, staff can still record you as late when you "
+                "arrive.\n\n"
+                "This is an automated message from ClassTrack, Department of CSE."
+            ),
+            link=f"{public_url.rstrip('/')}{_reschedule_link(instance)}" if public_url else None,
+            link_label="Request a reschedule",
+        ),
+    )
 
 
 async def notify_online_request(

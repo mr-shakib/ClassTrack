@@ -27,6 +27,8 @@ dependencies = [
     "PyJWT>=2.10",
     # Teacher-wise and summary reports as PDF.
     "reportlab>=4.2",
+    # Absence emails, posted to the Resend API.
+    "httpx>=0.28",
 ]
 
 [project.optional-dependencies]

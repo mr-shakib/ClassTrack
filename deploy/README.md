@@ -68,6 +68,28 @@ semester. **Change every password before going live** — they are all
 Officer, Committee) from **Admin → Accounts**, not by re-running `seed`: it
 would add any demo account that is missing, with the default password.
 
+## Absence emails
+
+When staff record a teacher as not found, the teacher is emailed at the address
+in the faculty directory, through [Resend](https://resend.com). Set the key in
+`.env` and recreate the API container:
+
+```bash
+CLASSTRACK_RESEND_API_KEY=re_...
+# optional; must be on a domain verified in Resend
+CLASSTRACK_EMAIL_FROM=ClassTrack <noreply@bitstreamhq.com>
+```
+
+A directory loaded before addresses were kept has none. Fill them in once; this
+creates no accounts, so unlike `seed` it is safe on a live install:
+
+```bash
+docker compose -f deploy/compose.prod.yaml exec api classtrack faculty
+```
+
+Each send is logged (`Emailed ...` or `Email to ... rejected`) in the API logs.
+Without a key nothing is mailed, and the teacher is still told in the app.
+
 ## Updating an existing deployment
 
 Back up first, then pull and rebuild. The API container applies any new

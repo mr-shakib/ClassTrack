@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date as Date
 from datetime import timedelta
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, BackgroundTasks, Query
 
 from classtrack.api.deps import CheckingUser, ManagerUser, SessionDep
 from classtrack.core.errors import ValidationError
@@ -23,6 +23,7 @@ from classtrack.services import (
     assignment_service,
     check_service,
     checking_service,
+    email_service,
     status_engine,
 )
 
@@ -102,12 +103,16 @@ async def submit(
     payload: CheckRequest,
     session: SessionDep,
     user: CheckingUser,
+    background: BackgroundTasks,
 ) -> CheckResponse:
     """Idempotent: re-submitting amends the existing check rather than adding one.
 
     Staff may only submit while the checking window is open. An admin may
     correct a record afterwards by supplying a reason, which is audited as an
     override rather than an observation.
+
+    An absence emails the teacher. That is sent only after the commit, and after
+    the response, so a slow mail server never holds up the staff member's phone.
     """
     instance = await check_service.submit(
         session,
@@ -120,6 +125,7 @@ async def submit(
     )
     outside = not status_engine.is_checkable(instance)
     await session.commit()
+    background.add_task(email_service.send_all, email_service.take(session))
     return CheckResponse(
         instance_id=instance.id,
         status=status_engine.derive(instance),

@@ -22,6 +22,10 @@ services:
       CLASSTRACK_CORS_ORIGINS: ${CLASSTRACK_CORS_ORIGINS:-https://${CLASSTRACK_DOMAIN}}
       CLASSTRACK_TIMEZONE: ${CLASSTRACK_TIMEZONE:-Asia/Dhaka}
       CLASSTRACK_MISSED_THRESHOLD_MINUTES: ${CLASSTRACK_MISSED_THRESHOLD_MINUTES:-30}
+      # Absence emails. Unset, the teacher is still told in the app.
+      CLASSTRACK_RESEND_API_KEY: ${CLASSTRACK_RESEND_API_KEY:-}
+      CLASSTRACK_EMAIL_FROM: ${CLASSTRACK_EMAIL_FROM:-ClassTrack <noreply@bitstreamhq.com>}
+      CLASSTRACK_PUBLIC_URL: ${CLASSTRACK_PUBLIC_URL:-https://${CLASSTRACK_DOMAIN}}
       # The status sweep runs inside this process. Keep exactly one replica:
       # two would both try to finalise the same rows.
       CLASSTRACK_SWEEP_INTERVAL_SECONDS: "60"
