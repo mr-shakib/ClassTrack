@@ -131,7 +131,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const links = NAV.filter((n) => n.roles.includes(user.role));
 
   return (
-    <div className="min-h-dvh">
+    <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-30 border-b border-line bg-surface/95 backdrop-blur">
         {/* On a phone the menu gets its own full-width row: squeezed between the
             logo and the bell, its labels were cut off mid-word. */}
@@ -188,7 +188,21 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
+
+      <footer className="border-t border-line">
+        <p className="mx-auto max-w-7xl px-4 py-4 text-center text-xs text-ink-faint">
+          Developed by Shakib Howlader ·{" "}
+          <a
+            href="https://shakibhowlader.online"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-ink-soft hover:text-brand hover:underline"
+          >
+            shakibhowlader.online
+          </a>
+        </p>
+      </footer>
     </div>
   );
 }
