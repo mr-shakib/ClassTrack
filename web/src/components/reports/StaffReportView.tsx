@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Card, EmptyState, ErrorNote, Spinner, SummaryCard } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { StaffReport } from "@/lib/types";
-import PeriodPicker, { type Period, currentMonthPeriod } from "./PeriodPicker";
+import PeriodPicker, { type Period, currentMonthPeriod, periodQuery } from "./PeriodPicker";
 
 export default function StaffReportView() {
   const [period, setPeriod] = useState<Period>(currentMonthPeriod);
@@ -15,7 +15,7 @@ export default function StaffReportView() {
     let alive = true;
     setError(null);
     api
-      .staffReport(period.from, period.to)
+      .staffReport(periodQuery(period))
       .then((d) => alive && setStaff(d))
       .catch((err) => alive && setError(err instanceof Error ? err.message : "Could not load."));
     return () => {
@@ -33,6 +33,10 @@ export default function StaffReportView() {
         <Spinner />
       ) : (
         <>
+          <p className="text-sm text-ink-soft">
+            <span className="font-semibold text-ink">{period.label}</span> · {staff.range.from} to{" "}
+            {staff.range.to}
+          </p>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <SummaryCard label="Assigned" value={staff.assigned} />
             <SummaryCard label="Checked" value={staff.checked} tone="ok" />

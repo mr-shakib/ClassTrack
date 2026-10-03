@@ -22,11 +22,32 @@ class NotificationOut(ORMModel):
 
 
 class SemesterIn(BaseModel):
-    name: str
+    model_config = {"str_strip_whitespace": True}
+
+    name: str = Field(min_length=1, max_length=64)
     start_date: Date
     end_date: Date
+    mid_exam_start: Date | None = None
+    mid_exam_end: Date | None = None
+    final_exam_start: Date | None = None
     routine_id: int | None = None
     department: str = "cse"
+    #: Make it the current semester now. Left false, a semester set up ahead
+    #: of time waits until it is made current -- unless none is current yet.
+    make_current: bool = False
+
+
+class SemesterUpdate(BaseModel):
+    """Every field is replaced, so an exam date sent as null is cleared."""
+
+    model_config = {"str_strip_whitespace": True}
+
+    name: str = Field(min_length=1, max_length=64)
+    start_date: Date
+    end_date: Date
+    mid_exam_start: Date | None = None
+    mid_exam_end: Date | None = None
+    final_exam_start: Date | None = None
 
 
 class SemesterOut(ORMModel):
@@ -36,7 +57,16 @@ class SemesterOut(ORMModel):
     routine_id: int | None
     start_date: Date
     end_date: Date
+    mid_exam_start: Date | None = None
+    mid_exam_end: Date | None = None
+    final_exam_start: Date | None = None
     is_active: bool
+
+
+class SemesterSaved(BaseModel):
+    semester: SemesterOut
+    #: What regenerating its classes did, when the semester has a routine.
+    generation: dict | None = None
 
 
 class HolidayIn(BaseModel):
@@ -126,6 +156,7 @@ class ZoneAssignRequest(BaseModel):
 class SettingsIn(BaseModel):
     missed_threshold_minutes: int | None = Field(default=None, ge=1, le=180)
     min_conducted_classes: int | None = Field(default=None, ge=1, le=200)
+    min_conducted_before_mid: int | None = Field(default=None, ge=0, le=200)
 
 
 class AuditOut(ORMModel):

@@ -69,9 +69,23 @@ ix_user_email (unique) · ix_user_role · ix_user_teacher_initial
 | `name` | str(64) | `"Fall 2026"` |
 | `department` | str(16) | default `"cse"` |
 | `routine_id` | int FK→`routine.id` | active routine for this semester |
-| `start_date` | date | |
-| `end_date` | date | |
-| `is_active` | bool | exactly one true per department |
+| `start_date` | date | first day of classes |
+| `end_date` | date | last day of the final exams |
+| `mid_exam_start` | date? | mid-term exams, first day — null until announced |
+| `mid_exam_end` | date? | mid-term exams, last day (set with `mid_exam_start`) |
+| `final_exam_start` | date? | first day of the final exams; teaching ends the day before |
+| `is_active` | bool | the *current* semester — exactly one true per department |
+
+Semesters of a department never overlap (`semester_service.validate`), so a semester — or
+a term of one — is reported as a plain range of dates. No routine class is generated on an
+exam day: `mid_exam_start..mid_exam_end` and `final_exam_start..end_date`. The exams split
+the semester into two **terms**:
+
+| Term | Dates | Minimum held |
+|---|---|---|
+| `MID` — till mid-term | `start_date .. mid_exam_start − 1` | `min_conducted_before_mid` (default 9) |
+| `FINAL` — mid-term to final | `mid_exam_end + 1 .. final_exam_start − 1` (or `end_date`) | `min_conducted_classes − min_conducted_before_mid` |
+| `FULL` — full semester | `start_date .. end_date` | `min_conducted_classes` (default 18) |
 
 ### 3.3 `holiday`
 

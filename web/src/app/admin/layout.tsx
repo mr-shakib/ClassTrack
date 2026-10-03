@@ -9,6 +9,7 @@ const TABS = [
   { href: "/admin/staff", label: "Staff coverage", adminOnly: false },
   { href: "/admin/teachers", label: "Teachers", adminOnly: false },
   { href: "/admin/accounts", label: "Accounts", adminOnly: true },
+  { href: "/admin/semesters", label: "Semesters", adminOnly: false },
   { href: "/admin/calendar", label: "Calendar", adminOnly: false },
   { href: "/admin/settings", label: "Rules", adminOnly: false },
   { href: "/admin/audit", label: "Audit log", adminOnly: false },

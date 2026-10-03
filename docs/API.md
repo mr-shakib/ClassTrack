@@ -274,12 +274,20 @@ Once an approved makeup's slot ends without completion, the sweep sends the teac
 
 | Method | Path | Roles | Purpose |
 |---|---|---|---|
-| `GET` | `/reports/overview` | HOD, SA | Any period (monthly, semester) — `?from=&to=&teacher=&floor=&course=&section=&slot=` |
+| `GET` | `/reports/semesters` | any | Semesters, newest first, each with its terms' dates and whether they can be reported yet |
+| `GET` | `/reports/overview` | HOD, SA | Any period (monthly, semester, term) — `?from=&to=` or `?semester=&term=`, plus `&teacher=&floor=&course=&section=&slot=` |
 | `GET` | `/reports/overview/pdf` | HOD, SA | The same, as a department summary PDF |
 | `GET` | `/reports/daily` | HOD, SA | `?date=` — totals, floor-wise and slot-wise, makeups moved onto the day |
-| `GET` | `/reports/teacher` | T (own), HOD, SA | `?teacher=&from=&to=` — per-course tallies and every class |
+| `GET` | `/reports/teacher` | T (own), HOD, SA | `?teacher=` with `&from=&to=` or `&semester=&term=` — per-course tallies and every class |
 | `GET` | `/reports/teacher/pdf` | T (own), HOD, SA | The same, as a PDF listing every class |
-| `GET` | `/reports/staff` | HOD, SA | Monitoring completion rate |
+| `GET` | `/reports/staff` | HOD, SA | Monitoring completion rate — `?from=&to=` or `?semester=&term=` |
+
+**Periods.** Every period report takes two dates, or a term of a semester: `term` is
+`MID` (till the mid-term exams), `FINAL` (from the mid-term to the final exams) or `FULL`.
+`semester` defaults to the current one, and `term` to `FULL`; a term wins over `from`/`to`.
+A term stops at today, and is refused (422) while its exam dates are unset or before it
+begins. It also sets the minimum each course is held to — see DATA_MODEL §3.2 — and the
+report echoes it as `label` (`"Fall 2026 · Till mid-term"`) and `term`.
 
 Every class falls in exactly one **outcome**: `CONDUCTED` (on time), `LATE`, `MISSED`,
 `NOT_CHECKED`, `RESCHEDULED` (missed and moved), `CANCELLED` or `PENDING`. **Held** is
@@ -287,8 +295,9 @@ on time + late, including makeups. A recovered class counts once, on the day its
 was held. The **conduct rate** is held ÷ (held + missed): not-checked classes are a staff
 gap and never lower it.
 
-A course-section with fewer than `min_conducted_classes` held (a setting, default 18) is
-`below_minimum`; a teacher with any such course is `flagged`.
+A course-section with fewer than `min_conducted` held is `below_minimum`; a teacher with
+any such course is `flagged`. `min_conducted` is `min_conducted_classes` (a setting,
+default 18) for any period but a term, which is held to its own share.
 
 `STAFF`, `COMMITTEE` and `COORDINATION_OFFICER` get 403 from every report.
 
@@ -326,14 +335,16 @@ A course-section with fewer than `min_conducted_classes` held (a setting, defaul
 |---|---|---|---|
 | `POST` | `/admin/routine/ingest` | MGR | Upload PDF (multipart) → report |
 | `GET` | `/admin/routine/{id}/review` | MGR | Parsed sessions + conflicts + skipped cells |
-| `POST` | `/admin/routine/{id}/activate` | MGR | Activate + generate instances |
+| `POST` | `/admin/routine/{id}/activate` | MGR | Attach to a semester (`semester_id`, default current) + generate instances; goes live only for the current semester |
 | `GET` | `/admin/routines` | MGR | Revision list |
-| `GET` | `/admin/semesters` | MGR | Semester list |
-| `POST` | `/admin/semesters` | HOD, SA | Create a semester |
-| `GET/POST/DELETE` | `/admin/holidays` | MGR | Calendar |
+| `GET` | `/admin/semesters` | MGR | Semester list, newest first |
+| `POST` | `/admin/semesters` | HOD, SA | Create a semester; current only if `make_current` or none is |
+| `PUT` | `/admin/semesters/{id}` | HOD, SA | Change its name, dates and exam dates; its classes follow at once |
+| `POST` | `/admin/semesters/{id}/activate` | HOD, SA | Make it the current semester, and its routine the live one |
+| `GET/POST/DELETE` | `/admin/holidays` | MGR | Calendar (`?semester_id=`); a day off takes its classes off the schedule at once |
 | `GET/POST` | `/admin/users` | HOD, SA | User management |
 | `PATCH` | `/admin/users/{id}` | HOD, SA | Rename, change role, (de)activate, reset password |
-| `GET/PUT` | `/admin/settings` | MGR | Missed threshold, minimum classes per course |
+| `GET/PUT` | `/admin/settings` | MGR | Missed threshold, minimum classes per course (whole semester, and by the mid-term) |
 | `GET` | `/admin/audit` | MGR | `?entity_type=&entity_id=&actor=` |
 | `POST` | `/admin/instances/generate` | HOD, SA | Re-run generation (idempotent) |
 

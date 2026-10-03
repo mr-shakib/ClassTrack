@@ -1,16 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button, Card, EmptyState, ErrorNote, Spinner } from "@/components/ui";
+import { Button, Card, EmptyState, ErrorNote, Spinner, inputClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
 import { MANAGEMENT_ROLES, useRequireRole } from "@/lib/auth";
-import type { IngestionReport, Routine, RoutineReview } from "@/lib/types";
+import type { IngestionReport, Routine, RoutineReview, Semester } from "@/lib/types";
 
 export default function RoutinePage() {
   const { permitted, loading: authLoading } = useRequireRole(MANAGEMENT_ROLES);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [routines, setRoutines] = useState<Routine[]>([]);
+  const [semesters, setSemesters] = useState<Semester[]>([]);
+  /** The semester a routine is activated for. Defaults to the current one. */
+  const [target, setTarget] = useState<number | null>(null);
   const [report, setReport] = useState<IngestionReport | null>(null);
   const [review, setReview] = useState<RoutineReview | null>(null);
   const [busy, setBusy] = useState(false);
@@ -19,7 +22,10 @@ export default function RoutinePage() {
 
   const load = useCallback(async () => {
     try {
-      setRoutines(await api.routines());
+      const [rs, ss] = await Promise.all([api.routines(), api.semesters()]);
+      setRoutines(rs);
+      setSemesters(ss);
+      setTarget((t) => t ?? ss.find((x) => x.is_active)?.id ?? ss[0]?.id ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load routines.");
     }
@@ -68,10 +74,14 @@ export default function RoutinePage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await api.activateRoutine(id);
+      const res = await api.activateRoutine(id, target ?? undefined);
+      const semester = semesters.find((x) => x.id === target);
       setNotice(
-        `Activated. ${res.instances_created ?? 0} class instances created, ` +
-          `${res.skipped_holidays ?? 0} skipped for holidays.`,
+        `Attached to ${semester?.name ?? "the current semester"}. ` +
+          `${res.instances_created ?? 0} class instances created; ` +
+          `${res.skipped_holidays ?? 0} days skipped for holidays and ` +
+          `${res.skipped_exam_days ?? 0} for exams.` +
+          (res.is_active ? "" : " It goes live when that semester is made current."),
       );
       await load();
     } catch (err) {
@@ -158,11 +168,30 @@ export default function RoutinePage() {
                 {review.total_sessions} classes · {review.conflicts.length} issues
               </p>
             </div>
-            <Button onClick={() => activate(review.routine.id)} disabled={busy}>
-              {review.routine.is_active
-                ? "Re-activate & regenerate"
-                : "Activate & generate instances"}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {semesters.length ? (
+                <label className="flex items-center gap-2 text-sm text-ink-soft">
+                  For
+                  <select
+                    className={inputClass}
+                    value={target ?? ""}
+                    onChange={(e) => setTarget(Number(e.target.value))}
+                  >
+                    {semesters.map((x) => (
+                      <option key={x.id} value={x.id}>
+                        {x.name}
+                        {x.is_active ? " (current)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              <Button onClick={() => activate(review.routine.id)} disabled={busy}>
+                {semesters.some((x) => x.id === target && x.routine_id === review.routine.id)
+                  ? "Re-activate & regenerate"
+                  : "Activate & generate instances"}
+              </Button>
+            </div>
           </div>
 
           {review.conflicts.length > 0 ? (
@@ -235,6 +264,10 @@ export default function RoutinePage() {
                   </p>
                   <p className="text-xs text-ink-faint">
                     {r.session_count} classes · {r.source_filename ?? "—"}
+                    {semesters
+                      .filter((x) => x.routine_id === r.id)
+                      .map((x) => ` · ${x.name}`)
+                      .join("")}
                   </p>
                 </div>
                 <Button variant="secondary" onClick={() => openReview(r.id)}>

@@ -17,7 +17,11 @@ from classtrack.db.base import Base, utcnow
 SETTING_DEFAULTS: dict[str, str] = {
     "missed_threshold_minutes": "30",
     #: A course-section with fewer classes held than this so far is shown red.
+    #: It is the whole semester's minimum, and any period's but a term's.
     "min_conducted_classes": "18",
+    #: The share of that minimum due by the mid-term exams. The rest is due
+    #: between the mid-term and the final exams.
+    "min_conducted_before_mid": "9",
     "timezone": "Asia/Dhaka",
     "department": "cse",
 }

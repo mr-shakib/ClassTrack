@@ -1,6 +1,13 @@
 """Model package. Importing it registers every table on ``Base.metadata``."""
 
-from classtrack.models.academic import BLOCKING_KINDS, DayKind, Holiday, Semester
+from classtrack.models.academic import (
+    BLOCKING_KINDS,
+    TERM_LABELS,
+    DayKind,
+    Holiday,
+    Semester,
+    Term,
+)
 from classtrack.models.assignment import StaffZone
 from classtrack.models.audit import AuditLog
 from classtrack.models.check import CheckOutcome, CheckRecord
@@ -33,6 +40,7 @@ __all__ = [
     "MANAGEMENT_ROLES",
     "OVERRIDE_ROLES",
     "SETTING_DEFAULTS",
+    "TERM_LABELS",
     "AuditLog",
     "CheckOutcome",
     "CheckRecord",
@@ -54,5 +62,6 @@ __all__ = [
     "StaffZone",
     "Teacher",
     "TeacherResponse",
+    "Term",
     "User",
 ]

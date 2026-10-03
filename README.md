@@ -87,6 +87,21 @@ Or upload it at `/admin`. **Ingest never auto-activates** — review the extract
 activate. That review step is AC-01, and it is the only thing between a misparsed
 document and a semester of wrong monitoring records.
 
+## Run a semester
+
+The system runs one semester at a time, as the university does — **Administration → Semesters**:
+
+1. **Set the next semester up ahead** — its dates, mid-term exams and the first day of the
+   final exams. It stays waiting; the current semester carries on.
+2. **Attach its routine** on the Routine tab ("For: Spring 2027"). Classes are generated,
+   but the routine goes live only when its semester does.
+3. **Make it current** when it begins.
+
+No class is generated on an exam day, and setting or moving exam dates takes the upcoming
+classes off those days at once (anything already checked is kept). Reports can be filtered
+**till mid-term**, **mid-term to final**, or the **full semester**; each term holds courses
+to its own share of the minimum classes (Rules tab).
+
 ## Commands
 
 | Command | Does |

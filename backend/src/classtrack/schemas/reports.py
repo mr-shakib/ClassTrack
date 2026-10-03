@@ -7,6 +7,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from classtrack.models import Term
 from classtrack.schemas.monitoring import SlotRef, StatusOut
 
 
@@ -97,6 +98,9 @@ class ClassRow(BaseModel):
 
 class Overview(BaseModel):
     range: dict[str, Date]
+    #: "Fall 2026 · Till mid-term" for a term of a semester; null for plain dates.
+    label: str | None = None
+    term: Term | None = None
     filters: dict[str, str | None]
     min_conducted: int
     totals: Tally
@@ -130,6 +134,8 @@ class TeacherReport(BaseModel):
     teacher_initial: str
     teacher_name: str | None = None
     range: dict[str, Date]
+    label: str | None = None
+    term: Term | None = None
     min_conducted: int
     total_scheduled: int
     conducted: int
@@ -161,11 +167,35 @@ class StaffRow(BaseModel):
 
 class StaffReport(BaseModel):
     range: dict[str, Date]
+    label: str | None = None
     assigned: int
     checked: int
     not_checked: int
     completion_rate: float
     rows: list[StaffRow]
+
+
+class TermOut(BaseModel):
+    term: Term
+    label: str
+    #: Null while the exam dates the term needs are unset.
+    from_: Date | None = Field(default=None, alias="from")
+    to: Date | None = None
+    #: False until the dates are set and the term has begun.
+    available: bool
+
+    model_config = {"populate_by_name": True}
+
+
+class ReportSemester(BaseModel):
+    """A semester as the report period picker needs it -- for teachers too."""
+
+    id: int
+    name: str
+    is_active: bool
+    start_date: Date
+    end_date: Date
+    terms: list[TermOut]
 
 
 # --- accountability: who failed to report what ------------------------------

@@ -31,6 +31,8 @@ from classtrack.schemas.admin import (
     RoutineReview,
     SemesterIn,
     SemesterOut,
+    SemesterSaved,
+    SemesterUpdate,
     SessionRow,
     SettingsIn,
     StaffCreateRequest,
@@ -49,6 +51,7 @@ from classtrack.services import (
     assignment_service,
     audit_service,
     instance_service,
+    semester_service,
     settings_service,
 )
 
@@ -225,28 +228,31 @@ async def list_routines(session: SessionDep, user: ManagerUser) -> list[RoutineO
 async def activate(
     routine_id: int, payload: ActivateRequest, session: SessionDep, user: ManagerUser
 ) -> dict:
-    """Make this revision live and materialise its monitoring instances (BR-01)."""
+    """Attach this revision to a semester and materialise its classes (BR-01).
+
+    For the current semester it also goes live at once. A routine set up for a
+    semester ahead of time goes live when that semester is made current.
+    """
     routine = await session.get(Routine, routine_id)
     if routine is None:
         raise NotFoundError(f"No routine with id {routine_id}")
 
     if payload.semester_id is not None:
-        semester = await session.get(Semester, payload.semester_id)
-        if semester is None:
-            raise NotFoundError(f"No semester with id {payload.semester_id}")
+        semester = await semester_service.get(session, payload.semester_id)
     else:
-        semester = await session.scalar(select(Semester).where(Semester.is_active))
+        semester = await semester_service.current(session)
         if semester is None:
             raise ValidationError("No active semester. Create one first.")
 
-    await session.execute(
-        update(Routine)
-        .where(Routine.department == routine.department, Routine.id != routine.id)
-        .values(is_active=False)
-    )
-    routine.is_active = True
     semester.routine_id = routine.id
+    if semester.is_active:
+        await session.execute(
+            update(Routine)
+            .where(Routine.department == routine.department)
+            .values(is_active=Routine.id == routine.id)
+        )
     await session.flush()
+    await session.refresh(routine)
 
     result = await instance_service.generate(session, semester_id=semester.id)
 
@@ -259,7 +265,7 @@ async def activate(
         after={"semester_id": semester.id, **result},
     )
     await session.commit()
-    return {"routine_id": routine.id, "is_active": True, **result}
+    return {"routine_id": routine.id, "is_active": routine.is_active, **result}
 
 
 @router.post("/instances/generate", summary="Re-run instance generation")
@@ -277,9 +283,35 @@ async def generate(
 # --- semesters and calendar ------------------------------------------------
 
 
+def _semester_dates(semester: Semester) -> dict[str, str | None]:
+    """A semester's dates, for the audit trail."""
+    return {
+        key: value.isoformat() if value else None
+        for key, value in (
+            ("start_date", semester.start_date),
+            ("end_date", semester.end_date),
+            ("mid_exam_start", semester.mid_exam_start),
+            ("mid_exam_end", semester.mid_exam_end),
+            ("final_exam_start", semester.final_exam_start),
+        )
+    }
+
+
+async def _regenerate(session, semester: Semester) -> dict | None:
+    """Apply a change of dates or days off to the semester's classes at once.
+
+    Generation adds classes to days that now hold them and retires unchecked
+    future ones from days that no longer do. A semester with no routine yet
+    has no classes to change.
+    """
+    if semester.routine_id is None:
+        return None
+    return await instance_service.generate(session, semester_id=semester.id)
+
+
 @router.get("/semesters", response_model=list[SemesterOut], summary="Semesters")
 async def list_semesters(session: SessionDep, user: ManagerUser) -> list[SemesterOut]:  # noqa: ARG001
-    rows = (await session.scalars(select(Semester).order_by(Semester.id.desc()))).all()
+    rows = (await session.scalars(select(Semester).order_by(Semester.start_date.desc()))).all()
     return [SemesterOut.model_validate(s) for s in rows]
 
 
@@ -287,47 +319,123 @@ async def list_semesters(session: SessionDep, user: ManagerUser) -> list[Semeste
 async def create_semester(
     payload: SemesterIn,
     session: SessionDep,
-    user: AdminUser,  # noqa: ARG001
+    user: AdminUser,
 ) -> SemesterOut:
-    if payload.end_date < payload.start_date:
-        raise ValidationError("The semester ends before it starts.")
-    await session.execute(
-        update(Semester).where(Semester.department == payload.department).values(is_active=False)
-    )
-    semester = Semester(**payload.model_dump(), is_active=True)
+    """Set up a semester. It becomes current if asked, or if none is current yet."""
+    semester = Semester(**payload.model_dump(exclude={"make_current"}), is_active=False)
+    await semester_service.validate(session, semester)
     session.add(semester)
+    await session.flush()
+
+    if payload.make_current or await semester_service.current(session) is None:
+        await semester_service.make_current(session, semester)
+    audit_service.record(
+        session,
+        actor_id=user.id,
+        entity_type="semester",
+        entity_id=semester.id,
+        action="semester_created",
+        after={"name": semester.name, **_semester_dates(semester)},
+    )
+    await session.commit()
+    return SemesterOut.model_validate(semester)
+
+
+@router.put("/semesters/{semester_id}", response_model=SemesterSaved, summary="Change a semester")
+async def update_semester(
+    semester_id: int, payload: SemesterUpdate, session: SessionDep, user: AdminUser
+) -> SemesterSaved:
+    """Rename it, or move its dates and exam periods.
+
+    Its classes follow at once: exam days lose theirs, and days that hold
+    classes again get them back.
+    """
+    semester = await semester_service.get(session, semester_id)
+    before = {"name": semester.name, **_semester_dates(semester)}
+    for key, value in payload.model_dump().items():
+        setattr(semester, key, value)
+    await semester_service.validate(session, semester)
+
+    generation = await _regenerate(session, semester)
+    audit_service.record(
+        session,
+        actor_id=user.id,
+        entity_type="semester",
+        entity_id=semester.id,
+        action="semester_updated",
+        before=before,
+        after={"name": semester.name, **_semester_dates(semester)},
+    )
+    await session.commit()
+    return SemesterSaved(semester=SemesterOut.model_validate(semester), generation=generation)
+
+
+@router.post(
+    "/semesters/{semester_id}/activate",
+    response_model=SemesterOut,
+    summary="Make a semester the current one",
+)
+async def activate_semester(semester_id: int, session: SessionDep, user: AdminUser) -> SemesterOut:
+    """Move the department on to this semester, and to its routine if it has one."""
+    semester = await semester_service.get(session, semester_id)
+    previous = await semester_service.current(session)
+    await semester_service.make_current(session, semester)
+    audit_service.record(
+        session,
+        actor_id=user.id,
+        entity_type="semester",
+        entity_id=semester.id,
+        action="semester_activated",
+        before={"current": previous.name if previous else None},
+        after={"current": semester.name},
+    )
     await session.commit()
     return SemesterOut.model_validate(semester)
 
 
 @router.get("/holidays", response_model=list[HolidayOut], summary="Academic calendar")
-async def list_holidays(session: SessionDep, user: ManagerUser) -> list[HolidayOut]:  # noqa: ARG001
-    rows = (await session.scalars(select(Holiday).order_by(Holiday.date))).all()
+async def list_holidays(
+    session: SessionDep,
+    user: ManagerUser,  # noqa: ARG001
+    semester_id: int | None = None,
+) -> list[HolidayOut]:
+    query = select(Holiday).order_by(Holiday.date)
+    if semester_id is not None:
+        query = query.where(Holiday.semester_id == semester_id)
+    rows = (await session.scalars(query)).all()
     return [HolidayOut.model_validate(h) for h in rows]
 
 
 @router.post("/holidays", response_model=HolidayOut, summary="Add a calendar day")
 async def add_holiday(payload: HolidayIn, session: SessionDep, user: ManagerUser) -> HolidayOut:
-    semester_id = payload.semester_id
-    if semester_id is None:
-        semester = await session.scalar(select(Semester).where(Semester.is_active))
+    """Add a day to a semester's calendar. A day off loses its classes at once."""
+    if payload.semester_id is not None:
+        semester = await semester_service.get(session, payload.semester_id)
+    else:
+        semester = await semester_service.current(session)
         if semester is None:
             raise ValidationError("No active semester. Create one first.")
-        semester_id = semester.id
+    if not semester.start_date <= payload.date <= semester.end_date:
+        raise ValidationError(
+            f"{payload.date} is outside {semester.name} "
+            f"({semester.start_date} to {semester.end_date})."
+        )
 
     existing = await session.scalar(
-        select(Holiday).where(Holiday.semester_id == semester_id, Holiday.date == payload.date)
+        select(Holiday).where(Holiday.semester_id == semester.id, Holiday.date == payload.date)
     )
     if existing is not None:
         raise ValidationError(f"{payload.date} is already in the calendar.")
 
     holiday = Holiday(
-        semester_id=semester_id,
+        semester_id=semester.id,
         date=payload.date,
         title=payload.title,
         kind=payload.kind,
     )
     session.add(holiday)
+    await session.flush()
+    await _regenerate(session, semester)
     audit_service.record(
         session,
         actor_id=user.id,
@@ -353,9 +461,13 @@ async def remove_holiday(holiday_id: int, session: SessionDep, user: ManagerUser
         action="holiday_removed",
         before={"date": holiday.date.isoformat(), "title": holiday.title},
     )
+    semester = await semester_service.get(session, holiday.semester_id)
     await session.execute(delete(Holiday).where(Holiday.id == holiday_id))
+    generation = await _regenerate(session, semester)
     await session.commit()
-    return Message(detail="Removed. Re-run instance generation to apply it.")
+    if generation is None:
+        return Message(detail="Removed.")
+    return Message(detail="Removed. That day's classes are back on the schedule.")
 
 
 # --- users -----------------------------------------------------------------
@@ -547,6 +659,16 @@ async def put_settings(
     changes = payload.model_dump(exclude_none=True)
     if not changes:
         raise ValidationError("No settings supplied.")
+    whole = changes.get("min_conducted_classes") or await settings_service.get_int(
+        session, "min_conducted_classes"
+    )
+    by_mid = changes.get("min_conducted_before_mid")
+    if by_mid is None:
+        by_mid = await settings_service.get_int(session, "min_conducted_before_mid")
+    if by_mid > whole:
+        raise ValidationError(
+            "The minimum by the mid-term cannot exceed the whole semester's minimum."
+        )
     for key, value in changes.items():
         await settings_service.set_value(session, key, str(value), updated_by_id=user.id)
     audit_service.record(

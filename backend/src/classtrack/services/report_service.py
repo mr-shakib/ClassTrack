@@ -2,7 +2,9 @@
 
 Every figure here is a count over ``class_instance`` for a date range, so one
 aggregation serves the daily, monthly, semester and teacher-wise reports: they
-differ in range and filter, not in code.
+differ in range and filter, not in code. A term of a semester -- till the
+mid-term, or from it to the final -- is a range too; the only thing it changes
+is the minimum number of classes a course must have held.
 
 Each class is put in exactly one *outcome* bucket (see ``classify``). The buckets
 keep the six questions from the SRS separate -- in particular ``MISSED`` counts
@@ -31,6 +33,7 @@ from classtrack.models import (
     MakeupClass,
     MakeupStatus,
     Teacher,
+    Term,
     User,
 )
 from classtrack.models.user import Role
@@ -116,9 +119,19 @@ def is_held(outcome: str) -> bool:
     return outcome in (CONDUCTED, LATE)
 
 
-async def min_conducted(session: AsyncSession) -> int:
-    """Classes a course-section must have held so far before it stops showing red."""
-    return await settings_service.get_int(session, "min_conducted_classes")
+async def min_conducted(session: AsyncSession, term: Term | None = None) -> int:
+    """Classes a course-section must have held so far before it stops showing red.
+
+    The semester's minimum is split at the mid-term: part is due before it,
+    and the rest between it and the final. Any other period is held to the
+    whole semester's.
+    """
+    whole = await settings_service.get_int(session, "min_conducted_classes")
+    if term is Term.MID:
+        return await settings_service.get_int(session, "min_conducted_before_mid")
+    if term is Term.FINAL:
+        return max(0, whole - await settings_service.get_int(session, "min_conducted_before_mid"))
+    return whole
 
 
 # --- tallies -------------------------------------------------------------------
@@ -403,17 +416,21 @@ async def overview(
     start: Date,
     end: Date,
     filters: Filters | None = None,
+    term: Term | None = None,
+    label: str | None = None,
 ) -> dict[str, object]:
-    """One period, every breakdown: the monthly and semester reports (SRS 12)."""
+    """One period, every breakdown: the monthly, semester and term reports (SRS 12)."""
     filters = filters or Filters()
     rows = await load_rows(session, start=start, end=end, filters=filters)
     names = await teacher_names(session, {r.inst.teacher_initial for r in rows})
-    minimum = await min_conducted(session)
+    minimum = await min_conducted(session, term)
 
     courses = _course_rows(rows, names, minimum)
     granularity, trend = _trend(rows, start, end)
     return {
         "range": {"from": start, "to": end},
+        "label": label,
+        "term": term,
         "filters": filters.as_dict(),
         "min_conducted": minimum,
         "totals": _tally(rows).as_dict(),
@@ -455,14 +472,20 @@ async def daily(session: AsyncSession, *, on: Date) -> dict[str, object]:
 
 
 async def teacher_report(
-    session: AsyncSession, *, teacher_initial: str, start: Date, end: Date
+    session: AsyncSession,
+    *,
+    teacher_initial: str,
+    start: Date,
+    end: Date,
+    term: Term | None = None,
+    label: str | None = None,
 ) -> dict[str, object]:
     """Teacher-wise indicators (SRS 12.1), with every class in the range."""
     rows = await load_rows(
         session, start=start, end=end, filters=Filters(teacher=teacher_initial)
     )
     names = await teacher_names(session, {teacher_initial})
-    minimum = await min_conducted(session)
+    minimum = await min_conducted(session, term)
     tally = _tally(rows)
     t = tally.as_dict()
 
@@ -485,6 +508,8 @@ async def teacher_report(
         "teacher_initial": teacher_initial,
         "teacher_name": names.get(teacher_initial),
         "range": {"from": start, "to": end},
+        "label": label,
+        "term": term,
         "min_conducted": minimum,
         "total_scheduled": tally.scheduled,
         # "Conducted" means the class actually happened: on time, late, or as a
@@ -512,7 +537,7 @@ async def teacher_report(
 
 
 async def staff_report(
-    session: AsyncSession, *, start: Date, end: Date
+    session: AsyncSession, *, start: Date, end: Date, label: str | None = None
 ) -> dict[str, object]:
     """Monitoring completion per staff member (SRS 12.4).
 
@@ -561,6 +586,7 @@ async def staff_report(
     total_checked = sum(checked_rows.values())
     return {
         "range": {"from": start, "to": end},
+        "label": label,
         "assigned": assigned,
         "checked": total_checked,
         "not_checked": max(0, assigned - total_checked),

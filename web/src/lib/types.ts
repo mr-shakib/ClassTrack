@@ -236,7 +236,7 @@ export interface Dashboard {
 }
 
 export interface Conflict {
-  type: "TEACHER" | "ROOM" | "SECTION" | "HOLIDAY" | "SLOT";
+  type: "TEACHER" | "ROOM" | "SECTION" | "HOLIDAY" | "EXAM" | "SLOT";
   message: string;
   instance_id: number | null;
 }
@@ -371,8 +371,23 @@ export interface ReportFilters {
   slot?: string;
 }
 
+/** A stretch of a semester reported on by itself. */
+export type Term = "MID" | "FINAL" | "FULL";
+
+/**
+ * What a period report covers: two dates, or a term of a semester. A term
+ * also decides the minimum number of classes, so it is sent as itself.
+ */
+export type ReportPeriod =
+  | { from: string; to: string }
+  /** No semester named means the current one. */
+  | { semester?: number; term: Term };
+
 export interface Overview {
   range: { from: string; to: string };
+  /** "Fall 2026 · Till mid-term" for a term; null for plain dates. */
+  label: string | null;
+  term: Term | null;
   filters: Record<string, string | null>;
   min_conducted: number;
   totals: Tally;
@@ -406,6 +421,8 @@ export interface TeacherReport {
   teacher_initial: string;
   teacher_name: string | null;
   range: { from: string; to: string };
+  label: string | null;
+  term: Term | null;
   min_conducted: number;
   total_scheduled: number;
   conducted: number;
@@ -429,6 +446,7 @@ export interface TeacherReport {
 
 export interface StaffReport {
   range: { from: string; to: string };
+  label: string | null;
   assigned: number;
   checked: number;
   not_checked: number;
@@ -529,7 +547,42 @@ export interface Semester {
   routine_id: number | null;
   start_date: string;
   end_date: string;
+  /** The mid-term exam period, inclusive. Null until announced. */
+  mid_exam_start: string | null;
+  mid_exam_end: string | null;
+  /** First day of the final exams; teaching ends the day before. */
+  final_exam_start: string | null;
+  /** The semester the department is running now. */
   is_active: boolean;
+}
+
+export interface SemesterDates {
+  name: string;
+  start_date: string;
+  end_date: string;
+  mid_exam_start: string | null;
+  mid_exam_end: string | null;
+  final_exam_start: string | null;
+}
+
+export interface TermSpan {
+  term: Term;
+  label: string;
+  /** Null while the exam dates the term needs are unset. */
+  from: string | null;
+  to: string | null;
+  /** False until the dates are set and the term has begun. */
+  available: boolean;
+}
+
+/** A semester as the report period picker sees it -- teachers included. */
+export interface ReportSemester {
+  id: number;
+  name: string;
+  is_active: boolean;
+  start_date: string;
+  end_date: string;
+  terms: TermSpan[];
 }
 
 

@@ -226,8 +226,11 @@ def teacher_pdf(report: dict) -> bytes:
     """Every class a teacher had in the range, and how each one went."""
     minimum = report["min_conducted"]
     name = report.get("teacher_name") or report["teacher_initial"]
+    subtitle = "Teacher class report"
+    if report.get("label"):
+        subtitle += " · " + escape(report["label"])
     story = _header_block(
-        escape(f"{name} ({report['teacher_initial']})"), "Teacher class report", report["range"]
+        escape(f"{name} ({report['teacher_initial']})"), subtitle, report["range"]
     )
 
     story.append(
@@ -308,6 +311,8 @@ def summary_pdf(overview: dict) -> bytes:
     totals = overview["totals"]
     active = {k: v for k, v in (overview.get("filters") or {}).items() if v}
     subtitle = "Department summary"
+    if overview.get("label"):
+        subtitle += " · " + escape(overview["label"])
     if active:
         subtitle += " · " + escape(", ".join(f"{k} {v}" for k, v in active.items()))
     story = _header_block("Class monitoring summary", subtitle, overview["range"])

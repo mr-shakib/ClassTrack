@@ -7,7 +7,7 @@ import { api, pdfUrl } from "@/lib/api";
 import { downloadCsv } from "@/lib/csv";
 import type { Outcome, TeacherAccount, TeacherReport } from "@/lib/types";
 import ClassTable from "./ClassTable";
-import PeriodPicker, { type Period } from "./PeriodPicker";
+import PeriodPicker, { type Period, minimumNote, periodQuery } from "./PeriodPicker";
 
 /**
  * One teacher: headline figures, every course against the minimum, and every
@@ -47,7 +47,7 @@ export default function TeacherReportView({
     setLoading(true);
     setError(null);
     try {
-      setData(await api.teacherReport(initial, period.from, period.to));
+      setData(await api.teacherReport(initial, periodQuery(period)));
     } catch (err) {
       setData(null);
       setError(err instanceof Error ? err.message : "Could not build the report.");
@@ -135,7 +135,7 @@ export default function TeacherReportView({
             ) : null}
             <div className="ml-auto flex gap-2">
               <a
-                href={pdfUrl.teacher(data.teacher_initial, data.range.from, data.range.to)}
+                href={pdfUrl.teacher(data.teacher_initial, periodQuery(period))}
                 className="inline-flex items-center rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand/90"
               >
                 Download PDF
@@ -161,7 +161,8 @@ export default function TeacherReportView({
             <div className="border-b border-line px-4 py-3">
               <h2 className="text-sm font-semibold">Classes held per course</h2>
               <p className="text-xs text-ink-faint">
-                Red: fewer than {data.min_conducted} held so far. Held = on time + late, including makeups.
+                Red: fewer than {data.min_conducted} held so far, {minimumNote(data.term)}. Held = on
+                time + late, including makeups.
               </p>
             </div>
             {data.courses.length === 0 ? (

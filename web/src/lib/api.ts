@@ -17,11 +17,14 @@ import type {
   Notification,
   Overview,
   ReportFilters,
+  ReportPeriod,
+  ReportSemester,
   Role,
   RoomRow,
   Routine,
   RoutineReview,
   Semester,
+  SemesterDates,
   StaffMember,
   StaffReport,
   TeacherAccount,
@@ -179,12 +182,14 @@ export const api = {
 
   // --- reports ------------------------------------------------------------
   dailyReport: (date?: string) => get<DailyReport>(`/reports/daily${qs({ date })}`),
-  teacherReport: (teacher?: string, from?: string, to?: string) =>
-    get<TeacherReport>(`/reports/teacher${qs({ teacher, from, to })}`),
-  overview: (from: string, to: string, filters: ReportFilters = {}) =>
-    get<Overview>(`/reports/overview${qs({ from, to, ...filters })}`),
-  staffReport: (from?: string, to?: string) =>
-    get<StaffReport>(`/reports/staff${qs({ from, to })}`),
+  /** Semesters and their terms -- open to teachers, for their own report. */
+  reportSemesters: () => get<ReportSemester[]>("/reports/semesters"),
+  teacherReport: (teacher: string, period: ReportPeriod) =>
+    get<TeacherReport>(`/reports/teacher${qs({ teacher, ...period })}`),
+  overview: (period: ReportPeriod, filters: ReportFilters = {}) =>
+    get<Overview>(`/reports/overview${qs({ ...period, ...filters })}`),
+  staffReport: (period: ReportPeriod) =>
+    get<StaffReport>(`/reports/staff${qs({ ...period })}`),
   unreported: (from?: string, to?: string) =>
     get<UnreportedReport>(`/reports/unreported${qs({ from, to })}`),
 
@@ -205,14 +210,25 @@ export const api = {
     }),
   generateInstances: () => post<Record<string, unknown>>("/admin/instances/generate"),
   semesters: () => get<Semester[]>("/admin/semesters"),
-  holidays: () => get<Holiday[]>("/admin/holidays"),
-  addHoliday: (payload: { date: string; title: string; kind?: string }) =>
+  createSemester: (payload: SemesterDates & { make_current: boolean }) =>
+    post<Semester>("/admin/semesters", payload),
+  /** Every date is replaced; the semester's classes follow at once. */
+  updateSemester: (id: number, payload: SemesterDates) =>
+    put<{ semester: Semester; generation: Record<string, unknown> | null }>(
+      `/admin/semesters/${id}`,
+      payload,
+    ),
+  activateSemester: (id: number) => post<Semester>(`/admin/semesters/${id}/activate`),
+  holidays: (semesterId?: number) =>
+    get<Holiday[]>(`/admin/holidays${qs({ semester_id: semesterId })}`),
+  addHoliday: (payload: { date: string; title: string; kind?: string; semester_id?: number }) =>
     post<Holiday>("/admin/holidays", payload),
   removeHoliday: (id: number) => del<{ detail: string }>(`/admin/holidays/${id}`),
   settings: () => get<Record<string, string>>("/admin/settings"),
   updateSettings: (payload: {
     missed_threshold_minutes?: number;
     min_conducted_classes?: number;
+    min_conducted_before_mid?: number;
   }) => put<Record<string, string>>("/admin/settings", payload),
   audit: (params: { entity_type?: string; entity_id?: number; limit?: number }) =>
     get<AuditEntry[]>(`/admin/audit${qs(params)}`),
@@ -250,10 +266,10 @@ export const api = {
 
 /** Where a report PDF downloads from. Same-origin, so the session cookie goes along. */
 export const pdfUrl = {
-  teacher: (teacher: string, from: string, to: string) =>
-    `/api/v1/reports/teacher/pdf${qs({ teacher, from, to })}`,
-  overview: (from: string, to: string, filters: ReportFilters = {}) =>
-    `/api/v1/reports/overview/pdf${qs({ from, to, ...filters })}`,
+  teacher: (teacher: string, period: ReportPeriod) =>
+    `/api/v1/reports/teacher/pdf${qs({ teacher, ...period })}`,
+  overview: (period: ReportPeriod, filters: ReportFilters = {}) =>
+    `/api/v1/reports/overview/pdf${qs({ ...period, ...filters })}`,
 };
 
 /** The routine lattice. Fixed, so the UI need not fetch it to render a picker. */

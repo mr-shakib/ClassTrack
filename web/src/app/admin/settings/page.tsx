@@ -10,6 +10,7 @@ export default function SettingsPage() {
   const [values, setValues] = useState<Record<string, string>>({});
   const [missed, setMissed] = useState("");
   const [minimum, setMinimum] = useState("");
+  const [byMid, setByMid] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -20,6 +21,7 @@ export default function SettingsPage() {
       setValues(v);
       setMissed(v.missed_threshold_minutes ?? "30");
       setMinimum(v.min_conducted_classes ?? "18");
+      setByMid(v.min_conducted_before_mid ?? "9");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load the rules.");
     }
@@ -38,6 +40,7 @@ export default function SettingsPage() {
       await api.updateSettings({
         missed_threshold_minutes: Number(missed),
         min_conducted_classes: Number(minimum),
+        min_conducted_before_mid: Number(byMid),
       });
       setNotice("Saved. The next sweep and every report use the new values.");
       await load();
@@ -75,7 +78,7 @@ export default function SettingsPage() {
           </Field>
 
           <Field
-            label="Minimum classes per course"
+            label="Minimum classes per course, whole semester"
             hint="A course-section with fewer classes held than this so far is shown red in the reports."
           >
             <input
@@ -85,6 +88,26 @@ export default function SettingsPage() {
               className={inputClass}
               value={minimum}
               onChange={(e) => setMinimum(e.target.value)}
+            />
+          </Field>
+
+          <Field
+            label="…of which by the mid-term"
+            hint={
+              "Held to in the till-mid-term report. The rest" +
+              (Number(minimum) >= Number(byMid) && byMid !== ""
+                ? ` (${Number(minimum) - Number(byMid)})`
+                : "") +
+              " is due between the mid-term and the final."
+            }
+          >
+            <input
+              type="number"
+              min={0}
+              max={Number(minimum) || 200}
+              className={inputClass}
+              value={byMid}
+              onChange={(e) => setByMid(e.target.value)}
             />
           </Field>
 
@@ -120,7 +143,7 @@ export default function SettingsPage() {
         <h2 className="text-sm font-semibold">Other settings</h2>
         <dl className="mt-2 grid grid-cols-2 gap-2 text-sm">
           {Object.entries(values)
-            .filter(([k]) => !k.endsWith("_minutes") && k !== "min_conducted_classes")
+            .filter(([k]) => !k.endsWith("_minutes") && !k.startsWith("min_conducted"))
             .map(([k, v]) => (
               <div key={k} className="rounded-lg bg-canvas px-3 py-2">
                 <dt className="text-xs text-ink-faint">{k.replace(/_/g, " ")}</dt>

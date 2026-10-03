@@ -25,6 +25,7 @@ from classtrack.models import (
     MakeupClass,
     MakeupStatus,
     Routine,
+    Semester,
 )
 from classtrack.routine import clock
 from classtrack.routine.lattice import SLOTS
@@ -115,6 +116,21 @@ async def check(
     if holiday is not None:
         report.conflicts.append(
             Conflict("HOLIDAY", f"{on:%d %B %Y} is {holiday.title} ({holiday.kind.value}).")
+        )
+
+    # No class is held while the exams run. Semesters never overlap, so the
+    # date alone finds the semester.
+    semester = await session.scalar(
+        select(Semester).where(Semester.start_date <= on, Semester.end_date >= on)
+    )
+    if semester is not None and semester.in_exams(on):
+        final = semester.final_exam_start is not None and on >= semester.final_exam_start
+        report.conflicts.append(
+            Conflict(
+                "EXAM",
+                f"{on:%d %B %Y} is in the {semester.name} "
+                f"{'final' if final else 'mid-term'} exams.",
+            )
         )
 
     occupants = await _occupants(

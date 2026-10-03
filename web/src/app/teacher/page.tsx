@@ -51,7 +51,8 @@ export default function TeacherPage() {
         api.instances({ date: todayISO() }),
         api.instances({ needs_reschedule: true, limit: 50 }),
         api.makeups(),
-        api.teacherReport(initial, "2026-09-01", "2026-12-31").catch(() => null),
+        // The current semester so far. None yet, or not begun: no figures.
+        api.teacherReport(initial, { term: "FULL" }).catch(() => null),
       ]);
       setToday(todays);
       setNeedsAction(missed);
@@ -113,18 +114,23 @@ export default function TeacherPage() {
       {error ? <ErrorNote message={error} /> : null}
 
       {stats ? (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-          <SummaryCard label="Scheduled" value={stats.total_scheduled} />
-          <SummaryCard label="Conducted" value={stats.conducted} tone="ok" />
-          <SummaryCard label="Late" value={stats.late} tone="warn" />
-          <SummaryCard label="Missed" value={stats.missed} tone="bad" />
-          <SummaryCard
-            label="Makeups done"
-            value={stats.makeup_completed}
-            tone="info"
-            hint={`${stats.makeup_pending} pending`}
-          />
-        </div>
+        <section className="space-y-2">
+          <p className="text-sm text-ink-faint">
+            {stats.label} · {stats.range.from} to {stats.range.to}
+          </p>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            <SummaryCard label="Scheduled" value={stats.total_scheduled} />
+            <SummaryCard label="Conducted" value={stats.conducted} tone="ok" />
+            <SummaryCard label="Late" value={stats.late} tone="warn" />
+            <SummaryCard label="Missed" value={stats.missed} tone="bad" />
+            <SummaryCard
+              label="Makeups done"
+              value={stats.makeup_completed}
+              tone="info"
+              hint={`${stats.makeup_pending} pending`}
+            />
+          </div>
+        </section>
       ) : null}
 
       {/* Missed classes needing a response come first: they are the only thing

@@ -12,7 +12,12 @@ import { SLOTS, api, pdfUrl } from "@/lib/api";
 import { downloadCsv } from "@/lib/csv";
 import { teacherMatcher } from "@/lib/search";
 import type { Overview, ReportFilters, TeacherTally, Zone } from "@/lib/types";
-import PeriodPicker, { type Period, currentMonthPeriod } from "./PeriodPicker";
+import PeriodPicker, {
+  type Period,
+  currentMonthPeriod,
+  minimumNote,
+  periodQuery,
+} from "./PeriodPicker";
 
 const EMPTY: ReportFilters = { teacher: "", floor: "", course: "", section: "", slot: "" };
 
@@ -48,7 +53,7 @@ export default function OverviewReport({
     setLoading(true);
     setError(null);
     try {
-      setData(await api.overview(period.from, period.to, filters));
+      setData(await api.overview(periodQuery(period), filters));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not build the report.");
     } finally {
@@ -142,7 +147,7 @@ export default function OverviewReport({
           ) : null}
           <div className="ml-auto flex gap-2">
             <a
-              href={pdfUrl.overview(period.from, period.to, filters)}
+              href={pdfUrl.overview(periodQuery(period), filters)}
               className="inline-flex items-center rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand/90"
             >
               Download PDF
@@ -246,7 +251,7 @@ function OverviewBody({
         <Card className="p-4">
           <h2 className="text-sm font-semibold">Classes held per course-section</h2>
           <p className="mb-3 text-xs text-ink-faint">
-            Red: fewer than {data.min_conducted} held so far.
+            Red: fewer than {data.min_conducted} held so far, {minimumNote(data.term)}.
           </p>
           <HeldDistribution held={data.by_course.map((c) => c.held)} minimum={data.min_conducted} />
         </Card>
