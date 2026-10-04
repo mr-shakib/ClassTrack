@@ -7,27 +7,9 @@ import { api, ApiError } from "@/lib/api";
 import { HOME_FOR, useAuth } from "@/lib/auth";
 import { Button, Card, ErrorNote, Field, inputClass } from "@/components/ui";
 
-const DEMO = [
-  ["admin@diu.edu", "Super admin"],
-  ["hod@diu.edu", "Head of department"],
-  ["associate@diu.edu", "Associate head"],
-  ["coordinator@diu.edu", "Coordination officer"],
-  ["committee@diu.edu", "Committee"],
-  ["staff1@diu.edu", "Office staff"],
-  ["teacher@diu.edu", "Teacher"],
-];
-
-/**
- * Seeded demo accounts, for local development only. A deployed site has its
- * passwords changed after seeding, so offering them there only produces
- * "Invalid credentials" -- and it would advertise the admin addresses.
- * Inlined at build time: `npm run dev` shows it, every production build hides it.
- */
-const SHOW_DEMO = process.env.NODE_ENV !== "production";
-
 export default function LoginPage() {
-  const [email, setEmail] = useState(SHOW_DEMO ? "staff1@diu.edu" : "");
-  const [password, setPassword] = useState(SHOW_DEMO ? "classtrack" : "");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const router = useRouter();
@@ -71,7 +53,10 @@ export default function LoginPage() {
 
         <Card className="p-5">
           <form onSubmit={submit} className="space-y-4">
-            <Field label="Email or teacher initial" hint="Teachers sign in with their initial, e.g. SRH.">
+            <Field
+              label="Email, initial or employee ID"
+              hint="Teachers sign in with their initial, e.g. SRH. Staff may use their employee ID."
+            >
               <input
                 type="text"
                 autoCapitalize="none"
@@ -100,30 +85,6 @@ export default function LoginPage() {
             </Button>
           </form>
         </Card>
-
-        {SHOW_DEMO ? (
-          <Card className="mt-4 p-4">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">
-              Demo accounts · password <code className="text-ink-soft">classtrack</code>
-            </p>
-            <div className="grid gap-1">
-              {DEMO.map(([addr, label]) => (
-                <button
-                  key={addr}
-                  type="button"
-                  onClick={() => {
-                    setEmail(addr);
-                    setPassword("classtrack");
-                  }}
-                  className="flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-canvas"
-                >
-                  <span className="text-ink-soft">{label}</span>
-                  <code className="text-xs text-ink-faint">{addr}</code>
-                </button>
-              ))}
-            </div>
-          </Card>
-        ) : null}
       </div>
     </div>
   );
