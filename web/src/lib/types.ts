@@ -66,6 +66,19 @@ export interface Account extends User {
   is_active: boolean;
 }
 
+/** The signed-in user's own profile. */
+export interface Profile {
+  full_name: string;
+  role: Role;
+  /** What they type to sign in: a teacher's initial, else the email or ID. */
+  sign_in: string;
+  teacher_initial: string | null;
+  designation: string | null;
+  department: string | null;
+  /** Where a teacher's absence reports are mailed. Null for anyone else. */
+  contact_email: string | null;
+}
+
 export interface StaffMember {
   id: number;
   email: string;

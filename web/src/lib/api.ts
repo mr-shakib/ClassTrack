@@ -16,6 +16,7 @@ import type {
   MakeupMode,
   Notification,
   Overview,
+  Profile,
   ReportFilters,
   ReportPeriod,
   ReportSemester,
@@ -103,6 +104,15 @@ export const api = {
     post<User>("/auth/login", { username, password }),
   logout: () => post<{ detail: string }>("/auth/logout"),
   me: () => get<User>("/auth/me"),
+  profile: () => get<Profile>("/auth/profile"),
+  /** A teacher's address for absence reports. */
+  updateProfile: (contact_email: string) =>
+    request<Profile>("/auth/profile", {
+      method: "PATCH",
+      body: JSON.stringify({ contact_email }),
+    }),
+  changePassword: (current_password: string, new_password: string) =>
+    post<{ detail: string }>("/auth/password", { current_password, new_password }),
 
   // --- staff checking -----------------------------------------------------
   checkingRooms: (date?: string, slot?: string) =>

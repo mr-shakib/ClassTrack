@@ -13,11 +13,17 @@ import bcrypt
 import jwt
 
 from classtrack.core.config import get_settings
-from classtrack.core.errors import AuthError
+from classtrack.core.errors import AuthError, ValidationError
+
+#: bcrypt reads no further than this, and from 5.0 refuses anything longer.
+MAX_PASSWORD_BYTES = 72
 
 
 def hash_password(plain: str) -> str:
-    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
+    encoded = plain.encode()
+    if len(encoded) > MAX_PASSWORD_BYTES:
+        raise ValidationError("That password is too long. Keep it under 72 characters.")
+    return bcrypt.hashpw(encoded, bcrypt.gensalt()).decode()
 
 
 def verify_password(plain: str, hashed: str) -> bool:

@@ -174,13 +174,36 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="hidden text-right sm:block">
-              <div className="text-sm font-medium leading-tight">{user.full_name}</div>
-              <div className="text-xs leading-tight text-ink-faint">
-                {ROLE_LABELS[user.role]}
-                {user.teacher_initial ? ` · ${user.teacher_initial}` : ""}
-              </div>
-            </div>
+            {/* The name opens the profile; on a phone, where the name is hidden,
+                an icon stands in for it. */}
+            <Link
+              href="/profile"
+              aria-label="Your profile"
+              aria-current={pathname === "/profile" ? "page" : undefined}
+              className={`rounded-lg p-2.5 text-ink-soft hover:bg-canvas sm:px-2 sm:py-1 sm:text-right ${
+                pathname === "/profile" ? "bg-brand-soft" : ""
+              }`}
+            >
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden
+                className="sm:hidden"
+              >
+                <path d="M10 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0 1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z" />
+              </svg>
+              <span className="hidden sm:block">
+                <span className="block text-sm font-medium leading-tight text-ink">
+                  {user.full_name}
+                </span>
+                <span className="block text-xs leading-tight text-ink-faint">
+                  {ROLE_LABELS[user.role]}
+                  {user.teacher_initial ? ` · ${user.teacher_initial}` : ""}
+                </span>
+              </span>
+            </Link>
             <Button variant="ghost" onClick={signOut} aria-label="Sign out">
               Sign out
             </Button>

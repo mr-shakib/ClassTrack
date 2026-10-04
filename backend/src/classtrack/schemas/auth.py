@@ -23,3 +23,27 @@ class UserOut(ORMModel):
     full_name: str
     role: Role
     teacher_initial: str | None = None
+
+
+class PasswordChange(BaseModel):
+    # Lengths are checked in the service, so a short password gets a sentence
+    # rather than a validation dump.
+    current_password: str
+    new_password: str
+
+
+class ProfileOut(BaseModel):
+    full_name: str
+    role: Role
+    #: What the user types to sign in: a teacher's initial, else the email or ID.
+    sign_in: str
+    teacher_initial: str | None = None
+    designation: str | None = None
+    department: str | None = None
+    #: Where a teacher's absence reports are mailed. Null for anyone else, and
+    #: for a teacher with none on file.
+    contact_email: str | None = None
+
+
+class ProfileUpdate(BaseModel):
+    contact_email: str = Field(min_length=1, max_length=255)

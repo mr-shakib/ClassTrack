@@ -36,6 +36,27 @@ requests. `COMMITTEE` may check classes and correct past ones, nothing more.
 
 `email` is still accepted as the key for `username`.
 
+### Your own profile
+
+| Method | Path | Roles | Purpose |
+|---|---|---|---|
+| `GET` | `/auth/profile` | any | Name, role, what you sign in with; a teacher's designation and absence-report email |
+| `PATCH` | `/auth/profile` | TEACHER | `{ "contact_email": "..." }` — where absence reports are mailed |
+| `POST` | `/auth/password` | any | `{ "current_password": "...", "new_password": "..." }` |
+
+```jsonc
+// GET /auth/profile -- a teacher
+{ "full_name": "Dr. Sheak Rashed Haider Noori", "role": "TEACHER", "sign_in": "SRH",
+  "teacher_initial": "SRH", "designation": "Professor & Head", "department": "cse",
+  "contact_email": "headcse@daffodilvarsity.edu.bd" }
+// POST /auth/password -- 422 { "detail": "Your current password is not correct." }
+```
+
+The current password is asked for even though the session is signed in. The new
+one is at least 6 characters and at most 72 bytes (bcrypt's limit). Both changes
+are audited, the password change without the password. Name, initial and
+designation stay with the faculty list, which admins keep.
+
 ### Teacher accounts
 
 | Method | Path | Roles | Purpose |
