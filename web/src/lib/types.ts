@@ -1,13 +1,35 @@
 // Mirrors backend/docs/API.md. Keep in sync with classtrack/schemas/*.
 
-export type Role =
-  | "SUPER_ADMIN"
-  | "HOD"
-  | "ASSOCIATE_HEAD"
-  | "COORDINATION_OFFICER"
-  | "COMMITTEE"
-  | "STAFF"
-  | "TEACHER";
+/** Everything the API can permit. Mirrors `Permission` in models/access.py. */
+export type Permission =
+  | "checking.submit"
+  | "checking.correct"
+  | "dashboard.view"
+  | "classes.cancel"
+  | "reschedules.decide"
+  | "reschedules.any_teacher"
+  | "reschedules.request"
+  | "extra_classes.book"
+  | "reports.department"
+  | "routine.manage"
+  | "semesters.manage"
+  | "calendar.manage"
+  | "settings.manage"
+  | "staff.manage"
+  | "teachers.manage"
+  | "accounts.manage"
+  | "roles.manage"
+  | "audit.view"
+  | "alerts.receive";
+
+/** What a role makes a person: a teacher, floor staff, or neither. */
+export type RoleKind = "TEACHER" | "STAFF" | "OFFICE";
+
+export interface RoleRef {
+  key: string;
+  name: string;
+  kind: RoleKind;
+}
 
 /** Stored, terminal statuses plus the two the backend derives from the clock. */
 export type ClassStatus =
@@ -39,7 +61,14 @@ export interface User {
   id: number;
   email: string;
   full_name: string;
-  role: Role;
+  roles: RoleRef[];
+  /** Everything any of the roles permits. Screens show and hide by it; the API
+   *  checks again on every request. */
+  permissions: Permission[];
+  /** A teacher: their own classes, reports and reschedules. */
+  is_teacher: boolean;
+  /** Floor staff: their floors come first on the checking screen. */
+  is_staff: boolean;
   teacher_initial: string | null;
   /** A teacher's faculty photo, when the directory has one. */
   photo_url?: string | null;
@@ -64,14 +93,44 @@ export interface Zone {
   rooms: string[];
 }
 
-export interface Account extends User {
+/** An account as the Accounts screen lists it. */
+export interface Account {
+  id: number;
+  email: string;
+  full_name: string;
+  roles: (RoleRef & { id: number })[];
+  teacher_initial: string | null;
   is_active: boolean;
+}
+
+/** A role and what it permits, for the Roles screen. */
+export interface RoleInfo {
+  id: number;
+  key: string;
+  name: string;
+  description: string;
+  kind: RoleKind;
+  is_builtin: boolean;
+  /** Super admin: every permission, always. */
+  is_locked: boolean;
+  permissions: Permission[];
+  /** How many accounts hold it. */
+  holders: number;
+}
+
+export interface PermissionInfo {
+  key: Permission;
+  group: string;
+  label: string;
+  description: string;
 }
 
 /** The signed-in user's own profile. */
 export interface Profile {
   full_name: string;
-  role: Role;
+  /** The names of the roles held. */
+  roles: string[];
+  is_teacher: boolean;
   /** What they type to sign in: a teacher's initial, else the email or ID. */
   sign_in: string;
   teacher_initial: string | null;

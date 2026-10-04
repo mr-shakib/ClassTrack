@@ -15,7 +15,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from classtrack.core.config import get_settings
 from classtrack.db.base import utcnow
 from classtrack.models import (
-    ADMIN_ROLES,
     CheckOutcome,
     ClassInstance,
     MakeupClass,
@@ -23,10 +22,11 @@ from classtrack.models import (
     MakeupStatus,
     Notification,
     NotificationKind,
+    Permission,
     Teacher,
     User,
 )
-from classtrack.services import email_service
+from classtrack.services import email_service, role_service
 
 logger = logging.getLogger(__name__)
 
@@ -88,9 +88,8 @@ async def _user_for_teacher(session: AsyncSession, initial: str) -> User | None:
 
 
 async def _admins(session: AsyncSession) -> list[User]:
-    return list(
-        (await session.scalars(select(User).where(User.role.in_(ADMIN_ROLES)))).all()
-    )
+    """Whoever receives department alerts -- a permission, so any role can."""
+    return await role_service.users_who_can(session, Permission.RECEIVE_ALERTS)
 
 
 def _describe(instance: ClassInstance) -> str:

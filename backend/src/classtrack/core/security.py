@@ -34,12 +34,13 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-def create_token(user_id: int, role: str) -> str:
+def create_token(user_id: int) -> str:
+    # Carries who, not what they may do: permissions are read from the database
+    # on every request, so a role edited now applies now.
     settings = get_settings()
     now = datetime.now(UTC)
     payload = {
         "sub": str(user_id),
-        "role": role,
         "iat": now,
         "exp": now + timedelta(hours=settings.jwt_expire_hours),
     }

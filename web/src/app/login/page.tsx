@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
-import { HOME_FOR, useAuth } from "@/lib/auth";
+import { homeFor, useAuth } from "@/lib/auth";
 import { Button, Card, ErrorNote, Field, inputClass } from "@/components/ui";
 
 export default function LoginPage() {
@@ -22,7 +22,7 @@ export default function LoginPage() {
     try {
       const user = await api.login(email, password);
       await refresh();
-      router.replace(HOME_FOR[user.role]);
+      router.replace(homeFor(user));
     } catch (err) {
       setError(
         err instanceof ApiError ? err.message : "Could not sign in. Try again.",

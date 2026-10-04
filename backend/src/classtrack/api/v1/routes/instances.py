@@ -8,7 +8,7 @@ from fastapi import APIRouter, Query
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from classtrack.api.deps import CurrentUser, ManagerUser, SessionDep, scope_teacher
+from classtrack.api.deps import CancelUser, CurrentUser, SessionDep, scope_teacher
 from classtrack.core.errors import ForbiddenError, NotFoundError, ValidationError
 from classtrack.db.base import utcnow
 from classtrack.models import (
@@ -16,7 +16,6 @@ from classtrack.models import (
     CheckRecord,
     ClassInstance,
     ClassStatus,
-    Role,
     TeacherResponse,
 )
 from classtrack.schemas.monitoring import (
@@ -110,7 +109,7 @@ async def get_instance(
     )
     if inst is None:
         raise NotFoundError(f"No class instance with id {instance_id}")
-    if user.role is Role.TEACHER and inst.teacher_initial != user.teacher_initial:
+    if not user.sees_every_teacher and inst.teacher_initial != user.teacher_initial:
         raise ForbiddenError("You may only view your own records.")
     return _serialise(inst)
 
@@ -140,7 +139,7 @@ async def respond(
     if inst is None:
         raise NotFoundError(f"No class instance with id {instance_id}")
 
-    if user.role is Role.TEACHER and inst.teacher_initial != user.teacher_initial:
+    if not user.sees_every_teacher and inst.teacher_initial != user.teacher_initial:
         raise ForbiddenError("You may only respond to your own records.")
     if inst.status is not ClassStatus.MISSED:
         raise ValidationError(
@@ -175,7 +174,7 @@ async def cancel(
     instance_id: int,
     payload: CancelRequest,
     session: SessionDep,
-    user: ManagerUser,
+    user: CancelUser,
 ) -> InstanceOut:
     inst = await session.get(ClassInstance, instance_id)
     if inst is None:

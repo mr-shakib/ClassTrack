@@ -17,11 +17,14 @@ import type {
   MakeupMode,
   Notification,
   Overview,
+  Permission,
+  PermissionInfo,
   Profile,
   ReportFilters,
   ReportPeriod,
   ReportSemester,
-  Role,
+  RoleInfo,
+  RoleKind,
   RoomRow,
   Routine,
   RoutineReview,
@@ -270,13 +273,28 @@ export const api = {
   createUser: (payload: {
     email: string;
     full_name: string;
-    role: Role;
+    role_ids: number[];
     password: string;
   }) => post<Account>("/admin/users", payload),
   updateUser: (
     id: number,
-    payload: { full_name?: string; role?: Role; is_active?: boolean; password?: string },
+    payload: { full_name?: string; role_ids?: number[]; is_active?: boolean; password?: string },
   ) => request<Account>(`/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+
+  // --- roles --------------------------------------------------------------
+  permissions: () => get<PermissionInfo[]>("/admin/permissions"),
+  roles: () => get<RoleInfo[]>("/admin/roles"),
+  createRole: (payload: {
+    name: string;
+    description: string;
+    kind: RoleKind;
+    permissions: Permission[];
+  }) => post<RoleInfo>("/admin/roles", payload),
+  updateRole: (
+    id: number,
+    payload: { name?: string; description?: string; permissions?: Permission[] },
+  ) => put<RoleInfo>(`/admin/roles/${id}`, payload),
+  deleteRole: (id: number) => del<{ detail: string }>(`/admin/roles/${id}`),
   zones: () => get<Zone[]>("/admin/zones"),
   staff: () => get<StaffMember[]>("/admin/staff"),
   createStaff: (payload: {

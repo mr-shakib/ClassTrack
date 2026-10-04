@@ -15,16 +15,14 @@ import {
   bigInputClass,
 } from "@/components/ui";
 import { ApiError, SLOTS, api, todayISO } from "@/lib/api";
-import { useRequireRole } from "@/lib/auth";
-import type { ClassInstance, ConflictReport, ExtraSection, Role } from "@/lib/types";
+import { mayBookExtra, useRequireAccess } from "@/lib/auth";
+import type { ClassInstance, ConflictReport, ExtraSection } from "@/lib/types";
 
-/** Booking is the teacher's own act; admins have no sections to book for. */
-const EXTRA_PAGE_ROLES: Role[] = ["TEACHER"];
 
 const key = (s: ExtraSection) => `${s.course_code}|${s.section}`;
 
 export default function ExtraClassPage() {
-  const { permitted, loading: authLoading } = useRequireRole(EXTRA_PAGE_ROLES);
+  const { permitted, loading: authLoading } = useRequireAccess(mayBookExtra);
 
   const [sections, setSections] = useState<ExtraSection[] | null>(null);
   const [booked, setBooked] = useState<ClassInstance[]>([]);

@@ -11,13 +11,13 @@ import {
   inputClass,
 } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
-import { MANAGEMENT_ROLES, useRequireRole } from "@/lib/auth";
+import { adminTab, useRequireAccess } from "@/lib/auth";
 import type { Holiday, Semester } from "@/lib/types";
 
 const KINDS = ["HOLIDAY", "EXAM", "CLOSED", "SPECIAL"] as const;
 
 export default function CalendarPage() {
-  const { permitted, loading: authLoading } = useRequireRole(MANAGEMENT_ROLES);
+  const { permitted, loading: authLoading } = useRequireAccess(adminTab("/admin/calendar"));
   const [rows, setRows] = useState<Holiday[]>([]);
   const [semesters, setSemesters] = useState<Semester[]>([]);
   /** Whose calendar is shown and added to. Defaults to the current semester. */

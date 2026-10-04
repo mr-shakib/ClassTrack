@@ -16,10 +16,12 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from classtrack.models import (
+    BuiltinRole,
     CheckOutcome,
     ClassInstance,
     MakeupMode,
     Role,
+    RoleKind,
     Teacher,
     User,
 )
@@ -85,14 +87,16 @@ async def assign_demo_floors(session: AsyncSession) -> dict[str, list[str]]:
     staff = list(
         (
             await session.scalars(
-                select(User).where(User.role == Role.STAFF).order_by(User.id)
+                select(User).where(User.of_kind(RoleKind.STAFF)).order_by(User.id)
             )
         ).all()
     )
     if not staff:
         return {}
 
-    admin = await session.scalar(select(User).where(User.role == Role.SUPER_ADMIN))
+    admin = await session.scalar(
+        select(User).where(User.roles.any(Role.key == BuiltinRole.SUPER_ADMIN.value))
+    )
     actor = admin or staff[0]
 
     # Deal the floors round-robin so every floor has someone and the "uncovered"
@@ -118,9 +122,11 @@ async def build(session: AsyncSession, *, days: int = 10, seed: int = 11) -> dic
     today = status_engine.now_local().date()
 
     staff = list(
-        (await session.scalars(select(User).where(User.role == Role.STAFF))).all()
+        (await session.scalars(select(User).where(User.of_kind(RoleKind.STAFF)))).all()
     )
-    admin = await session.scalar(select(User).where(User.role == Role.HOD))
+    admin = await session.scalar(
+        select(User).where(User.roles.any(Role.key == BuiltinRole.HOD.value))
+    )
     if not staff:
         return {"error": "No staff accounts. Run `classtrack seed` first."}
 
@@ -211,7 +217,7 @@ async def build(session: AsyncSession, *, days: int = 10, seed: int = 11) -> dic
             ).all()
         )
         teacher_account = await session.scalar(
-            select(User).where(User.teacher_initial == initial, User.role == Role.TEACHER)
+            select(User).where(User.teacher_initial == initial)
         )
         if teacher_account is not None:
             teacher_id = teacher_account.id

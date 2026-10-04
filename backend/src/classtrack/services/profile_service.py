@@ -14,14 +14,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from classtrack.core.errors import ValidationError
 from classtrack.core.security import hash_password, verify_password
-from classtrack.models import Role, Teacher, User
+from classtrack.models import Teacher, User
 from classtrack.services import audit_service
 from classtrack.services.account_service import MIN_PASSWORD
 
 
 async def teacher_of(session: AsyncSession, user: User) -> Teacher | None:
     """The faculty record behind a teacher's account; None for anyone else."""
-    if user.role is not Role.TEACHER or not user.teacher_initial:
+    if not user.is_teacher:
         return None
     return await session.scalar(select(Teacher).where(Teacher.initial == user.teacher_initial))
 

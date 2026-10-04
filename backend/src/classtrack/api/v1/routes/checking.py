@@ -7,9 +7,8 @@ from datetime import timedelta
 
 from fastapi import APIRouter, BackgroundTasks, Query
 
-from classtrack.api.deps import CheckingUser, ManagerUser, SessionDep
+from classtrack.api.deps import CheckerUser, DashboardUser, SessionDep
 from classtrack.core.errors import ValidationError
-from classtrack.models import Role
 from classtrack.routine.lattice import SLOTS
 from classtrack.schemas.monitoring import (
     CheckingScreen,
@@ -37,7 +36,7 @@ router = APIRouter(tags=["monitoring"])
 )
 async def rooms(
     session: SessionDep,
-    user: CheckingUser,
+    user: CheckerUser,
     on: Date | None = Query(default=None, alias="date"),
     slot: str | None = Query(default=None),
 ) -> CheckingScreen:
@@ -55,7 +54,7 @@ async def rooms(
 
     my_zones = (
         await assignment_service.zones_for_user(session, user.id)
-        if user.role is Role.STAFF
+        if user.is_staff
         else None
     )
     data = await checking_service.checking_screen(
@@ -71,7 +70,7 @@ async def rooms(
 )
 async def search(
     session: SessionDep,
-    user: CheckingUser,  # noqa: ARG001
+    user: CheckerUser,  # noqa: ARG001
     teacher: str = Query(min_length=1, max_length=16),
     start: Date | None = Query(default=None, alias="from"),
     end: Date | None = Query(default=None, alias="to"),
@@ -102,7 +101,7 @@ async def submit(
     instance_id: int,
     payload: CheckRequest,
     session: SessionDep,
-    user: CheckingUser,
+    user: CheckerUser,
     background: BackgroundTasks,
 ) -> CheckResponse:
     """Idempotent: re-submitting amends the existing check rather than adding one.
@@ -137,7 +136,7 @@ async def submit(
 
 
 @router.get("/dashboard/live", response_model=DashboardOut, summary="Live overview")
-async def dashboard(session: SessionDep, user: ManagerUser) -> DashboardOut:  # noqa: ARG001
+async def dashboard(session: SessionDep, user: DashboardUser) -> DashboardOut:  # noqa: ARG001
     return DashboardOut.model_validate(await checking_service.dashboard(session))
 
 
@@ -148,7 +147,7 @@ async def dashboard(session: SessionDep, user: ManagerUser) -> DashboardOut:  # 
 )
 async def day(
     session: SessionDep,
-    user: ManagerUser,  # noqa: ARG001
+    user: DashboardUser,  # noqa: ARG001
     on: Date | None = Query(default=None, alias="date"),
 ) -> DayStatus:
     return DayStatus.model_validate(await checking_service.day_status(session, on=on))

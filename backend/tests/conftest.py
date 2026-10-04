@@ -15,14 +15,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from classtrack.core.security import hash_password
 from classtrack.db.base import Base
 from classtrack.models import (
+    BuiltinRole,
     ClassInstance,
     ClassSession,
-    Role,
     Routine,
     Semester,
     Teacher,
     User,
 )
+from classtrack.services import role_service
 
 DHAKA = ZoneInfo("Asia/Dhaka")
 
@@ -51,7 +52,7 @@ async def staff(session: AsyncSession) -> User:
         email="staff@test.edu",
         password_hash=hash_password("x"),
         full_name="Staff",
-        role=Role.STAFF,
+        roles=[await role_service.builtin(session, BuiltinRole.STAFF)],
     )
     session.add(user)
     await session.flush()
@@ -64,7 +65,7 @@ async def hod(session: AsyncSession) -> User:
         email="hod@test.edu",
         password_hash=hash_password("x"),
         full_name="Head of Department",
-        role=Role.HOD,
+        roles=[await role_service.builtin(session, BuiltinRole.HOD)],
     )
     session.add(user)
     await session.flush()
@@ -77,7 +78,7 @@ async def associate_head(session: AsyncSession) -> User:
         email="associate@test.edu",
         password_hash=hash_password("x"),
         full_name="Associate Head",
-        role=Role.ASSOCIATE_HEAD,
+        roles=[await role_service.builtin(session, BuiltinRole.ASSOCIATE_HEAD)],
     )
     session.add(user)
     await session.flush()
@@ -90,7 +91,7 @@ async def coordinator(session: AsyncSession) -> User:
         email="coordinator@test.edu",
         password_hash=hash_password("x"),
         full_name="Coordination Officer",
-        role=Role.COORDINATION_OFFICER,
+        roles=[await role_service.builtin(session, BuiltinRole.COORDINATION_OFFICER)],
     )
     session.add(user)
     await session.flush()
@@ -103,7 +104,7 @@ async def committee(session: AsyncSession) -> User:
         email="committee@test.edu",
         password_hash=hash_password("x"),
         full_name="Committee Member",
-        role=Role.COMMITTEE,
+        roles=[await role_service.builtin(session, BuiltinRole.COMMITTEE)],
     )
     session.add(user)
     await session.flush()
@@ -118,7 +119,7 @@ async def teacher_user(session: AsyncSession) -> User:
         email="tca@test.edu",
         password_hash=hash_password("x"),
         full_name="Teacher A",
-        role=Role.TEACHER,
+        roles=[await role_service.builtin(session, BuiltinRole.TEACHER)],
         teacher_initial="TCA",
     )
     session.add(user)

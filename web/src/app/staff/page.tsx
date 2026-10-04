@@ -5,7 +5,7 @@ import RoomCard from "@/components/RoomCard";
 import TeacherSearch from "@/components/TeacherSearch";
 import { Card, EmptyState, ErrorNote, Spinner } from "@/components/ui";
 import { SLOTS, api, todayISO } from "@/lib/api";
-import { CHECKING_ROLES, OVERRIDE_ROLES, useAuth, useRequireRole } from "@/lib/auth";
+import { can, mayCheck, useAuth, useRequireAccess } from "@/lib/auth";
 import type { CheckingScreen, FloorSummary, RoomRow } from "@/lib/types";
 
 const SLOT_STATE_COPY: Record<string, { label: string; className: string }> = {
@@ -21,11 +21,11 @@ const SLOT_STATE_COPY: Record<string, { label: string; className: string }> = {
  * first and are marked, but anyone passing another floor can check it too.
  */
 export default function StaffPage() {
-  const { permitted, loading: authLoading } = useRequireRole(CHECKING_ROLES);
+  const { permitted, loading: authLoading } = useRequireAccess(mayCheck);
   const { user } = useAuth();
   // Staff can report until the end of the class's day; an admin or the
   // committee may correct it afterwards.
-  const canOverride = user != null && OVERRIDE_ROLES.includes(user.role);
+  const canOverride = can(user, "checking.correct");
 
   const [mode, setMode] = useState<"floor" | "teacher">("floor");
   const [date, setDate] = useState(todayISO());

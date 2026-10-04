@@ -7,12 +7,18 @@ from datetime import date as Date
 from fastapi import APIRouter, Query
 from sqlalchemy import select
 
-from classtrack.api.deps import AdminUser, CurrentUser, SessionDep, TeacherUser
+from classtrack.api.deps import (
+    ApproverUser,
+    CurrentUser,
+    ReschedulerUser,
+    RoomFinderUser,
+    SessionDep,
+)
 from classtrack.models import (
     ClassInstance,
     MakeupClass,
     MakeupStatus,
-    Role,
+    Permission,
     Teacher,
 )
 from classtrack.schemas.makeup import (
@@ -73,10 +79,11 @@ async def _decorate(session, makeups: list[MakeupClass]) -> list[MakeupOut]:
     summary="Validate a proposed makeup slot",
 )
 async def check_conflict(
-    payload: ConflictCheckRequest, session: SessionDep, user: TeacherUser
+    payload: ConflictCheckRequest, session: SessionDep, user: RoomFinderUser
 ) -> ConflictReportOut:
     initial = payload.teacher_initial
-    if user.role is Role.TEACHER:
+    # Only someone who reschedules for any teacher may ask about another's time.
+    if not user.can(Permission.RESCHEDULE_ANY):
         initial = user.teacher_initial
     slot, start_min, end_min = makeup_service.period_for(
         time_slot=payload.time_slot, start_time=payload.start_time
@@ -101,7 +108,7 @@ async def check_conflict(
 )
 async def free_rooms(
     session: SessionDep,
-    user: TeacherUser,  # noqa: ARG001
+    user: RoomFinderUser,  # noqa: ARG001
     on: Date = Query(alias="date"),
     time_slot: str = Query(),
 ) -> list[FreeRoomOut]:
@@ -112,7 +119,7 @@ async def free_rooms(
 
 @router.post("/makeup", response_model=MakeupOut, summary="Request a makeup class")
 async def create(
-    payload: MakeupCreateRequest, session: SessionDep, user: TeacherUser
+    payload: MakeupCreateRequest, session: SessionDep, user: ReschedulerUser
 ) -> MakeupOut:
     makeup = await makeup_service.create(
         session,
@@ -135,8 +142,8 @@ async def list_makeups(
     session: SessionDep, user: CurrentUser, status: MakeupStatus | None = None
 ) -> list[MakeupOut]:
     query = select(MakeupClass).order_by(MakeupClass.date.desc())
-    # Teachers see only their own.
-    if user.role is Role.TEACHER:
+    # Teachers see only their own, unless another role shows them everyone's.
+    if not user.sees_every_teacher:
         query = query.where(MakeupClass.teacher_initial == user.teacher_initial)
     if status is not None:
         query = query.where(MakeupClass.status == status)
@@ -148,7 +155,7 @@ async def list_makeups(
     response_model=list[MakeupOut],
     summary="Reschedule requests awaiting a decision",
 )
-async def pending(session: SessionDep, user: AdminUser) -> list[MakeupOut]:  # noqa: ARG001
+async def pending(session: SessionDep, user: ApproverUser) -> list[MakeupOut]:  # noqa: ARG001
     rows = (
         await session.scalars(
             select(MakeupClass)
@@ -165,7 +172,7 @@ async def pending(session: SessionDep, user: AdminUser) -> list[MakeupOut]:  # n
     summary="Approve or reject a reschedule request",
 )
 async def decide(
-    makeup_id: int, payload: DecisionRequest, session: SessionDep, user: AdminUser
+    makeup_id: int, payload: DecisionRequest, session: SessionDep, user: ApproverUser
 ) -> MakeupOut:
     makeup = await makeup_service.decide(
         session,
@@ -184,7 +191,7 @@ async def decide(
 async def complete(
     makeup_id: int,
     session: SessionDep,
-    user: TeacherUser,
+    user: ReschedulerUser,
     payload: CompleteRequest | None = None,
 ) -> MakeupOut:
     """The teacher marks their own class done after it ends; online needs a Drive link."""

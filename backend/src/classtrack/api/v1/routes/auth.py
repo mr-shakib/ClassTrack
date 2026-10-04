@@ -28,14 +28,14 @@ async def login(payload: LoginRequest, response: Response, session: SessionDep) 
     settings = get_settings()
     response.set_cookie(
         settings.session_cookie,
-        create_token(user.id, user.role.value),
+        create_token(user.id),
         httponly=True,
         samesite="lax",
         secure=settings.cookie_secure,
         max_age=settings.jwt_expire_hours * 3600,
         path="/",
     )
-    return UserOut.model_validate(user)
+    return UserOut.of(user)
 
 
 @router.post("/logout", response_model=Message, summary="Sign out")
@@ -46,17 +46,16 @@ async def logout(response: Response) -> Message:
 
 @router.get("/me", response_model=UserOut, summary="Current user")
 async def me(session: SessionDep, user: CurrentUser) -> UserOut:
-    out = UserOut.model_validate(user)
     teacher = await profile_service.teacher_of(session, user)
-    out.photo_url = teacher.image_url if teacher else None
-    return out
+    return UserOut.of(user, photo_url=teacher.image_url if teacher else None)
 
 
 async def _profile(session: AsyncSession, user: User) -> ProfileOut:
     teacher = await profile_service.teacher_of(session, user)
     return ProfileOut(
         full_name=user.full_name,
-        role=user.role,
+        roles=[r.name for r in user.ordered_roles],
+        is_teacher=user.is_teacher,
         # Only a teacher has an initial; it is null too if their faculty row went.
         sign_in=user.teacher_initial or user.email,
         teacher_initial=user.teacher_initial,

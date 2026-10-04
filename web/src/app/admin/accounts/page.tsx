@@ -1,36 +1,36 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, EmptyState, ErrorNote, Field, Spinner, inputClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
-import { ADMIN_ROLES, ROLE_LABELS, useRequireRole } from "@/lib/auth";
-import type { Account, Role } from "@/lib/types";
+import { adminTab, useRequireAccess } from "@/lib/auth";
+import type { Account, RoleInfo, RoleKind, User } from "@/lib/types";
 
-/** Roles created here. Teachers and office staff have their own tabs, which
- *  also bind the initial or the floors their account needs. */
-const CREATABLE: Role[] = ["HOD", "ASSOCIATE_HEAD", "COORDINATION_OFFICER", "COMMITTEE"];
-
-const ACCESS: Partial<Record<Role, string>> = {
-  HOD: "Everything: reports, approvals, accounts, routine.",
-  ASSOCIATE_HEAD: "Everything, the same as the Head.",
-  COORDINATION_OFFICER:
-    "Dashboard, day status, checking and correcting past classes, routine and calendar. No reports; cannot decide reschedule requests.",
-  COMMITTEE: "Reports classes and corrects past ones. Nothing else.",
-  STAFF: "Checks classes on the checking screen.",
-  TEACHER: "Their own classes, reports and reschedules.",
-  SUPER_ADMIN: "Everything. Kept as a fallback login.",
+const KIND_TAG: Partial<Record<RoleKind, { label: string; className: string }>> = {
+  TEACHER: { label: "teacher", className: "bg-brand-soft text-brand" },
+  STAFF: { label: "floor staff", className: "bg-info-soft text-info" },
 };
 
+/** The no-escalation rule, as the API applies it: a role can only be given by
+ *  someone who holds every permission in it. */
+const canGrant = (me: User, role: RoleInfo) =>
+  role.permissions.every((p) => me.permissions.includes(p));
+
 export default function AccountsPage() {
-  const { user, permitted, loading: authLoading } = useRequireRole(ADMIN_ROLES);
+  const { user, permitted, loading: authLoading } = useRequireAccess(adminTab("/admin/accounts"));
   const [rows, setRows] = useState<Account[]>([]);
+  const [roles, setRoles] = useState<RoleInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<Role | "">("");
+  // "": everyone but teachers, "all", or a role id.
+  const [filter, setFilter] = useState("");
 
   const load = useCallback(async () => {
     try {
-      setRows(await api.users());
+      const [users, allRoles] = await Promise.all([api.users(), api.roles()]);
+      setRows(users);
+      setRoles(allRoles);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load accounts.");
@@ -43,13 +43,18 @@ export default function AccountsPage() {
     if (permitted) void load();
   }, [permitted, load]);
 
-  if (authLoading || !permitted) return <Spinner />;
+  if (authLoading || !permitted || !user) return <Spinner />;
 
-  const shown = filter ? rows.filter((r) => r.role === filter) : rows.filter((r) => r.role !== "TEACHER");
+  const shown =
+    filter === "all"
+      ? rows
+      : filter
+        ? rows.filter((r) => r.roles.some((x) => String(x.id) === filter))
+        : rows.filter((r) => !r.teacher_initial);
 
   return (
     <div className="space-y-4">
-      <CreateAccount onCreated={load} />
+      <CreateAccount me={user} roles={roles} onCreated={load} />
 
       {error ? <ErrorNote message={error} /> : null}
 
@@ -59,12 +64,14 @@ export default function AccountsPage() {
           <select
             className={`${inputClass} ml-auto w-auto`}
             value={filter}
-            onChange={(e) => setFilter(e.target.value as Role | "")}
+            onChange={(e) => setFilter(e.target.value)}
+            aria-label="Show"
           >
             <option value="">All but teachers</option>
-            {(Object.keys(ROLE_LABELS) as Role[]).map((r) => (
-              <option key={r} value={r}>
-                {ROLE_LABELS[r]}
+            <option value="all">Everyone</option>
+            {roles.map((r) => (
+              <option key={r.id} value={String(r.id)}>
+                {r.name}
               </option>
             ))}
           </select>
@@ -76,7 +83,14 @@ export default function AccountsPage() {
         ) : (
           <ul className="divide-y divide-line">
             {shown.map((a) => (
-              <AccountRow key={a.id} account={a} self={a.id === user?.id} onChanged={load} />
+              <AccountRow
+                key={a.id}
+                account={a}
+                me={user}
+                roles={roles}
+                self={a.id === user.id}
+                onChanged={load}
+              />
             ))}
           </ul>
         )}
@@ -85,13 +99,75 @@ export default function AccountsPage() {
   );
 }
 
-function CreateAccount({ onCreated }: { onCreated: () => void }) {
-  const [form, setForm] = useState({
-    full_name: "",
-    email: "",
-    role: "COORDINATION_OFFICER" as Role,
-    password: "",
-  });
+/** Pick one or more roles. Teacher roles appear only for a teacher account; a
+ *  role this admin cannot give is shown, greyed, with the reason. */
+function RolePicker({
+  me,
+  roles,
+  selected,
+  onChange,
+  teacherAccount,
+}: {
+  me: User;
+  roles: RoleInfo[];
+  selected: number[];
+  onChange: (ids: number[]) => void;
+  teacherAccount: boolean;
+}) {
+  // A teacher account may hold any role; anyone else, no teacher role.
+  const offered = roles.filter((r) => teacherAccount || r.kind !== "TEACHER");
+  return (
+    <div className="flex flex-wrap gap-2">
+      {offered.map((r) => {
+        const on = selected.includes(r.id);
+        const allowed = canGrant(me, r);
+        const tag = KIND_TAG[r.kind];
+        return (
+          <button
+            key={r.id}
+            type="button"
+            aria-pressed={on}
+            disabled={!allowed}
+            title={
+              allowed
+                ? r.description || undefined
+                : "It grants permissions you do not have, so you cannot give or take it."
+            }
+            onClick={() => onChange(on ? selected.filter((id) => id !== r.id) : [...selected, r.id])}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium ring-1 ring-inset transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+              on
+                ? "bg-brand text-white ring-brand"
+                : "bg-surface text-ink-soft ring-line hover:bg-canvas"
+            }`}
+          >
+            {r.name}
+            {tag ? (
+              <span
+                className={`rounded px-1 text-[11px] font-semibold ${
+                  on ? "bg-white/20 text-white" : tag.className
+                }`}
+              >
+                {tag.label}
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function CreateAccount({
+  me,
+  roles,
+  onCreated,
+}: {
+  me: User;
+  roles: RoleInfo[];
+  onCreated: () => void;
+}) {
+  const [form, setForm] = useState({ full_name: "", email: "", password: "" });
+  const [roleIds, setRoleIds] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -102,9 +178,10 @@ function CreateAccount({ onCreated }: { onCreated: () => void }) {
     setError(null);
     setNotice(null);
     try {
-      const created = await api.createUser(form);
+      const created = await api.createUser({ ...form, role_ids: roleIds });
       setNotice(`${created.full_name} can now sign in as ${created.email}.`);
-      setForm({ ...form, full_name: "", email: "", password: "" });
+      setForm({ full_name: "", email: "", password: "" });
+      setRoleIds([]);
       onCreated();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not create the account.");
@@ -117,61 +194,65 @@ function CreateAccount({ onCreated }: { onCreated: () => void }) {
     <Card className="p-4">
       <h2 className="text-sm font-semibold">New account</h2>
       <p className="mt-1 text-sm text-ink-soft">
-        Teachers get their sign-in from the Teachers tab, office staff from Staff coverage.
+        Teachers get their sign-in from the Teachers tab, which links their initial. Give a
+        staff role here and assign floors in Staff coverage.{" "}
+        <Link href="/admin/roles" className="font-medium text-brand hover:underline">
+          What each role can do
+        </Link>
       </p>
-      <form onSubmit={submit} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Field label="Full name">
-          <input
-            required
-            className={inputClass}
-            value={form.full_name}
-            onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+      <form onSubmit={submit} className="mt-3 space-y-3">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Full name">
+            <input
+              required
+              className={inputClass}
+              value={form.full_name}
+              onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+            />
+          </Field>
+          <Field label="Email">
+            <input
+              required
+              type="email"
+              className={inputClass}
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+            />
+          </Field>
+          <Field label="Password" hint="At least 6 characters.">
+            <input
+              required
+              minLength={6}
+              type="password"
+              autoComplete="new-password"
+              className={inputClass}
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+            />
+          </Field>
+        </div>
+        <div>
+          <p className="mb-1.5 text-sm font-medium text-ink-soft">
+            Roles <span className="font-normal text-ink-faint">— one or more</span>
+          </p>
+          <RolePicker
+            me={me}
+            roles={roles}
+            selected={roleIds}
+            onChange={setRoleIds}
+            teacherAccount={false}
           />
-        </Field>
-        <Field label="Email">
-          <input
-            required
-            type="email"
-            className={inputClass}
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-          />
-        </Field>
-        <Field label="Role" hint={ACCESS[form.role]}>
-          <select
-            className={inputClass}
-            value={form.role}
-            onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
-          >
-            {CREATABLE.map((r) => (
-              <option key={r} value={r}>
-                {ROLE_LABELS[r]}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Password" hint="At least 6 characters.">
-          <input
-            required
-            minLength={6}
-            type="password"
-            autoComplete="new-password"
-            className={inputClass}
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-          />
-        </Field>
-        <div className="flex items-center gap-3 sm:col-span-2 lg:col-span-4">
-          <Button type="submit" disabled={busy}>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="submit" disabled={busy || roleIds.length === 0}>
             {busy ? "Creating…" : "Create account"}
           </Button>
+          {roleIds.length === 0 ? (
+            <span className="text-sm text-ink-faint">Pick at least one role.</span>
+          ) : null}
           {notice ? <span className="text-sm text-ok">{notice}</span> : null}
         </div>
-        {error ? (
-          <div className="sm:col-span-2 lg:col-span-4">
-            <ErrorNote message={error} />
-          </div>
-        ) : null}
+        {error ? <ErrorNote message={error} /> : null}
       </form>
     </Card>
   );
@@ -179,10 +260,14 @@ function CreateAccount({ onCreated }: { onCreated: () => void }) {
 
 function AccountRow({
   account: a,
+  me,
+  roles,
   self,
   onChanged,
 }: {
   account: Account;
+  me: User;
+  roles: RoleInfo[];
   self: boolean;
   onChanged: () => void;
 }) {
@@ -190,6 +275,8 @@ function AccountRow({
   const [error, setError] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
   const [password, setPassword] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [roleIds, setRoleIds] = useState<number[]>(a.roles.map((r) => r.id));
 
   const update = async (payload: Parameters<typeof api.updateUser>[1]) => {
     setBusy(true);
@@ -197,6 +284,7 @@ function AccountRow({
     try {
       await api.updateUser(a.id, payload);
       setResetting(false);
+      setEditing(false);
       setPassword("");
       onChanged();
     } catch (err) {
@@ -206,8 +294,8 @@ function AccountRow({
     }
   };
 
-  // Teachers and staff keep their role: each is bound to an initial or floors.
-  const fixedRole = a.role === "TEACHER" || a.role === "STAFF";
+  const unchanged =
+    roleIds.length === a.roles.length && a.roles.every((r) => roleIds.includes(r.id));
 
   return (
     <li className={`px-4 py-3 ${a.is_active ? "" : "opacity-60"}`}>
@@ -227,24 +315,25 @@ function AccountRow({
             {a.teacher_initial ? ` · ${a.teacher_initial}` : ""}
           </p>
         </div>
-        {fixedRole || self ? (
-          <span className="rounded-lg bg-canvas px-2.5 py-1 text-sm text-ink-soft">
-            {ROLE_LABELS[a.role]}
-          </span>
-        ) : (
-          <select
-            className={`${inputClass} w-auto`}
-            value={a.role}
+        <div className="flex flex-wrap gap-1.5">
+          {a.roles.map((r) => (
+            <span key={r.id} className="rounded-lg bg-canvas px-2.5 py-1 text-sm text-ink-soft">
+              {r.name}
+            </span>
+          ))}
+        </div>
+        {!self ? (
+          <Button
+            variant="ghost"
             disabled={busy}
-            onChange={(e) => update({ role: e.target.value as Role })}
+            onClick={() => {
+              setRoleIds(a.roles.map((r) => r.id));
+              setEditing((v) => !v);
+            }}
           >
-            {[...CREATABLE, ...(CREATABLE.includes(a.role) ? [] : [a.role])].map((r) => (
-              <option key={r} value={r}>
-                {ROLE_LABELS[r]}
-              </option>
-            ))}
-          </select>
-        )}
+            Change roles
+          </Button>
+        ) : null}
         <Button variant="ghost" disabled={busy} onClick={() => setResetting((v) => !v)}>
           Reset password
         </Button>
@@ -258,6 +347,31 @@ function AccountRow({
           </Button>
         ) : null}
       </div>
+      {editing ? (
+        <div className="mt-3 space-y-2 rounded-xl bg-canvas p-3">
+          <RolePicker
+            me={me}
+            roles={roles}
+            selected={roleIds}
+            onChange={setRoleIds}
+            teacherAccount={!!a.teacher_initial}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              disabled={busy || unchanged || roleIds.length === 0}
+              onClick={() => update({ role_ids: roleIds })}
+            >
+              Save roles
+            </Button>
+            <Button variant="ghost" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+            {roleIds.length === 0 ? (
+              <span className="text-sm text-ink-faint">An account keeps at least one role.</span>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       {resetting ? (
         <form
           className="mt-2 flex flex-wrap gap-2"

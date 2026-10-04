@@ -1,78 +1,87 @@
-"""Accounts and roles.
+"""Accounts.
 
-A TEACHER account is joined to its routine rows through ``teacher_initial``,
-because the routine itself carries the initial rather than a faculty id.
+A person holds one or more roles (``models/access.py``) and may do whatever any
+of them permits. What they *are* comes from the roles' kinds: a teacher is an
+account with a faculty initial and a teacher-kind role, joined to its routine
+rows through ``teacher_initial`` because the routine carries the initial rather
+than a faculty id; office staff hold a staff-kind role and check floors.
 """
 
 from __future__ import annotations
 
-import enum
-
-from sqlalchemy import Boolean, Enum, ForeignKey, Index, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from classtrack.db.base import Base, TimestampMixin
-
-
-class Role(str, enum.Enum):
-    #: Kept as a fallback login; the Head and Associate Head hold the same rights.
-    SUPER_ADMIN = "SUPER_ADMIN"
-    HOD = "HOD"
-    #: Deputy to the HoD, with the same permissions.
-    ASSOCIATE_HEAD = "ASSOCIATE_HEAD"
-    #: Runs day-to-day monitoring: the live dashboard, the routine, the calendar
-    #: and staff coverage, and corrects past checks. Sees no reports and decides
-    #: no reschedule requests.
-    COORDINATION_OFFICER = "COORDINATION_OFFICER"
-    #: Reports classes and corrects a past check, nothing more.
-    COMMITTEE = "COMMITTEE"
-    STAFF = "STAFF"
-    TEACHER = "TEACHER"
-
-
-#: Full administration: reports, approvals, accounts and semesters.
-ADMIN_ROLES = (Role.HOD, Role.ASSOCIATE_HEAD, Role.SUPER_ADMIN)
-#: Day-to-day management: the live views and the admin screens, but not the
-#: reports or the approval queue.
-MANAGEMENT_ROLES = (*ADMIN_ROLES, Role.COORDINATION_OFFICER)
-#: Roles permitted to correct a check after its day is over.
-OVERRIDE_ROLES = (*MANAGEMENT_ROLES, Role.COMMITTEE)
-#: Roles permitted to submit a classroom check.
-CHECKING_ROLES = (Role.STAFF, *OVERRIDE_ROLES)
+from classtrack.models.access import Permission, Role, RoleKind, user_role
 
 
 class User(Base, TimestampMixin):
     __tablename__ = "user"
-    __table_args__ = (
-        Index("ix_user_role", "role"),
-        Index("ix_user_teacher_initial", "teacher_initial"),
-    )
+    __table_args__ = (Index("ix_user_teacher_initial", "teacher_initial"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[Role] = mapped_column(Enum(Role, native_enum=False), nullable=False)
 
-    #: Links the account to its routine rows. Required for TEACHER, else null.
-    #: A TEACHER without it sees an empty schedule, so creation validates it.
+    #: Links a teacher account to its routine rows. Set only on teacher
+    #: accounts, and required for one: without it the schedule is empty.
     teacher_initial: Mapped[str | None] = mapped_column(
         String(16), ForeignKey("teacher.initial", ondelete="SET NULL")
     )
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    @property
-    def is_admin(self) -> bool:
-        return self.role in ADMIN_ROLES
+    #: Loaded with the user, so a permission check never waits on a lazy load.
+    roles: Mapped[list[Role]] = relationship(secondary=user_role, lazy="selectin", order_by=Role.id)
+
+    @classmethod
+    def of_kind(cls, kind: RoleKind):
+        """In a query: accounts holding a role of this kind."""
+        return cls.roles.any(Role.kind == kind)
 
     @property
-    def is_manager(self) -> bool:
-        return self.role in MANAGEMENT_ROLES
+    def ordered_roles(self) -> list[Role]:
+        """What the person is first -- teacher, then floor staff -- then the rest."""
+        rank = {RoleKind.TEACHER: 0, RoleKind.STAFF: 1, RoleKind.OFFICE: 2}
+        return sorted(self.roles, key=lambda r: (rank[r.kind], r.id))
 
     @property
-    def can_override(self) -> bool:
-        return self.role in OVERRIDE_ROLES
+    def permissions(self) -> frozenset[Permission]:
+        granted: set[Permission] = set()
+        for role in self.roles:
+            granted |= role.granted
+        return frozenset(granted)
+
+    def can(self, *permissions: Permission) -> bool:
+        """Whether any of the user's roles grants any of these."""
+        held = self.permissions
+        return any(p in held for p in permissions)
+
+    @property
+    def is_teacher(self) -> bool:
+        return self.teacher_initial is not None and any(
+            r.kind is RoleKind.TEACHER for r in self.roles
+        )
+
+    @property
+    def is_staff(self) -> bool:
+        return any(r.kind is RoleKind.STAFF for r in self.roles)
+
+    @property
+    def sees_every_teacher(self) -> bool:
+        """May look at any teacher's classes, not only their own.
+
+        Someone who is not a teacher always could. A teacher can when another of
+        their roles gives them a department-wide view.
+        """
+        return not self.is_teacher or self.can(
+            Permission.DEPARTMENT_REPORTS,
+            Permission.VIEW_DASHBOARD,
+            Permission.RESCHEDULE_ANY,
+            Permission.CORRECT_CHECKS,
+        )
 
     def __repr__(self) -> str:
-        return f"<User {self.email} {self.role.value}>"
+        return f"<User {self.email} {[r.key for r in self.roles]}>"

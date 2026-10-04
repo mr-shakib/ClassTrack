@@ -5,20 +5,31 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { ADMIN_ROLES, CHECKING_ROLES, MANAGEMENT_ROLES, ROLE_LABELS, useAuth } from "@/lib/auth";
-import type { Role, User } from "@/lib/types";
+import {
+  ADMIN_TABS,
+  mayCheck,
+  mayDecide,
+  mayReadReports,
+  mayReport,
+  mayWatch,
+  roleNames,
+  useAuth,
+} from "@/lib/auth";
+import type { User } from "@/lib/types";
 import { Avatar } from "./Avatar";
 import { ChevronDownIcon, LockIcon, SignOutIcon, UserIcon } from "./icons";
 
-const NAV: { href: string; label: string; roles: Role[] }[] = [
-  { href: "/staff", label: "Checking", roles: CHECKING_ROLES },
-  { href: "/dashboard", label: "Dashboard", roles: MANAGEMENT_ROLES },
-  { href: "/today", label: "Day status", roles: MANAGEMENT_ROLES },
-  { href: "/unreported", label: "Unreported", roles: ADMIN_ROLES },
-  { href: "/teacher", label: "My classes", roles: ["TEACHER"] },
-  { href: "/approvals", label: "Approvals", roles: ADMIN_ROLES },
-  { href: "/reports", label: "Reports", roles: ["TEACHER", ...ADMIN_ROLES] },
-  { href: "/admin", label: "Admin", roles: MANAGEMENT_ROLES },
+/** `section`: the path prefix that marks the link current, when wider than `href`. */
+type NavLink = { href: string; label: string; may: (u: User) => boolean; section?: string };
+
+const NAV: NavLink[] = [
+  { href: "/staff", label: "Checking", may: mayCheck },
+  { href: "/dashboard", label: "Dashboard", may: mayWatch },
+  { href: "/today", label: "Day status", may: mayWatch },
+  { href: "/unreported", label: "Unreported", may: mayReport },
+  { href: "/teacher", label: "My classes", may: (u) => u.is_teacher },
+  { href: "/approvals", label: "Approvals", may: mayDecide },
+  { href: "/reports", label: "Reports", may: mayReadReports },
 ];
 
 function Bell() {
@@ -154,8 +165,8 @@ function AccountMenu({ user, onSignOut }: { user: User; onSignOut: () => void })
           <span className="block max-w-48 truncate text-sm font-semibold leading-tight text-ink">
             {user.full_name}
           </span>
-          <span className="block text-xs leading-tight text-ink-faint">
-            {ROLE_LABELS[user.role]}
+          <span className="block max-w-48 truncate text-xs leading-tight text-ink-faint">
+            {roleNames(user)}
           </span>
         </span>
         <ChevronDownIcon
@@ -184,8 +195,8 @@ function AccountMenu({ user, onSignOut }: { user: User; onSignOut: () => void })
                 <p className="break-words text-base font-semibold leading-snug text-ink">
                   {user.full_name}
                 </p>
-                <p className="truncate text-sm text-ink-soft">
-                  {ROLE_LABELS[user.role]}
+                <p className="text-sm text-ink-soft">
+                  {roleNames(user)}
                   {user.teacher_initial ? ` · ${user.teacher_initial}` : ""}
                 </p>
               </div>
@@ -239,7 +250,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   if (!user) return <>{children}</>;
 
-  const links = NAV.filter((n) => n.roles.includes(user.role));
+  const links: NavLink[] = NAV.filter((n) => n.may(user));
+  // The admin area opens on the first tab this user may use.
+  const firstAdminTab = ADMIN_TABS.find((t) => t.may(user));
+  if (firstAdminTab) {
+    links.push({ href: firstAdminTab.href, label: "Admin", may: () => true, section: "/admin" });
+  }
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -261,8 +277,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
           <nav className="order-last -mx-1 flex w-full items-center gap-1 overflow-x-auto md:order-none md:mx-0 md:w-auto md:flex-1 md:gap-0.5">
             {links.map((link) => {
-              const active =
-                pathname === link.href || pathname.startsWith(`${link.href}/`);
+              const base = link.section ?? link.href;
+              const active = pathname === base || pathname.startsWith(`${base}/`);
               return (
                 <Link
                   key={link.href}

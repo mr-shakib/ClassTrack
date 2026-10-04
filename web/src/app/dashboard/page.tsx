@@ -6,13 +6,15 @@ import { ExtraTag, RescheduledTag, rescheduledRowClass } from "@/components/Resc
 import StatusBadge from "@/components/StatusBadge";
 import { Card, EmptyState, ErrorNote, Spinner, SummaryCard } from "@/components/ui";
 import { api } from "@/lib/api";
-import { ADMIN_ROLES, MANAGEMENT_ROLES, useRequireRole } from "@/lib/auth";
+import { mayDecide, mayReport, mayWatch, useRequireAccess } from "@/lib/auth";
 import type { Dashboard } from "@/lib/types";
 
 export default function DashboardPage() {
-  const { user, permitted, loading: authLoading } = useRequireRole(MANAGEMENT_ROLES);
+  const { user, permitted, loading: authLoading } = useRequireAccess(mayWatch);
   // The Coordination Officer sees the queue's size but cannot decide it.
-  const canApprove = user != null && ADMIN_ROLES.includes(user.role);
+  // The tiles link on only where the user may follow.
+  const seesUnreported = user != null && mayReport(user);
+  const decides = user != null && mayDecide(user);
   const [data, setData] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -101,15 +103,15 @@ export default function DashboardPage() {
             label="Not checked"
             value={a?.not_checked_today ?? 0}
             tone="text-gap"
-            note={canApprove ? "see who" : undefined}
-            href={canApprove ? "/unreported" : undefined}
+            note={seesUnreported ? "see who" : undefined}
+            href={seesUnreported ? "/unreported" : undefined}
           />
           <Attention
             label="Online requests"
             value={a?.pending_online ?? 0}
             tone="text-warn"
-            note={canApprove ? "to decide" : undefined}
-            href={canApprove ? "/approvals" : undefined}
+            note={decides ? "to decide" : undefined}
+            href={decides ? "/approvals" : undefined}
           />
           <Attention
             label="Pending makeups"

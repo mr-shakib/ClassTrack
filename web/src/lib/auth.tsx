@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "./api";
-import type { Role, User } from "./types";
+import type { Permission, User } from "./types";
 
 interface AuthState {
   user: User | null;
@@ -19,36 +19,58 @@ const AuthContext = createContext<AuthState>({
   signOut: async () => {},
 });
 
-/** Full administration: reports, approvals, accounts. Mirrors ADMIN_ROLES in the API. */
-export const ADMIN_ROLES: Role[] = ["HOD", "ASSOCIATE_HEAD", "SUPER_ADMIN"];
-/** The live views and admin screens: admins plus the Coordination Officer. */
-export const MANAGEMENT_ROLES: Role[] = [...ADMIN_ROLES, "COORDINATION_OFFICER"];
-/** Roles that may correct a check after its day is over. */
-export const OVERRIDE_ROLES: Role[] = [...MANAGEMENT_ROLES, "COMMITTEE"];
-/** How each role is named on screen. */
-export const ROLE_LABELS: Record<Role, string> = {
-  SUPER_ADMIN: "Super admin",
-  HOD: "Head of Department",
-  ASSOCIATE_HEAD: "Associate Head",
-  COORDINATION_OFFICER: "Coordination Officer",
-  COMMITTEE: "Committee member",
-  STAFF: "Office staff",
-  TEACHER: "Teacher",
-};
+/** Whether the user holds any of these permissions. The screens hide what a
+ *  user cannot use; the API checks again on every request. */
+export function can(user: User | null | undefined, ...permissions: Permission[]): boolean {
+  return !!user && permissions.some((p) => user.permissions.includes(p));
+}
 
-/** Roles that may open the checking screen. */
-export const CHECKING_ROLES: Role[] = ["STAFF", ...OVERRIDE_ROLES];
+/** The names of the user's roles, as the header and menus show them. */
+export const roleNames = (user: User) => user.roles.map((r) => r.name).join(" · ");
 
-/** Where each role lands after signing in. */
-export const HOME_FOR: Record<Role, string> = {
-  STAFF: "/staff",
-  TEACHER: "/teacher",
-  COMMITTEE: "/staff",
-  COORDINATION_OFFICER: "/dashboard",
-  HOD: "/dashboard",
-  ASSOCIATE_HEAD: "/dashboard",
-  SUPER_ADMIN: "/dashboard",
-};
+// --- who may open which screen ------------------------------------------------
+// Module-level so the gate hooks get the same function on every render.
+
+export const mayCheck = (u: User) => can(u, "checking.submit", "checking.correct");
+export const mayWatch = (u: User) => can(u, "dashboard.view");
+export const mayReport = (u: User) => can(u, "reports.department");
+export const mayDecide = (u: User) => can(u, "reschedules.decide");
+export const mayReadReports = (u: User) => u.is_teacher || mayReport(u);
+/** My classes: a teacher's own, or any teacher's for someone who reschedules for them. */
+export const mayTeach = (u: User) => u.is_teacher || can(u, "reschedules.any_teacher");
+export const mayReschedule = (u: User) =>
+  (u.is_teacher && can(u, "reschedules.request")) || can(u, "reschedules.any_teacher");
+export const mayBookExtra = (u: User) => u.is_teacher && can(u, "extra_classes.book");
+export const everyone = () => true;
+
+/** The admin area's tabs, each with what opens it. */
+export const ADMIN_TABS: { href: string; label: string; may: (u: User) => boolean }[] = [
+  { href: "/admin", label: "Routine", may: (u) => can(u, "routine.manage") },
+  { href: "/admin/staff", label: "Staff coverage", may: (u) => can(u, "staff.manage") },
+  { href: "/admin/teachers", label: "Teachers", may: (u) => can(u, "teachers.manage") },
+  { href: "/admin/accounts", label: "Accounts", may: (u) => can(u, "accounts.manage") },
+  { href: "/admin/roles", label: "Roles", may: (u) => can(u, "roles.manage") },
+  {
+    href: "/admin/semesters",
+    label: "Semesters",
+    may: (u) => can(u, "semesters.manage", "routine.manage", "calendar.manage"),
+  },
+  { href: "/admin/calendar", label: "Calendar", may: (u) => can(u, "calendar.manage") },
+  { href: "/admin/settings", label: "Rules", may: (u) => can(u, "settings.manage") },
+  { href: "/admin/audit", label: "Audit log", may: (u) => can(u, "audit.view") },
+];
+
+export const adminTab = (href: string) => ADMIN_TABS.find((t) => t.href === href)!.may;
+
+/** Where a user lands after signing in: the first screen their work starts on. */
+export function homeFor(user: User): string {
+  if (user.is_teacher) return "/teacher";
+  if (mayWatch(user)) return "/dashboard";
+  if (mayCheck(user)) return "/staff";
+  if (mayReport(user)) return "/reports";
+  if (mayDecide(user)) return "/approvals";
+  return ADMIN_TABS.find((t) => t.may(user))?.href ?? "/profile";
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -86,11 +108,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export const useAuth = () => useContext(AuthContext);
 
 /**
- * Client-side role gate. Cosmetic only -- it hides what a user cannot use, and
- * redirects them somewhere sensible. Every endpoint enforces its own roles
- * server-side, which is the actual security boundary.
+ * Client-side gate. Cosmetic only -- it hides what a user cannot use, and
+ * redirects them somewhere sensible. Every endpoint enforces its own
+ * permissions server-side, which is the actual security boundary.
+ *
+ * Pass a module-level function, so it is the same one on every render.
  */
-export function useRequireRole(allowed: Role[]) {
+export function useRequireAccess(may: (user: User) => boolean) {
   const { user, loading } = useAuth();
   const router = useRouter();
 
@@ -98,10 +122,10 @@ export function useRequireRole(allowed: Role[]) {
     if (loading) return;
     if (!user) {
       router.replace("/login");
-    } else if (!allowed.includes(user.role)) {
-      router.replace(HOME_FOR[user.role]);
+    } else if (!may(user)) {
+      router.replace(homeFor(user));
     }
-  }, [user, loading, allowed, router]);
+  }, [user, loading, may, router]);
 
-  return { user, loading, permitted: !!user && allowed.includes(user.role) };
+  return { user, loading, permitted: !!user && may(user) };
 }

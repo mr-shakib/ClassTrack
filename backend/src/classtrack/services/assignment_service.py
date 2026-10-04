@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from classtrack.core.errors import NotFoundError, ValidationError
 from classtrack.core.security import hash_password
-from classtrack.models import ClassSession, Role, Routine, StaffZone, Teacher, User
-from classtrack.services import audit_service, zones
+from classtrack.models import BuiltinRole, ClassSession, Routine, StaffZone, Teacher, User
+from classtrack.services import audit_service, role_service, zones
 
 #: A staff sign-in without an "@". Kept free of spaces and "@" so it can never
 #: be mistaken for an email address at sign-in.
@@ -105,8 +105,8 @@ async def create_staff(
     member = User(
         email=email,
         full_name=full_name.strip(),
-        role=Role.STAFF,
         password_hash=hash_password(password),
+        roles=[await role_service.builtin(session, BuiltinRole.STAFF)],
     )
     session.add(member)
     await session.flush()
@@ -137,10 +137,10 @@ async def set_zones(
     target = await session.get(User, user_id)
     if target is None:
         raise NotFoundError(f"No user with id {user_id}")
-    if target.role is not Role.STAFF:
+    if not target.is_staff:
         raise ValidationError(
-            "Only office staff accounts are assigned to floors.",
-            detail={"role": target.role.value},
+            "Only accounts holding a staff role are assigned to floors.",
+            detail={"roles": [r.name for r in target.roles]},
         )
 
     known = {str(z["key"]) for z in await available_zones(session)}

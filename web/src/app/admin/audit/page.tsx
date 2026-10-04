@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Card, EmptyState, ErrorNote, Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
-import { MANAGEMENT_ROLES, useRequireRole } from "@/lib/auth";
+import { adminTab, useRequireAccess } from "@/lib/auth";
 import type { AuditEntry } from "@/lib/types";
 
 const ACTION_LABEL: Record<string, string> = {
@@ -23,10 +23,16 @@ const ACTION_LABEL: Record<string, string> = {
   contact_email_changed: "Absence email changed",
   extra_class_booked: "Extra class booked",
   extra_class_cancelled: "Extra class cancelled",
+  user_created: "Account created",
+  user_updated: "Account changed",
+  roles_changed: "Roles changed",
+  role_created: "Role created",
+  role_updated: "Role changed",
+  role_deleted: "Role deleted",
 };
 
 export default function AuditPage() {
-  const { permitted, loading: authLoading } = useRequireRole(MANAGEMENT_ROLES);
+  const { permitted, loading: authLoading } = useRequireAccess(adminTab("/admin/audit"));
   const [rows, setRows] = useState<AuditEntry[]>([]);
   const [filter, setFilter] = useState("");
   const [loading, setLoading] = useState(true);
@@ -56,7 +62,7 @@ export default function AuditPage() {
       <Card className="p-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-ink-soft">Entity</span>
-          {["", "class_instance", "makeup_class", "routine", "setting", "holiday"].map(
+          {["", "class_instance", "makeup_class", "routine", "setting", "holiday", "user", "role"].map(
             (t) => (
               <button
                 key={t || "all"}

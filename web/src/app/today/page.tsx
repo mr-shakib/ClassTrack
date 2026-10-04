@@ -7,7 +7,7 @@ import StatusBadge from "@/components/StatusBadge";
 import { Card, EmptyState, ErrorNote, Field, Spinner, inputClass } from "@/components/ui";
 import { SLOTS, api, todayISO } from "@/lib/api";
 import { teacherMatcher } from "@/lib/search";
-import { MANAGEMENT_ROLES, useRequireRole } from "@/lib/auth";
+import { mayWatch, useRequireAccess } from "@/lib/auth";
 import type { DayRow, DayStatus, Outcome } from "@/lib/types";
 
 type Filter = {
@@ -28,7 +28,7 @@ const EMPTY: Filter = { q: "", floor: "", slot: "", outcome: "", makeupOnly: fal
  * rows, so filtering happens here, on every keystroke, without a round trip.
  */
 export default function DayStatusPage() {
-  const { permitted, loading: authLoading } = useRequireRole(MANAGEMENT_ROLES);
+  const { permitted, loading: authLoading } = useRequireAccess(mayWatch);
   const [date, setDate] = useState(todayISO());
   const [data, setData] = useState<DayStatus | null>(null);
   const [error, setError] = useState<string | null>(null);

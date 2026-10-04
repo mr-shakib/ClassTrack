@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from classtrack.core.errors import AuthError
 from classtrack.core.security import verify_password
-from classtrack.models import Role, User
+from classtrack.models import User
 
 
 async def authenticate(session: AsyncSession, username: str, password: str) -> User:
@@ -27,9 +27,7 @@ async def authenticate(session: AsyncSession, username: str, password: str) -> U
         user = await session.scalar(by_email)
     else:
         user = await session.scalar(
-            select(User).where(
-                User.role == Role.TEACHER, User.teacher_initial == username.upper()
-            )
+            select(User).where(User.teacher_initial == username.upper())
         ) or await session.scalar(by_email)
     if user is None or not user.is_active or not verify_password(password, user.password_hash):
         raise AuthError("Invalid credentials")

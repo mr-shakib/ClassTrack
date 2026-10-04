@@ -14,7 +14,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import Response
 from sqlalchemy import select
 
-from classtrack.api.deps import AdminUser, CurrentUser, SessionDep, scope_report_teacher
+from classtrack.api.deps import CurrentUser, ReportsUser, SessionDep, scope_report_teacher
 from classtrack.core.errors import ValidationError
 from classtrack.models import Semester, Term
 from classtrack.routine.lattice import SLOTS
@@ -86,7 +86,7 @@ async def semesters(session: SessionDep, user: CurrentUser) -> list[ReportSemest
 @router.get("/daily", response_model=DailyReport, summary="One day's summary")
 async def daily(
     session: SessionDep,
-    user: AdminUser,  # noqa: ARG001
+    user: ReportsUser,  # noqa: ARG001
     on: Date | None = Query(default=None, alias="date"),
 ) -> DailyReport:
     on = on or status_engine.now_local().date()
@@ -178,7 +178,7 @@ def _filters(
 )
 async def overview(
     session: SessionDep,
-    user: AdminUser,  # noqa: ARG001
+    user: ReportsUser,  # noqa: ARG001
     start: Date | None = Query(default=None, alias="from"),
     end: Date | None = Query(default=None, alias="to"),
     teacher: str | None = None,
@@ -206,7 +206,7 @@ async def overview(
 @router.get("/overview/pdf", summary="Department summary as a PDF")
 async def overview_pdf(
     session: SessionDep,
-    user: AdminUser,  # noqa: ARG001
+    user: ReportsUser,  # noqa: ARG001
     start: Date | None = Query(default=None, alias="from"),
     end: Date | None = Query(default=None, alias="to"),
     teacher: str | None = None,
@@ -235,7 +235,7 @@ async def overview_pdf(
 @router.get("/staff", response_model=StaffReport, summary="Monitoring completion")
 async def staff(
     session: SessionDep,
-    user: AdminUser,  # noqa: ARG001
+    user: ReportsUser,  # noqa: ARG001
     start: Date | None = Query(default=None, alias="from"),
     end: Date | None = Query(default=None, alias="to"),
     semester: int | None = None,
@@ -256,7 +256,7 @@ async def staff(
 )
 async def unreported(
     session: SessionDep,
-    user: AdminUser,  # noqa: ARG001
+    user: ReportsUser,  # noqa: ARG001
     start: Date | None = Query(default=None, alias="from"),
     end: Date | None = Query(default=None, alias="to"),
 ) -> UnreportedReport:

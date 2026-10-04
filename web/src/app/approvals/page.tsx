@@ -4,12 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { shortDay } from "@/components/Rescheduled";
 import { Button, Card, EmptyState, ErrorNote, Spinner, inputClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
-import { ADMIN_ROLES, useRequireRole } from "@/lib/auth";
+import { mayDecide, useRequireAccess } from "@/lib/auth";
 import { teacherMatcher } from "@/lib/search";
 import type { Makeup, MakeupMode } from "@/lib/types";
 
 export default function ApprovalsPage() {
-  const { permitted, loading: authLoading } = useRequireRole(ADMIN_ROLES);
+  const { permitted, loading: authLoading } = useRequireAccess(mayDecide);
   const [rows, setRows] = useState<Makeup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

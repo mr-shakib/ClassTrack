@@ -15,14 +15,15 @@ from classtrack.core.security import hash_password
 from classtrack.db.session import dispose_engine, get_sessionmaker
 from classtrack.models import (
     SETTING_DEFAULTS,
+    BuiltinRole,
     Routine,
     Semester,
     Setting,
     Teacher,
     User,
 )
-from classtrack.models.user import Role
 from classtrack.routine.normalizer import split_name_initial
+from classtrack.services import role_service
 
 DEFAULT_PASSWORD = "classtrack"
 
@@ -43,13 +44,13 @@ def _find_teachers_file() -> Path | None:
 
 #: Demo accounts. The teacher account is bound to a real initial at seed time.
 _ACCOUNTS = [
-    ("admin@diu.edu", "Department Admin", Role.SUPER_ADMIN, None),
-    ("hod@diu.edu", "Head of Department", Role.HOD, None),
-    ("associate@diu.edu", "Associate Head", Role.ASSOCIATE_HEAD, None),
-    ("coordinator@diu.edu", "Coordination Officer", Role.COORDINATION_OFFICER, None),
-    ("committee@diu.edu", "Committee Member", Role.COMMITTEE, None),
-    ("staff1@diu.edu", "Office Staff One", Role.STAFF, None),
-    ("staff2@diu.edu", "Office Staff Two", Role.STAFF, None),
+    ("admin@diu.edu", "Department Admin", BuiltinRole.SUPER_ADMIN, None),
+    ("hod@diu.edu", "Head of Department", BuiltinRole.HOD, None),
+    ("associate@diu.edu", "Associate Head", BuiltinRole.ASSOCIATE_HEAD, None),
+    ("coordinator@diu.edu", "Coordination Officer", BuiltinRole.COORDINATION_OFFICER, None),
+    ("committee@diu.edu", "Committee Member", BuiltinRole.COMMITTEE, None),
+    ("staff1@diu.edu", "Office Staff One", BuiltinRole.STAFF, None),
+    ("staff2@diu.edu", "Office Staff Two", BuiltinRole.STAFF, None),
 ]
 
 
@@ -118,8 +119,9 @@ async def seed(teachers_path: Path | None = None) -> None:
         head = await session.scalar(select(Teacher).where(Teacher.initial == "SRH"))
         accounts = list(_ACCOUNTS)
         if head is not None:
-            accounts.append(("teacher@diu.edu", head.name, Role.TEACHER, head.initial))
+            accounts.append(("teacher@diu.edu", head.name, BuiltinRole.TEACHER, head.initial))
 
+        roles = await role_service.ensure_builtin_roles(session)
         created = 0
         for email, name, role, initial in accounts:
             if await session.scalar(select(User).where(User.email == email)):
@@ -129,8 +131,8 @@ async def seed(teachers_path: Path | None = None) -> None:
                     email=email,
                     password_hash=hash_password(DEFAULT_PASSWORD),
                     full_name=name,
-                    role=role,
                     teacher_initial=initial,
+                    roles=[roles[role.value]],
                 )
             )
             created += 1

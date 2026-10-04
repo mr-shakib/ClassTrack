@@ -7,10 +7,8 @@ import { type Period, currentMonthPeriod } from "@/components/reports/PeriodPick
 import StaffReportView from "@/components/reports/StaffReportView";
 import TeacherReportView from "@/components/reports/TeacherReportView";
 import { Spinner } from "@/components/ui";
-import { ADMIN_ROLES, useAuth, useRequireRole } from "@/lib/auth";
-import type { Role } from "@/lib/types";
+import { mayReadReports, mayReport, useAuth, useRequireAccess } from "@/lib/auth";
 
-const REPORT_ROLES: Role[] = ["TEACHER", ...ADMIN_ROLES];
 
 type Tab = "overview" | "daily" | "teacher" | "staff";
 
@@ -23,8 +21,9 @@ const TABS: { key: Tab; label: string; admin: boolean }[] = [
 
 export default function ReportsPage() {
   const { user } = useAuth();
-  const { permitted, loading } = useRequireRole(REPORT_ROLES);
-  const isAdmin = user != null && ADMIN_ROLES.includes(user.role);
+  const { permitted, loading } = useRequireAccess(mayReadReports);
+  // Department reports: every tab, and any teacher's report.
+  const isAdmin = user != null && mayReport(user);
 
   const [tab, setTab] = useState<Tab>("teacher");
   const [teacher, setTeacher] = useState({ initial: "", period: currentMonthPeriod() });

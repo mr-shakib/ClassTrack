@@ -11,7 +11,7 @@ import {
   inputClass,
 } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
-import { ADMIN_ROLES, MANAGEMENT_ROLES, useAuth, useRequireRole } from "@/lib/auth";
+import { adminTab, can, useAuth, useRequireAccess } from "@/lib/auth";
 import type { Routine, Semester, SemesterDates } from "@/lib/types";
 
 const BLANK: SemesterDates = {
@@ -45,9 +45,10 @@ const datesOf = (s: Semester): SemesterDates => ({
  * classes stop, and split the semester into the two terms reported on apart.
  */
 export default function SemestersPage() {
-  const { permitted, loading: authLoading } = useRequireRole(MANAGEMENT_ROLES);
+  const { permitted, loading: authLoading } = useRequireAccess(adminTab("/admin/semesters"));
   const { user } = useAuth();
-  const isAdmin = user != null && ADMIN_ROLES.includes(user.role);
+  // Others may read the list; creating and starting semesters is this.
+  const isAdmin = can(user, "semesters.manage");
 
   const [rows, setRows] = useState<Semester[]>([]);
   const [routines, setRoutines] = useState<Routine[]>([]);

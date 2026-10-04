@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from classtrack.api.deps import OwnTeacherUser, SessionDep
+from classtrack.api.deps import ExtraClassUser, SessionDep
 from classtrack.models import ClassInstance
 from classtrack.schemas.extra import ExtraClassRequest, ExtraSectionOut
 from classtrack.schemas.monitoring import InstanceOut
@@ -24,20 +24,20 @@ def _out(instance: ClassInstance) -> InstanceOut:
 
 
 @router.get("/sections", response_model=list[ExtraSectionOut], summary="Sections you may book for")
-async def sections(session: SessionDep, user: OwnTeacherUser) -> list[ExtraSectionOut]:
+async def sections(session: SessionDep, user: ExtraClassUser) -> list[ExtraSectionOut]:
     rows = await extra_class_service.my_sections(session, user.teacher_initial or "")
     return [ExtraSectionOut.model_validate(r) for r in rows]
 
 
 @router.get("", response_model=list[InstanceOut], summary="Your extra classes")
-async def mine(session: SessionDep, user: OwnTeacherUser) -> list[InstanceOut]:
+async def mine(session: SessionDep, user: ExtraClassUser) -> list[InstanceOut]:
     rows = await extra_class_service.list_mine(session, user.teacher_initial or "")
     return [_out(r) for r in rows]
 
 
 @router.post("", response_model=InstanceOut, summary="Book a room for an extra class")
 async def book(
-    payload: ExtraClassRequest, session: SessionDep, user: OwnTeacherUser
+    payload: ExtraClassRequest, session: SessionDep, user: ExtraClassUser
 ) -> InstanceOut:
     """Booked at once, with no approval. Staff check it like any class."""
     instance = await extra_class_service.book(
@@ -54,7 +54,7 @@ async def book(
 
 
 @router.post("/{instance_id}/cancel", response_model=InstanceOut, summary="Cancel your extra class")
-async def cancel(instance_id: int, session: SessionDep, user: OwnTeacherUser) -> InstanceOut:
+async def cancel(instance_id: int, session: SessionDep, user: ExtraClassUser) -> InstanceOut:
     """Before it starts, which gives the room back."""
     instance = await extra_class_service.cancel(session, user=user, instance_id=instance_id)
     await session.commit()

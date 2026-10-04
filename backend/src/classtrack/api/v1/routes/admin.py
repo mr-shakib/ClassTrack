@@ -9,24 +9,45 @@ from pathlib import Path
 from fastapi import APIRouter, File, Form, Query, UploadFile
 from sqlalchemy import delete, select, update
 
-from classtrack.api.deps import AdminUser, ManagerUser, SessionDep
+from classtrack.api.deps import (
+    AccountsUser,
+    AuditUser,
+    CalendarUser,
+    RoleAdminUser,
+    RoleReaderUser,
+    RoutineUser,
+    RulesUser,
+    SemesterReaderUser,
+    SemesterUser,
+    SessionDep,
+    StaffAdminUser,
+    TeacherAdminUser,
+    TeacherReaderUser,
+    ZoneReaderUser,
+)
 from classtrack.core.errors import NotFoundError, ValidationError
 from classtrack.core.security import hash_password
 from classtrack.models import (
+    PERMISSION_INFO,
     AuditLog,
     ClassSession,
     Holiday,
+    RoleKind,
     Routine,
     Semester,
     Teacher,
     User,
 )
-from classtrack.models.user import Role
 from classtrack.schemas.admin import (
     ActivateRequest,
     AuditOut,
     HolidayIn,
     HolidayOut,
+    PermissionOut,
+    RoleIn,
+    RoleOut,
+    RoleRef,
+    RoleUpdate,
     RoutineOut,
     RoutineReview,
     SemesterIn,
@@ -52,6 +73,7 @@ from classtrack.services import (
     assignment_service,
     audit_service,
     instance_service,
+    role_service,
     semester_service,
     settings_service,
 )
@@ -65,7 +87,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 @router.post("/routine/ingest", summary="Ingest a routine PDF")
 async def ingest(
     session: SessionDep,
-    user: ManagerUser,
+    user: RoutineUser,
     file: UploadFile = File(...),
     department: str = Form("cse"),
     semester: str | None = Form(None),
@@ -185,7 +207,7 @@ def _scan_conflicts(sessions: list[ClassSession]) -> list[dict]:
 async def review(
     routine_id: int,
     session: SessionDep,
-    user: ManagerUser,  # noqa: ARG001
+    user: RoutineUser,  # noqa: ARG001
     limit: int = Query(default=500, le=5000),
 ) -> RoutineReview:
     routine = await session.get(Routine, routine_id)
@@ -220,14 +242,14 @@ async def review(
 
 
 @router.get("/routines", response_model=list[RoutineOut], summary="Routine revisions")
-async def list_routines(session: SessionDep, user: ManagerUser) -> list[RoutineOut]:  # noqa: ARG001
+async def list_routines(session: SessionDep, user: RoutineUser) -> list[RoutineOut]:  # noqa: ARG001
     rows = (await session.scalars(select(Routine).order_by(Routine.id.desc()))).all()
     return [RoutineOut.model_validate(r) for r in rows]
 
 
 @router.post("/routine/{routine_id}/activate", summary="Activate and generate instances")
 async def activate(
-    routine_id: int, payload: ActivateRequest, session: SessionDep, user: ManagerUser
+    routine_id: int, payload: ActivateRequest, session: SessionDep, user: RoutineUser
 ) -> dict:
     """Attach this revision to a semester and materialise its classes (BR-01).
 
@@ -272,7 +294,7 @@ async def activate(
 @router.post("/instances/generate", summary="Re-run instance generation")
 async def generate(
     session: SessionDep,
-    user: AdminUser,  # noqa: ARG001
+    user: SemesterUser,  # noqa: ARG001
     semester_id: int | None = None,
 ) -> dict:
     """Idempotent -- existing instances keep their status and check records."""
@@ -311,7 +333,7 @@ async def _regenerate(session, semester: Semester) -> dict | None:
 
 
 @router.get("/semesters", response_model=list[SemesterOut], summary="Semesters")
-async def list_semesters(session: SessionDep, user: ManagerUser) -> list[SemesterOut]:  # noqa: ARG001
+async def list_semesters(session: SessionDep, user: SemesterReaderUser) -> list[SemesterOut]:  # noqa: ARG001
     rows = (await session.scalars(select(Semester).order_by(Semester.start_date.desc()))).all()
     return [SemesterOut.model_validate(s) for s in rows]
 
@@ -320,7 +342,7 @@ async def list_semesters(session: SessionDep, user: ManagerUser) -> list[Semeste
 async def create_semester(
     payload: SemesterIn,
     session: SessionDep,
-    user: AdminUser,
+    user: SemesterUser,
 ) -> SemesterOut:
     """Set up a semester. It becomes current if asked, or if none is current yet."""
     semester = Semester(**payload.model_dump(exclude={"make_current"}), is_active=False)
@@ -344,7 +366,7 @@ async def create_semester(
 
 @router.put("/semesters/{semester_id}", response_model=SemesterSaved, summary="Change a semester")
 async def update_semester(
-    semester_id: int, payload: SemesterUpdate, session: SessionDep, user: AdminUser
+    semester_id: int, payload: SemesterUpdate, session: SessionDep, user: SemesterUser
 ) -> SemesterSaved:
     """Rename it, or move its dates and exam periods.
 
@@ -376,7 +398,9 @@ async def update_semester(
     response_model=SemesterOut,
     summary="Make a semester the current one",
 )
-async def activate_semester(semester_id: int, session: SessionDep, user: AdminUser) -> SemesterOut:
+async def activate_semester(
+    semester_id: int, session: SessionDep, user: SemesterUser
+) -> SemesterOut:
     """Move the department on to this semester, and to its routine if it has one."""
     semester = await semester_service.get(session, semester_id)
     previous = await semester_service.current(session)
@@ -397,7 +421,7 @@ async def activate_semester(semester_id: int, session: SessionDep, user: AdminUs
 @router.get("/holidays", response_model=list[HolidayOut], summary="Academic calendar")
 async def list_holidays(
     session: SessionDep,
-    user: ManagerUser,  # noqa: ARG001
+    user: CalendarUser,  # noqa: ARG001
     semester_id: int | None = None,
 ) -> list[HolidayOut]:
     query = select(Holiday).order_by(Holiday.date)
@@ -408,7 +432,7 @@ async def list_holidays(
 
 
 @router.post("/holidays", response_model=HolidayOut, summary="Add a calendar day")
-async def add_holiday(payload: HolidayIn, session: SessionDep, user: ManagerUser) -> HolidayOut:
+async def add_holiday(payload: HolidayIn, session: SessionDep, user: CalendarUser) -> HolidayOut:
     """Add a day to a semester's calendar. A day off loses its classes at once."""
     if payload.semester_id is not None:
         semester = await semester_service.get(session, payload.semester_id)
@@ -450,7 +474,7 @@ async def add_holiday(payload: HolidayIn, session: SessionDep, user: ManagerUser
 
 
 @router.delete("/holidays/{holiday_id}", response_model=Message, summary="Remove a day")
-async def remove_holiday(holiday_id: int, session: SessionDep, user: ManagerUser) -> Message:
+async def remove_holiday(holiday_id: int, session: SessionDep, user: CalendarUser) -> Message:
     holiday = await session.get(Holiday, holiday_id)
     if holiday is None:
         raise NotFoundError(f"No calendar entry with id {holiday_id}")
@@ -474,43 +498,48 @@ async def remove_holiday(holiday_id: int, session: SessionDep, user: ManagerUser
 # --- users -----------------------------------------------------------------
 
 
+def _user_out(user: User) -> UserOut:
+    out = UserOut.model_validate(user)
+    out.roles = [RoleRef.model_validate(r) for r in user.ordered_roles]
+    return out
+
+
 @router.get("/users", response_model=list[UserOut], summary="Users")
-async def list_users(session: SessionDep, user: AdminUser) -> list[UserOut]:  # noqa: ARG001
+async def list_users(session: SessionDep, user: AccountsUser) -> list[UserOut]:  # noqa: ARG001
     rows = (await session.scalars(select(User).order_by(User.id))).all()
-    return [UserOut.model_validate(u) for u in rows]
+    return [_user_out(u) for u in rows]
 
 
 @router.post("/users", response_model=UserOut, summary="Create a user")
-async def create_user(
-    payload: UserIn,
-    session: SessionDep,
-    user: AdminUser,  # noqa: ARG001
-) -> UserOut:
+async def create_user(payload: UserIn, session: SessionDep, user: AccountsUser) -> UserOut:
+    """An office account. Teachers get theirs from the Teachers tab, which binds
+    the initial; a staff role here makes the account floor staff."""
     email = payload.email.strip().lower()
     if await session.scalar(select(User).where(User.email == email)):
         raise ValidationError(f"{email} already has an account.")
 
-    # A TEACHER without an initial cannot be matched to any routine row, so the
-    # account would show an empty schedule. Refuse it rather than create it.
-    if payload.role is Role.TEACHER:
-        if not payload.teacher_initial:
-            raise ValidationError("A teacher account needs a teacher initial.")
-        initial = payload.teacher_initial.upper()
-        if not await session.get(Teacher, initial) and not await session.scalar(
-            select(Teacher).where(Teacher.initial == initial)
-        ):
-            raise ValidationError(f"No faculty member with initial {initial!r}.")
-
+    roles = await role_service.resolve(session, payload.role_ids)
     created = User(
         email=email,
-        full_name=payload.full_name,
-        role=payload.role,
+        full_name=payload.full_name.strip(),
         password_hash=hash_password(payload.password),
-        teacher_initial=payload.teacher_initial.upper() if payload.teacher_initial else None,
     )
+    role_service.check_kinds(created, roles)
+    for role in roles:
+        role_service.require_held(user, role, f"give {role.name}")
+    created.roles = roles
     session.add(created)
+    await session.flush()
+    audit_service.record(
+        session,
+        actor_id=user.id,
+        entity_type="user",
+        entity_id=created.id,
+        action="user_created",
+        after={"email": email, "roles": sorted(r.name for r in roles)},
+    )
     await session.commit()
-    return UserOut.model_validate(created)
+    return _user_out(created)
 
 
 @router.patch("/users/{user_id}", response_model=UserOut, summary="Change a user")
@@ -518,9 +547,9 @@ async def update_user(
     user_id: int,
     payload: UserUpdate,
     session: SessionDep,
-    user: AdminUser,
+    user: AccountsUser,
 ) -> UserOut:
-    """Rename, change the role of, deactivate or reset the password of an account."""
+    """Rename, change the roles of, deactivate or reset the password of an account."""
     target = await session.get(User, user_id)
     if target is None:
         raise NotFoundError(f"No user with id {user_id}")
@@ -528,21 +557,18 @@ async def update_user(
     changes = payload.model_dump(exclude_none=True)
     if not changes:
         raise ValidationError("Nothing to change.")
-    # Locking yourself out, or out of administration, is never what was meant.
-    if target.id == user.id and (
-        payload.is_active is False or (payload.role is not None and payload.role is not user.role)
-    ):
-        raise ValidationError("You cannot deactivate your own account or change its role.")
-    if payload.role is Role.TEACHER and not target.teacher_initial:
-        raise ValidationError(
-            "A teacher account needs a teacher initial. Create it from the Teachers tab."
-        )
+    # Locking yourself out is never what was meant.
+    if target.id == user.id and payload.is_active is False:
+        raise ValidationError("You cannot deactivate your own account.")
 
-    before = {"role": target.role.value, "is_active": target.is_active}
+    before = {"is_active": target.is_active}
     if payload.full_name is not None:
         target.full_name = payload.full_name.strip()
-    if payload.role is not None:
-        target.role = payload.role
+    if payload.role_ids is not None:
+        roles = await role_service.resolve(session, payload.role_ids)
+        await role_service.set_roles(session, actor=user, target=target, roles=roles)
+    if payload.is_active is False and target.is_active:
+        await role_service.guard_deactivation(session, target)
     if payload.is_active is not None:
         target.is_active = payload.is_active
     if payload.password is not None:
@@ -557,29 +583,105 @@ async def update_user(
         before=before,
         # Never the password itself: only that it changed.
         after={
-            "role": target.role.value,
             "is_active": target.is_active,
             "password_changed": payload.password is not None,
         },
     )
     await session.commit()
-    return UserOut.model_validate(target)
+    return _user_out(target)
+
+
+# --- roles -----------------------------------------------------------------
+
+
+@router.get(
+    "/permissions", response_model=list[PermissionOut], summary="Every permission there is"
+)
+async def permissions(user: RoleReaderUser) -> list[PermissionOut]:  # noqa: ARG001
+    return [
+        PermissionOut(
+            key=i.permission.value, group=i.group, label=i.label, description=i.description
+        )
+        for i in PERMISSION_INFO
+    ]
+
+
+async def _role_out(session, role, held: dict[int, int] | None = None) -> RoleOut:
+    held = held if held is not None else await role_service.holders(session)
+    return RoleOut(
+        id=role.id,
+        key=role.key,
+        name=role.name,
+        description=role.description,
+        kind=role.kind,
+        is_builtin=role.is_builtin,
+        is_locked=role.is_locked,
+        permissions=sorted(p.value for p in role.granted),
+        holders=held.get(role.id, 0),
+    )
+
+
+@router.get("/roles", response_model=list[RoleOut], summary="Roles and what each permits")
+async def roles(session: SessionDep, user: RoleReaderUser) -> list[RoleOut]:  # noqa: ARG001
+    held = await role_service.holders(session)
+    return [await _role_out(session, r, held) for r in await role_service.all_roles(session)]
+
+
+@router.post("/roles", response_model=RoleOut, summary="Create a role")
+async def create_role(payload: RoleIn, session: SessionDep, user: RoleAdminUser) -> RoleOut:
+    role = await role_service.create_role(
+        session,
+        actor=user,
+        name=payload.name,
+        description=payload.description,
+        kind=payload.kind,
+        permissions=payload.permissions,
+    )
+    await session.commit()
+    return await _role_out(session, role)
+
+
+@router.put("/roles/{role_id}", response_model=RoleOut, summary="Change a role")
+async def update_role(
+    role_id: int, payload: RoleUpdate, session: SessionDep, user: RoleAdminUser
+) -> RoleOut:
+    """Its name, description or permissions. Its kind is fixed once made."""
+    role = await role_service.update_role(
+        session,
+        actor=user,
+        role_id=role_id,
+        name=payload.name,
+        description=payload.description,
+        permissions=payload.permissions,
+    )
+    await session.commit()
+    return await _role_out(session, role)
+
+
+@router.delete("/roles/{role_id}", response_model=Message, summary="Delete a role")
+async def delete_role(role_id: int, session: SessionDep, user: RoleAdminUser) -> Message:
+    """Only a role you made, and only once nobody holds it."""
+    await role_service.delete_role(session, actor=user, role_id=role_id)
+    await session.commit()
+    return Message(detail="Role deleted.")
 
 
 # --- staff coverage --------------------------------------------------------
 
 
 @router.get("/zones", response_model=list[ZoneOut], summary="Buildings and floors")
-async def zones(session: SessionDep, user: ManagerUser) -> list[ZoneOut]:  # noqa: ARG001
+async def zones(session: SessionDep, user: ZoneReaderUser) -> list[ZoneOut]:  # noqa: ARG001
     """The zones the active routine uses, derived from its room names."""
     return [ZoneOut.model_validate(z) for z in await assignment_service.available_zones(session)]
 
 
 @router.get("/staff", response_model=list[StaffOut], summary="Office staff and their floors")
-async def staff(session: SessionDep, user: ManagerUser) -> list[StaffOut]:  # noqa: ARG001
+async def staff(session: SessionDep, user: StaffAdminUser) -> list[StaffOut]:  # noqa: ARG001
     rows = (
         await session.scalars(
-            select(User).where(User.role == Role.STAFF).order_by(User.full_name)
+            select(User)
+            .where(User.of_kind(RoleKind.STAFF))
+            .order_by(User.full_name)
         )
     ).all()
     assignments = await assignment_service.assignments_by_user(session)
@@ -599,7 +701,7 @@ async def staff(session: SessionDep, user: ManagerUser) -> list[StaffOut]:  # no
 async def create_staff(
     payload: StaffCreateRequest,
     session: SessionDep,
-    user: ManagerUser,
+    user: StaffAdminUser,
 ) -> StaffOut:
     """One step: the account and the floors it covers.
 
@@ -629,7 +731,7 @@ async def assign_zones(
     user_id: int,
     payload: ZoneAssignRequest,
     session: SessionDep,
-    user: ManagerUser,
+    user: StaffAdminUser,
 ) -> StaffOut:
     """Replace this staff member's coverage.
 
@@ -649,13 +751,13 @@ async def assign_zones(
 
 
 @router.get("/settings", summary="Monitoring rules")
-async def get_settings_values(session: SessionDep, user: ManagerUser) -> dict[str, str]:  # noqa: ARG001
+async def get_settings_values(session: SessionDep, user: RulesUser) -> dict[str, str]:  # noqa: ARG001
     return await settings_service.get_all(session)
 
 
 @router.put("/settings", summary="Change monitoring rules")
 async def put_settings(
-    payload: SettingsIn, session: SessionDep, user: ManagerUser
+    payload: SettingsIn, session: SessionDep, user: RulesUser
 ) -> dict[str, str]:
     changes = payload.model_dump(exclude_none=True)
     if not changes:
@@ -687,7 +789,7 @@ async def put_settings(
 @router.get("/audit", response_model=list[AuditOut], summary="Audit trail")
 async def audit(
     session: SessionDep,
-    user: ManagerUser,  # noqa: ARG001
+    user: AuditUser,  # noqa: ARG001
     entity_type: str | None = None,
     entity_id: int | None = None,
     actor: int | None = None,
@@ -721,7 +823,7 @@ async def audit(
 @router.get("/teachers", response_model=list[TeacherOut], summary="Faculty directory")
 async def teachers(
     session: SessionDep,
-    user: ManagerUser,  # noqa: ARG001
+    user: TeacherReaderUser,  # noqa: ARG001
     q: str | None = None,
 ) -> list[TeacherOut]:
     query = select(Teacher).order_by(Teacher.initial).limit(500)
@@ -750,7 +852,7 @@ async def teachers(
     summary="Create a teacher's sign-in account",
 )
 async def create_teacher_account(
-    initial: str, payload: TeacherAccountRequest, session: SessionDep, user: ManagerUser
+    initial: str, payload: TeacherAccountRequest, session: SessionDep, user: TeacherAdminUser
 ) -> TeacherOut:
     """The teacher then signs in with their initial and this password."""
     account = await account_service.create_teacher_account(
@@ -775,7 +877,7 @@ async def create_teacher_account(
     summary="Create an account for every teacher without one",
 )
 async def create_all_teacher_accounts(
-    payload: TeacherAccountRequest, session: SessionDep, user: ManagerUser
+    payload: TeacherAccountRequest, session: SessionDep, user: TeacherAdminUser
 ) -> TeacherAccountsCreated:
     """Each signs in with their initial and this shared password."""
     created = await account_service.create_all_teacher_accounts(
@@ -791,7 +893,7 @@ async def create_all_teacher_accounts(
     summary="Reset a teacher's password",
 )
 async def reset_teacher_password(
-    initial: str, payload: TeacherAccountRequest, session: SessionDep, user: ManagerUser
+    initial: str, payload: TeacherAccountRequest, session: SessionDep, user: TeacherAdminUser
 ) -> Message:
     await account_service.reset_teacher_password(
         session, initial=initial, password=payload.password, actor=user

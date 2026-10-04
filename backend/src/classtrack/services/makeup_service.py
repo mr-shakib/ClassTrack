@@ -37,7 +37,7 @@ from classtrack.models import (
     MakeupClass,
     MakeupMode,
     MakeupStatus,
-    Role,
+    Permission,
     Semester,
     User,
 )
@@ -65,7 +65,7 @@ async def _load_original(session: AsyncSession, instance_id: int, user: User) ->
     if original is None:
         raise NotFoundError(f"No class instance with id {instance_id}")
 
-    if user.role is Role.TEACHER and original.teacher_initial != user.teacher_initial:
+    if not user.can(Permission.RESCHEDULE_ANY) and original.teacher_initial != user.teacher_initial:
         raise ForbiddenError("You may only schedule makeups for your own classes.")
 
     # BR-09: a makeup recovers a missed class. Anything else has nothing to recover.
@@ -450,7 +450,7 @@ async def complete(
     makeup = await session.get(MakeupClass, makeup_id)
     if makeup is None:
         raise NotFoundError(f"No makeup class with id {makeup_id}")
-    if user.role is Role.TEACHER and makeup.teacher_initial != user.teacher_initial:
+    if not user.can(Permission.RESCHEDULE_ANY) and makeup.teacher_initial != user.teacher_initial:
         raise ForbiddenError("You may only mark your own makeup classes done.")
     if makeup.status is MakeupStatus.COMPLETED:
         raise ValidationError("This makeup class is already marked done.")

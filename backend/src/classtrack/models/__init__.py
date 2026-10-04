@@ -8,6 +8,18 @@ from classtrack.models.academic import (
     Semester,
     Term,
 )
+from classtrack.models.access import (
+    ALL_PERMISSIONS,
+    BUILTIN_ROLES,
+    PERMISSION_INFO,
+    TEACHER_PERMISSIONS,
+    BuiltinRole,
+    Permission,
+    PermissionInfo,
+    Role,
+    RoleKind,
+    user_role,
+)
 from classtrack.models.assignment import StaffZone
 from classtrack.models.audit import AuditLog
 from classtrack.models.check import CheckOutcome, CheckRecord
@@ -23,25 +35,19 @@ from classtrack.models.notification import Notification, NotificationKind
 from classtrack.models.routine import ClassSession, Routine
 from classtrack.models.setting import SETTING_DEFAULTS, Setting
 from classtrack.models.teacher import Teacher
-from classtrack.models.user import (
-    ADMIN_ROLES,
-    CHECKING_ROLES,
-    MANAGEMENT_ROLES,
-    OVERRIDE_ROLES,
-    Role,
-    User,
-)
+from classtrack.models.user import User
 
 __all__ = [
-    "ADMIN_ROLES",
+    "ALL_PERMISSIONS",
     "BLOCKING_KINDS",
-    "CHECKING_ROLES",
+    "BUILTIN_ROLES",
     "MAKEUP_ELIGIBLE",
-    "MANAGEMENT_ROLES",
-    "OVERRIDE_ROLES",
+    "PERMISSION_INFO",
     "SETTING_DEFAULTS",
+    "TEACHER_PERMISSIONS",
     "TERM_LABELS",
     "AuditLog",
+    "BuiltinRole",
     "CheckOutcome",
     "CheckRecord",
     "ClassInstance",
@@ -55,7 +61,10 @@ __all__ = [
     "MakeupStatus",
     "Notification",
     "NotificationKind",
+    "Permission",
+    "PermissionInfo",
     "Role",
+    "RoleKind",
     "Routine",
     "Semester",
     "Setting",
@@ -64,4 +73,5 @@ __all__ = [
     "TeacherResponse",
     "Term",
     "User",
+    "user_role",
 ]

@@ -23,7 +23,13 @@ from datetime import timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from classtrack.models import ClassInstance, ClassStatus, Role, StaffZone, User
+from classtrack.models import (
+    ClassInstance,
+    ClassStatus,
+    RoleKind,
+    StaffZone,
+    User,
+)
 from classtrack.services import status_engine, zones
 
 #: How bad is one person's backlog. Thresholds are deliberately blunt: an
@@ -118,7 +124,7 @@ async def unreported(
     # Everyone who could be responsible, so a clean record still shows a row.
     all_staff = (
         await session.scalars(
-            select(User).where(User.role == Role.STAFF, User.is_active.is_(True))
+            select(User).where(User.of_kind(RoleKind.STAFF), User.is_active.is_(True))
         )
     ).all()
     buckets: dict[int, list[_Miss]] = {u.id: [] for u in all_staff}

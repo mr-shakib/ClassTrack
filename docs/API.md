@@ -23,18 +23,76 @@ requests. `COMMITTEE` may check classes and correct past ones, nothing more.
 |---|---|---|---|
 | `POST` | `/auth/login` | public | Sets the session cookie |
 | `POST` | `/auth/logout` | any | Clears it |
-| `GET` | `/auth/me` | any | Current user + role |
+| `GET` | `/auth/me` | any | Current user, their roles and permissions |
 
 ```jsonc
 // POST /auth/login -- username is an email, or a teacher's initial
 { "username": "staff1@diu.edu", "password": "..." }
 { "username": "SRH", "password": "..." }
-// 200
-{ "id": 3, "full_name": "Staff One", "role": "STAFF", "teacher_initial": null }
+// 200 (and GET /auth/me)
+{ "id": 8, "full_name": "Dr. Sheak Rashed Haider Noori", "teacher_initial": "SRH",
+  "roles": [{ "key": "TEACHER", "name": "Teacher", "kind": "TEACHER" },
+            { "key": "COMMITTEE", "name": "Committee member", "kind": "OFFICE" }],
+  "permissions": ["checking.correct", "checking.submit", "extra_classes.book", "reschedules.request"],
+  "is_teacher": true, "is_staff": false, "photo_url": "https://faculty.daffodilvarsity.edu.bd/..." }
 // 401 { "detail": "Invalid credentials" }
 ```
 
 `email` is still accepted as the key for `username`.
+
+### Permissions and roles
+
+Every endpoint admits holders of a named **permission**. A **role** is a named set of
+permissions that admins create and edit; an account holds one or more roles and may do
+whatever any of them permits. The *Roles* columns in the tables below name the built-in
+roles that start with the access; edit a role and the access moves with it, on the next
+request (the session token carries only who you are).
+
+| Permission | Lets you | Built-in roles that start with it |
+|---|---|---|
+| `checking.submit` | Report classes on the checking screen | Staff, Committee, CO, admins |
+| `checking.correct` | Correct a check after its day, or before the class starts | Committee, CO, admins |
+| `dashboard.view` | Live dashboard and day status | CO, admins |
+| `classes.cancel` | Cancel a class | CO, admins |
+| `reschedules.decide` | Decide online reschedule requests | admins |
+| `reschedules.any_teacher` | Reschedule or complete any teacher's makeup | admins |
+| `reschedules.request` | Reschedule own missed classes (teacher roles only) | Teacher |
+| `extra_classes.book` | Book extra classes (teacher roles only) | Teacher |
+| `reports.department` | Overview, daily, staff, unreported, any teacher's report | admins |
+| `routine.manage` | Upload, review, activate the routine | CO, admins |
+| `semesters.manage` | Semesters, exam dates, generating classes | admins |
+| `calendar.manage` | Holidays and closed days | CO, admins |
+| `settings.manage` | Monitoring rules | CO, admins |
+| `staff.manage` | Staff accounts and floors | CO, admins |
+| `teachers.manage` | Teacher accounts and their passwords | CO, admins |
+| `accounts.manage` | Create accounts, give and take roles, deactivate | admins |
+| `roles.manage` | Create and edit roles | admins |
+| `audit.view` | Audit log | CO, admins |
+| `alerts.receive` | Notifications of reschedules, booked rooms, disputes | admins |
+
+"Admins" are Super admin, Head of Department and Associate Head; CO is the Coordination
+Officer. A role's **kind** says what the holder is: `TEACHER` (only on accounts with a
+faculty initial, which always keep one), `STAFF` (assigned floors) or `OFFICE`.
+
+| Method | Path | Permission | Purpose |
+|---|---|---|---|
+| `GET` | `/admin/permissions` | roles or accounts | The catalog: key, group, label, description |
+| `GET` | `/admin/roles` | roles or accounts | Every role, its permissions and how many hold it |
+| `POST` | `/admin/roles` | roles | `{ name, description, kind, permissions }` |
+| `PUT` | `/admin/roles/{id}` | roles | `{ name?, description?, permissions? }` — kind is fixed |
+| `DELETE` | `/admin/roles/{id}` | roles | Only a role an admin made, once nobody holds it |
+| `POST` | `/admin/users` | accounts | `{ email, full_name, password, role_ids }` |
+| `PATCH` | `/admin/users/{id}` | accounts | `{ full_name?, role_ids?, is_active?, password? }` |
+
+Rules the API holds to, whoever asks:
+
+- **No escalation.** Giving or taking a role, or adding or removing a permission from one,
+  needs every permission involved — `403` otherwise, naming what is missing.
+- **No lockout.** Super admin always has every permission and cannot be deleted; the last
+  active Super admin keeps the role and stays active. Nobody changes their own roles, or
+  takes `roles.manage` off a role they hold.
+- Teacher-kind roles go only to teacher accounts (made from the Teachers tab), and a
+  teacher account keeps at least one. Every account keeps at least one role.
 
 ### Your own profile
 

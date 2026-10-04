@@ -15,6 +15,7 @@ from tests.conftest import SLOT, at
 from classtrack.core.errors import ConflictError, ForbiddenError, ValidationError
 from classtrack.core.security import hash_password
 from classtrack.models import (
+    BuiltinRole,
     CheckOutcome,
     ClassInstance,
     ClassSession,
@@ -22,7 +23,6 @@ from classtrack.models import (
     MakeupMode,
     Notification,
     NotificationKind,
-    Role,
     Routine,
     Teacher,
     User,
@@ -35,6 +35,7 @@ from classtrack.services import (
     makeup_service,
     notification_service,
     report_service,
+    role_service,
     status_engine,
     sweep,
 )
@@ -82,7 +83,7 @@ async def other_teacher(session, instance) -> User:
         email="tcb@test.edu",
         password_hash=hash_password("x"),
         full_name="Teacher B",
-        role=Role.TEACHER,
+        roles=[await role_service.builtin(session, BuiltinRole.TEACHER)],
         teacher_initial="TCB",
     )
     session.add(user)

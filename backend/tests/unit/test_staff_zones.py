@@ -19,7 +19,6 @@ from classtrack.models import (
     CheckOutcome,
     ClassInstance,
     ClassSession,
-    Role,
     Routine,
     Semester,
     StaffZone,
@@ -261,7 +260,7 @@ async def test_unknown_zone_is_rejected(session, staff, hod):
 
 async def test_only_staff_accounts_can_be_zoned(session, hod, teacher_user):
     await _routine_with_rooms(session, ROOMS)
-    with pytest.raises(ValidationError, match="office staff"):
+    with pytest.raises(ValidationError, match="staff role"):
         await assignment_service.set_zones(
             session, user_id=teacher_user.id, zone_keys=["KT-2"], actor=hod
         )
@@ -343,7 +342,7 @@ async def test_create_staff_assigns_floors_in_one_step(session, hod):
     )
     await session.commit()
 
-    assert member.role is Role.STAFF
+    assert member.is_staff
     assert member.email == "floor2@diu.edu"      # normalised
     assert await assignment_service.zones_for_user(session, member.id) == ["KT-2"]
 
@@ -408,7 +407,7 @@ async def test_new_staff_can_sign_in(session, hod):
     await session.commit()
 
     user = await auth_service.authenticate(session, "signsin@diu.edu", "secret123")
-    assert user.role is Role.STAFF
+    assert user.is_staff
 
 
 async def test_staff_can_be_given_an_employee_id_instead_of_an_email(session, hod):

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { HOME_FOR, useAuth } from "@/lib/auth";
+import { homeFor, useAuth } from "@/lib/auth";
 import { Spinner } from "@/components/ui";
 
 /** Sends each role to its own home. */
@@ -12,7 +12,7 @@ export default function Index() {
 
   useEffect(() => {
     if (loading) return;
-    router.replace(user ? HOME_FOR[user.role] : "/login");
+    router.replace(user ? homeFor(user) : "/login");
   }, [user, loading, router]);
 
   return (

@@ -20,13 +20,12 @@ import {
   bigInputClass,
 } from "@/components/ui";
 import { ApiError, api, todayISO } from "@/lib/api";
-import { ADMIN_ROLES, useRequireRole } from "@/lib/auth";
-import type { ClassInstance, Makeup, Role, TeacherReport } from "@/lib/types";
+import { mayBookExtra, mayTeach, useRequireAccess } from "@/lib/auth";
+import type { ClassInstance, Makeup, TeacherReport } from "@/lib/types";
 
-const TEACHER_PAGE_ROLES: Role[] = ["TEACHER", ...ADMIN_ROLES];
 
 export default function TeacherPage() {
-  const { user, permitted, loading: authLoading } = useRequireRole(TEACHER_PAGE_ROLES);
+  const { user, permitted, loading: authLoading } = useRequireAccess(mayTeach);
 
   const [today, setToday] = useState<ClassInstance[]>([]);
   const [needsAction, setNeedsAction] = useState<ClassInstance[]>([]);
@@ -111,8 +110,8 @@ export default function TeacherPage() {
             {user?.full_name} · {initial}
           </p>
         </div>
-        {/* Admins see this page too, but have no sections to book for. */}
-        {user?.role === "TEACHER" ? (
+        {/* Only for a teacher whose roles let them book. */}
+        {user && mayBookExtra(user) ? (
           <Link
             href="/teacher/extra"
             className="inline-flex min-h-12 items-center justify-center rounded-lg bg-brand px-4 py-3 text-base font-semibold text-white hover:bg-brand/90"

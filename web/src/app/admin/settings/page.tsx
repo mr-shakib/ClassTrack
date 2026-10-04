@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, ErrorNote, Field, Spinner, inputClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
-import { MANAGEMENT_ROLES, useRequireRole } from "@/lib/auth";
+import { adminTab, useRequireAccess } from "@/lib/auth";
 
 export default function SettingsPage() {
-  const { permitted, loading: authLoading } = useRequireRole(MANAGEMENT_ROLES);
+  const { permitted, loading: authLoading } = useRequireAccess(adminTab("/admin/settings"));
   const [values, setValues] = useState<Record<string, string>>({});
   const [missed, setMissed] = useState("");
   const [minimum, setMinimum] = useState("");

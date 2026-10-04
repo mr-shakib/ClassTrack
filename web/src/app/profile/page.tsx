@@ -16,11 +16,8 @@ import {
 } from "@/components/icons";
 import { Button, ErrorNote, Spinner } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
-import { ROLE_LABELS, useRequireRole } from "@/lib/auth";
-import type { Profile, Role } from "@/lib/types";
-
-/** Every signed-in user has a profile, whatever their role. */
-const EVERYONE = Object.keys(ROLE_LABELS) as Role[];
+import { everyone, useRequireAccess } from "@/lib/auth";
+import type { Profile } from "@/lib/types";
 
 const MIN_PASSWORD = 6;
 
@@ -29,7 +26,7 @@ const fieldClass =
   "min-h-12 w-full rounded-xl border border-line bg-surface px-4 text-base text-ink placeholder:text-ink-faint transition focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/15";
 
 export default function ProfilePage() {
-  const { permitted, loading: authLoading } = useRequireRole(EVERYONE);
+  const { permitted, loading: authLoading } = useRequireAccess(everyone);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,7 +55,7 @@ export default function ProfilePage() {
   if (error) return <ErrorNote message={error} />;
   if (!profile) return <Spinner label="Loading your profile…" />;
 
-  const teacher = profile.role === "TEACHER";
+  const teacher = profile.is_teacher;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -79,7 +76,11 @@ function Hero({ profile }: { profile: Profile }) {
       label: "Signs in with",
       value: profile.sign_in,
     },
-    { icon: <BadgeIcon />, label: "Role", value: ROLE_LABELS[profile.role] },
+    {
+      icon: <BadgeIcon />,
+      label: profile.roles.length === 1 ? "Role" : "Roles",
+      value: profile.roles.join(", "),
+    },
     {
       icon: <BuildingIcon />,
       label: "Department",

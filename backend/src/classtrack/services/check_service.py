@@ -25,6 +25,7 @@ from classtrack.models import (
     CheckRecord,
     ClassInstance,
     ClassStatus,
+    Permission,
     User,
 )
 from classtrack.services import (
@@ -83,7 +84,7 @@ async def submit(
     if instance is None:
         raise NotFoundError(f"No class instance with id {instance_id}")
 
-    amendable = _ADMIN_AMENDABLE if user.can_override else _AMENDABLE
+    amendable = _ADMIN_AMENDABLE if user.can(Permission.CORRECT_CHECKS) else _AMENDABLE
     if instance.status is not None and instance.status not in amendable:
         raise ValidationError(
             f"This class is recorded as {instance.status.value} and cannot be checked.",
@@ -98,7 +99,7 @@ async def submit(
     # --- reporting hours: from the class's start to the end of its day -------
     late_override = not status_engine.is_checkable(instance, now=now)
 
-    if late_override and not user.can_override:
+    if late_override and not user.can(Permission.CORRECT_CHECKS):
         opens = status_engine.slot_start_at(instance.date, instance.start_min)
         closes = status_engine.day_ends_at(instance.date)
         raise ConflictError(

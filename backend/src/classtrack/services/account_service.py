@@ -12,8 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from classtrack.core.errors import NotFoundError, ValidationError
 from classtrack.core.security import hash_password
-from classtrack.models import Role, Teacher, User
-from classtrack.services import audit_service
+from classtrack.models import BuiltinRole, Teacher, User
+from classtrack.services import audit_service, role_service
 
 #: ``user.email`` is required and unique, but a teacher signs in by initial and
 #: may have no address on file. This placeholder domain is never mailed.
@@ -26,7 +26,7 @@ async def teacher_accounts(session: AsyncSession) -> dict[str, User]:
     """Every teacher account, keyed by initial."""
     rows = (
         await session.scalars(
-            select(User).where(User.role == Role.TEACHER, User.teacher_initial.is_not(None))
+            select(User).where(User.teacher_initial.is_not(None))
         )
     ).all()
     return {u.teacher_initial: u for u in rows if u.teacher_initial}
@@ -43,7 +43,7 @@ async def create_teacher_account(
         raise ValidationError(f"The password must be at least {MIN_PASSWORD} characters.")
 
     existing = await session.scalar(
-        select(User).where(User.role == Role.TEACHER, User.teacher_initial == initial)
+        select(User).where(User.teacher_initial == initial)
     )
     if existing is not None:
         raise ValidationError(f"{initial} already has an account.")
@@ -55,9 +55,9 @@ async def create_teacher_account(
     account = User(
         email=email,
         full_name=teacher.name,
-        role=Role.TEACHER,
         teacher_initial=initial,
         password_hash=hash_password(password),
+        roles=[await role_service.builtin(session, BuiltinRole.TEACHER)],
     )
     session.add(account)
     await session.flush()
@@ -89,6 +89,7 @@ async def create_all_teacher_accounts(
     have = await teacher_accounts(session)
     taken = set((await session.scalars(select(User.email))).all())
     password_hash = hash_password(password)
+    teacher_role = await role_service.builtin(session, BuiltinRole.TEACHER)
 
     created: list[User] = []
     for teacher in (await session.scalars(select(Teacher).order_by(Teacher.initial))).all():
@@ -98,9 +99,9 @@ async def create_all_teacher_accounts(
         account = User(
             email=email,
             full_name=teacher.name,
-            role=Role.TEACHER,
             teacher_initial=teacher.initial,
             password_hash=password_hash,
+            roles=[teacher_role],
         )
         session.add(account)
         created.append(account)
@@ -123,7 +124,7 @@ async def reset_teacher_password(
 ) -> User:
     initial = initial.strip().upper()
     account = await session.scalar(
-        select(User).where(User.role == Role.TEACHER, User.teacher_initial == initial)
+        select(User).where(User.teacher_initial == initial)
     )
     if account is None:
         raise NotFoundError(f"{initial} has no account yet.")

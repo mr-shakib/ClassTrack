@@ -14,6 +14,7 @@ from tests.conftest import END_MIN, SLOT, START_MIN, at
 
 from classtrack.core.errors import ConflictError, ValidationError
 from classtrack.models import (
+    BuiltinRole,
     CheckOutcome,
     ClassInstance,
     ClassSession,
@@ -22,7 +23,6 @@ from classtrack.models import (
     MakeupStatus,
     Notification,
     NotificationKind,
-    Role,
     User,
 )
 from classtrack.services import (
@@ -30,6 +30,7 @@ from classtrack.services import (
     checking_service,
     conflict_service,
     makeup_service,
+    role_service,
     status_engine,
     sweep,
 )
@@ -334,7 +335,10 @@ async def test_approved_online_makeup_is_excluded_from_checking(
     await _make_missed(session, instance, staff)
 
     hod = User(
-        email="hod@test.edu", password_hash="x", full_name="HoD", role=Role.HOD
+        email="hod@test.edu",
+        password_hash="x",
+        full_name="HoD",
+        roles=[await role_service.builtin(session, BuiltinRole.HOD)],
     )
     session.add(hod)
     await session.flush()
@@ -369,7 +373,12 @@ async def test_rejected_online_makeup_creates_no_instance(
     session, instance, staff, teacher_user
 ):
     await _make_missed(session, instance, staff)
-    hod = User(email="h2@test.edu", password_hash="x", full_name="HoD", role=Role.HOD)
+    hod = User(
+        email="h2@test.edu",
+        password_hash="x",
+        full_name="HoD",
+        roles=[await role_service.builtin(session, BuiltinRole.HOD)],
+    )
     session.add(hod)
     await session.flush()
 
@@ -531,7 +540,7 @@ async def test_a_teacher_cannot_mark_someone_elses_makeup_done(
         email="oth@test.edu",
         password_hash="x",
         full_name="Other Teacher",
-        role=Role.TEACHER,
+        roles=[await role_service.builtin(session, BuiltinRole.TEACHER)],
         teacher_initial="OTH",
     )
     session.add(other)

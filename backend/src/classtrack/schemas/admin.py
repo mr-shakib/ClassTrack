@@ -7,7 +7,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field
 
-from classtrack.models import DayKind, NotificationKind, Role
+from classtrack.models import DayKind, NotificationKind, RoleKind
 from classtrack.schemas.common import ORMModel
 
 
@@ -84,17 +84,27 @@ class HolidayOut(ORMModel):
     kind: DayKind
 
 
+class RoleRef(ORMModel):
+    """A role as an account shows it."""
+
+    id: int
+    key: str
+    name: str
+    kind: RoleKind
+
+
 class UserIn(BaseModel):
     email: EmailStr
-    full_name: str
-    role: Role
+    full_name: str = Field(min_length=2, max_length=255)
+    #: One or more. Not a teacher role: teachers come from the Teachers tab.
+    role_ids: list[int] = Field(min_length=1)
     password: str = Field(min_length=6)
-    teacher_initial: str | None = None
 
 
 class UserUpdate(BaseModel):
     full_name: str | None = Field(default=None, min_length=2, max_length=255)
-    role: Role | None = None
+    #: Replaces every role the account holds. Left out, they stay.
+    role_ids: list[int] | None = Field(default=None, min_length=1)
     is_active: bool | None = None
     #: Set a new password. Left out, the current one stays.
     password: str | None = Field(default=None, min_length=6)
@@ -104,9 +114,43 @@ class UserOut(ORMModel):
     id: int
     email: str
     full_name: str
-    role: Role
+    roles: list[RoleRef] = Field(default_factory=list)
     teacher_initial: str | None
     is_active: bool
+
+
+class PermissionOut(BaseModel):
+    key: str
+    group: str
+    label: str
+    description: str
+
+
+class RoleOut(BaseModel):
+    id: int
+    key: str
+    name: str
+    description: str
+    kind: RoleKind
+    is_builtin: bool
+    #: Super admin: every permission, always; its permissions cannot be edited.
+    is_locked: bool
+    permissions: list[str]
+    #: How many accounts hold it.
+    holders: int
+
+
+class RoleIn(BaseModel):
+    name: str = Field(min_length=2, max_length=64)
+    description: str = Field(default="", max_length=500)
+    kind: RoleKind = RoleKind.OFFICE
+    permissions: list[str] = Field(default_factory=list)
+
+
+class RoleUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=64)
+    description: str | None = Field(default=None, max_length=500)
+    permissions: list[str] | None = None
 
 
 class ZoneOut(BaseModel):

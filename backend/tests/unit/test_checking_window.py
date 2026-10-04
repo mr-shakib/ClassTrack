@@ -271,14 +271,17 @@ async def test_committee_can_correct_a_not_checked_class(session, instance, comm
 
 async def test_committee_is_not_an_admin(committee, associate_head):
     """Overriding a report does not open the dashboard, approvals or admin."""
-    from classtrack.api.deps import require_role
+    from classtrack.api.deps import require
     from classtrack.core.errors import ForbiddenError
-    from classtrack.models import ADMIN_ROLES, CHECKING_ROLES
+    from classtrack.models import Permission
 
-    assert committee.can_override and not committee.is_admin
-    await require_role(*CHECKING_ROLES)(committee)
-    with pytest.raises(ForbiddenError):
-        await require_role(*ADMIN_ROLES)(committee)
-
-    assert associate_head.is_admin
-    await require_role(*ADMIN_ROLES)(associate_head)
+    assert committee.can(Permission.CORRECT_CHECKS)
+    await require(Permission.CHECK_CLASSES)(committee)
+    for withheld in (
+        Permission.VIEW_DASHBOARD,
+        Permission.DECIDE_RESCHEDULES,
+        Permission.MANAGE_ACCOUNTS,
+    ):
+        with pytest.raises(ForbiddenError):
+            await require(withheld)(committee)
+        await require(withheld)(associate_head)

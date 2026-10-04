@@ -14,14 +14,19 @@ from tests.conftest import END_MIN, SLOT, START_MIN
 
 from classtrack.core.security import hash_password
 from classtrack.models import (
+    BuiltinRole,
     ClassInstance,
     ClassStatus,
-    Role,
     Routine,
     Semester,
     User,
 )
-from classtrack.services import accountability_service, assignment_service, status_engine
+from classtrack.services import (
+    accountability_service,
+    assignment_service,
+    role_service,
+    status_engine,
+)
 
 
 async def _setup(session, rooms: list[str], *, on: date) -> Semester:
@@ -119,7 +124,7 @@ async def test_two_staff_on_one_floor_are_both_listed(session, staff, hod):
         email="staff2@test.edu",
         password_hash=hash_password("x"),
         full_name="Staff Two",
-        role=Role.STAFF,
+        roles=[await role_service.builtin(session, BuiltinRole.STAFF)],
     )
     session.add(second)
     await session.flush()
@@ -199,11 +204,11 @@ async def test_worst_backlog_sorts_first(session, hod):
 
     heavy = User(
         email="heavy@test.edu", password_hash=hash_password("x"),
-        full_name="Heavy", role=Role.STAFF,
+        full_name="Heavy", roles=[await role_service.builtin(session, BuiltinRole.STAFF)],
     )
     light = User(
         email="light@test.edu", password_hash=hash_password("x"),
-        full_name="Light", role=Role.STAFF,
+        full_name="Light", roles=[await role_service.builtin(session, BuiltinRole.STAFF)],
     )
     session.add_all([heavy, light])
     await session.flush()

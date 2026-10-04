@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from classtrack.core.errors import AuthError, NotFoundError, ValidationError
-from classtrack.models import Role, Teacher
+from classtrack.models import Teacher
 from classtrack.services import account_service, auth_service
 
 
@@ -18,7 +18,7 @@ async def test_admin_creates_an_account_the_teacher_signs_in_to_by_initial(sessi
     )
     await session.flush()
 
-    assert account.role is Role.TEACHER
+    assert account.is_teacher
     assert account.teacher_initial == "SRH"
     assert account.full_name == "Dr. Sheak Rashed Haider Noori"
 

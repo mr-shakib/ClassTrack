@@ -32,11 +32,11 @@ from classtrack.models import (
     ClassStatus,
     MakeupClass,
     MakeupStatus,
+    RoleKind,
     Teacher,
     Term,
     User,
 )
-from classtrack.models.user import Role
 from classtrack.routine.lattice import SLOT_INDEX
 from classtrack.services import (
     reschedule_links,
@@ -573,7 +573,7 @@ async def staff_report(
     # Office staff only. Admins may also check, but listing them here at 0%
     # is noise -- this is the staff monitoring report (SRS 12.4).
     staff = (
-        await session.scalars(select(User).where(User.role == Role.STAFF))
+        await session.scalars(select(User).where(User.of_kind(RoleKind.STAFF)))
     ).all()
 
     rows = []

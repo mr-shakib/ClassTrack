@@ -13,10 +13,9 @@ import {
   bigInputClass,
 } from "@/components/ui";
 import { ApiError, SLOTS, api, todayISO } from "@/lib/api";
-import { ADMIN_ROLES, useRequireRole } from "@/lib/auth";
-import type { ClassInstance, ConflictReport, MakeupMode, Role } from "@/lib/types";
+import { mayReschedule, useRequireAccess } from "@/lib/auth";
+import type { ClassInstance, ConflictReport, MakeupMode } from "@/lib/types";
 
-const TEACHER_PAGE_ROLES: Role[] = ["TEACHER", ...ADMIN_ROLES];
 
 /** A class runs 90 minutes, the same as every slot on the routine. */
 const CLASS_MINUTES = 90;
@@ -32,7 +31,7 @@ function endsLabel(start: string): string {
 }
 
 function MakeupForm() {
-  const { permitted, loading: authLoading } = useRequireRole(TEACHER_PAGE_ROLES);
+  const { permitted, loading: authLoading } = useRequireAccess(mayReschedule);
   const params = useSearchParams();
   const router = useRouter();
   const instanceId = Number(params.get("instance") ?? 0);
