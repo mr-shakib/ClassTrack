@@ -88,6 +88,9 @@ async function main() {
   const commands = {
     nav: async ([p]) => page.goto(url(p), { timeout: TIMEOUT }),
     login: async ([user, pass]) => {
+      // Signed in already, the login page re-renders inside the header once
+      // the session loads and drops what was typed. Start signed out.
+      await ctx.clearCookies();
       await page.goto(url("/login"), { timeout: TIMEOUT });
       await page.fill('input[autocomplete="username"]', user);
       await page.fill('input[autocomplete="current-password"]', pass);
