@@ -8,7 +8,7 @@ import {
   formatDay,
   isOpenMakeup,
 } from "@/components/MakeupTracker";
-import { RescheduledTag } from "@/components/Rescheduled";
+import { ExtraTag, RescheduledTag } from "@/components/Rescheduled";
 import StatusBadge from "@/components/StatusBadge";
 import {
   Button,
@@ -104,11 +104,22 @@ export default function TeacherPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">My classes</h1>
-        <p className="mt-1 text-base text-ink-soft">
-          {user?.full_name} · {initial}
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">My classes</h1>
+          <p className="mt-1 text-base text-ink-soft">
+            {user?.full_name} · {initial}
+          </p>
+        </div>
+        {/* Admins see this page too, but have no sections to book for. */}
+        {user?.role === "TEACHER" ? (
+          <Link
+            href="/teacher/extra"
+            className="inline-flex min-h-12 items-center justify-center rounded-lg bg-brand px-4 py-3 text-base font-semibold text-white hover:bg-brand/90"
+          >
+            Book an extra class
+          </Link>
+        ) : null}
       </div>
 
       {error ? <ErrorNote message={error} /> : null}
@@ -198,6 +209,10 @@ export default function TeacherPage() {
                   {inst.is_makeup ? (
                     <div className="mt-1">
                       <RescheduledTag from={inst.rescheduled_from} />
+                    </div>
+                  ) : inst.is_extra ? (
+                    <div className="mt-1">
+                      <ExtraTag />
                     </div>
                   ) : null}
                 </div>

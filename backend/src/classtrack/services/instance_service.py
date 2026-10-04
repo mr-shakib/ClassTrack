@@ -238,6 +238,7 @@ async def generate(
                     "teacher_initial": sess.teacher,
                     "status": None,
                     "is_makeup": False,
+                    "is_extra": False,
                 }
             )
 

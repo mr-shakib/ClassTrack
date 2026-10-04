@@ -86,7 +86,12 @@ def needs_reschedule(instance: ClassInstance) -> bool:
     come wait half an hour before taking a new slot. Taking one settles the
     question: the class leaves the unresolved set, so the sweep no longer
     touches it.
+
+    An extra class is never owed: the routine did not promise it, so missing
+    it is recorded and nothing more.
     """
+    if instance.is_extra:
+        return False
     if instance.status is ClassStatus.MISSED:
         return True
     return (
@@ -138,8 +143,8 @@ async def _active_semester_id(session: AsyncSession, fallback: int) -> int:
     return semester.id if semester else fallback
 
 
-def _require_future(on: Date, time_slot: str, start_min: int | None, now: datetime | None) -> None:
-    """A reschedule into a time that has already started can never be held."""
+def require_future(on: Date, time_slot: str, start_min: int | None, now: datetime | None) -> None:
+    """A class booked into a time that has already started can never be held."""
     if start_min is None:
         if time_slot not in SLOTS:
             return  # conflict_service reports the bad slot with its own message
@@ -216,7 +221,7 @@ async def create(
         room = None
         link = _clean_link(drive_link)
     slot, start_min, end_min = _period(mode, time_slot, start_time)
-    _require_future(on, slot, start_min, now)
+    require_future(on, slot, start_min, now)
 
     semester_id = await _active_semester_id(session, original.semester_id)
 
@@ -266,6 +271,7 @@ async def create(
         instance.makeup_id = makeup.id
         session.add(instance)
         await session.flush()
+        await conflict_service.ensure_room_unshared(session, instance)
         makeup.created_instance_id = instance.id
         original.status = ClassStatus.MAKEUP_SCHEDULED
         await notification_service.notify_makeup_scheduled(session, makeup, original)
@@ -336,7 +342,7 @@ async def decide(
     semester_id = await _active_semester_id(session, original.semester_id)
 
     if approve:
-        _require_future(makeup.date, makeup.time_slot, makeup.start_min, now)
+        require_future(makeup.date, makeup.time_slot, makeup.start_min, now)
         # The time was free when requested, but a class may have been placed in
         # it since. Re-check, ignoring this request's own claim on the room.
         report = await conflict_service.check(
@@ -370,6 +376,9 @@ async def decide(
         instance.makeup_id = makeup.id
         session.add(instance)
         await session.flush()
+        if physical:
+            # Online classes all sit in "ONLINE", which is no room to share.
+            await conflict_service.ensure_room_unshared(session, instance)
         makeup.created_instance_id = instance.id
         # A physical instance starts unresolved, so it lands on the staff screen
         # for its floor at the new time (BR-10).

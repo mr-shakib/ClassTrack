@@ -317,20 +317,20 @@ def summary_pdf(overview: dict) -> bytes:
         subtitle += " · " + escape(", ".join(f"{k} {v}" for k, v in active.items()))
     story = _header_block("Class monitoring summary", subtitle, overview["range"])
 
-    story.append(
-        _kpis(
-            [
-                ("Classes", totals["total"], None),
-                ("Held", totals["held"], OUTCOME_STYLE["CONDUCTED"][0]),
-                ("Late", totals["late"], OUTCOME_STYLE["LATE"][0]),
-                ("Missed", totals["missed"], BAD),
-                ("Not checked", totals["not_checked"], OUTCOME_STYLE["NOT_CHECKED"][0]),
-                ("Rescheduled", totals["rescheduled"], OUTCOME_STYLE["RESCHEDULED"][0]),
-                ("Makeups held", totals["makeup_held"], None),
-                ("Conduct rate", f"{totals['conduct_rate']}%", None),
-            ]
-        )
-    )
+    kpis = [
+        ("Classes", totals["total"], None),
+        ("Held", totals["held"], OUTCOME_STYLE["CONDUCTED"][0]),
+        ("Late", totals["late"], OUTCOME_STYLE["LATE"][0]),
+        ("Missed", totals["missed"], BAD),
+        ("Not checked", totals["not_checked"], OUTCOME_STYLE["NOT_CHECKED"][0]),
+        ("Rescheduled", totals["rescheduled"], OUTCOME_STYLE["RESCHEDULED"][0]),
+        ("Makeups held", totals["makeup_held"], None),
+        ("Conduct rate", f"{totals['conduct_rate']}%", None),
+    ]
+    # Only when there are any: the strip splits the page width evenly.
+    if totals.get("extra_held"):
+        kpis.insert(7, ("Extra held", totals["extra_held"], None))
+    story.append(_kpis(kpis))
 
     floors = overview.get("by_floor") or []
     if floors:

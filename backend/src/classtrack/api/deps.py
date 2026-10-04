@@ -71,6 +71,8 @@ AdminUser = Annotated[User, Depends(require_role(*ADMIN_ROLES))]
 ManagerUser = Annotated[User, Depends(require_role(*MANAGEMENT_ROLES))]
 #: Schedule a makeup class.
 TeacherUser = Annotated[User, Depends(require_role(Role.TEACHER, *ADMIN_ROLES))]
+#: A teacher acting for themselves alone, e.g. booking an extra class.
+OwnTeacherUser = Annotated[User, Depends(require_role(Role.TEACHER))]
 
 
 def scope_teacher(user: User, requested: str | None) -> str | None:

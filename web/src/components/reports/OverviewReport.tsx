@@ -201,7 +201,11 @@ function OverviewBody({
       </p>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
-        <SummaryCard label="Classes" value={t.total} hint={`${t.scheduled} in the routine`} />
+        <SummaryCard
+          label="Classes"
+          value={t.total}
+          hint={`${t.scheduled} in the routine${t.extra_held ? ` · ${t.extra_held} extra held` : ""}`}
+        />
         <SummaryCard label="Held" value={t.held} tone="ok" hint="on time + late" />
         <SummaryCard label="Late" value={t.late} tone="warn" hint={t.late ? `avg ${t.avg_late_minutes} min` : undefined} />
         <SummaryCard label="Missed" value={t.missed} tone="bad" hint="teacher absent" />
@@ -445,11 +449,13 @@ function ShortCourses({ data }: { data: Overview }) {
 function exportTeachers(data: Overview) {
   downloadCsv(`classtrack-teachers-${data.range.from}-${data.range.to}.csv`, [
     ["Initial", "Name", "Classes", "Held", "On time", "Late", "Missed", "Not checked",
-      "Rescheduled", "Makeups held", "Conduct rate %", `Courses below ${data.min_conducted}`,
+      "Rescheduled", "Makeups held", "Extra held", "Conduct rate %",
+      `Courses below ${data.min_conducted}`,
       "Courses", "Flagged"],
     ...data.by_teacher.map((r) => [
       r.teacher_initial, r.teacher_name, r.total, r.held, r.conducted, r.late, r.missed,
-      r.not_checked, r.rescheduled, r.makeup_held, r.conduct_rate, r.courses_below_minimum,
+      r.not_checked, r.rescheduled, r.makeup_held, r.extra_held, r.conduct_rate,
+      r.courses_below_minimum,
       r.courses, r.flagged ? "yes" : "no",
     ]),
   ]);

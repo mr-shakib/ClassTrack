@@ -142,14 +142,20 @@ class Tally:
     """Counts per outcome, plus the few derived figures every table shows."""
 
     counts: dict[str, int] = field(default_factory=lambda: dict.fromkeys(OUTCOMES, 0))
-    #: Routine classes, excluding makeups.
+    #: Routine classes, excluding makeups and extra classes.
     scheduled: int = 0
     makeup_held: int = 0
+    #: Held on top of the routine. Also in ``held``: they count towards a
+    #: course's minimum like any class it has had.
+    extra_held: int = 0
     late_minutes: int = 0
 
     def add(self, inst: ClassInstance, outcome: str, late_minutes: int | None) -> None:
         self.counts[outcome] += 1
-        if not inst.is_makeup:
+        if inst.is_extra:
+            if is_held(outcome):
+                self.extra_held += 1
+        elif not inst.is_makeup:
             self.scheduled += 1
         elif is_held(outcome):
             self.makeup_held += 1
@@ -182,6 +188,7 @@ class Tally:
             "cancelled": c[CANCELLED],
             "pending": c[PENDING],
             "makeup_held": self.makeup_held,
+            "extra_held": self.extra_held,
             "conduct_rate": round(self.held / decided * 100, 1) if decided else 0.0,
             "avg_late_minutes": round(self.late_minutes / c[LATE], 1) if c[LATE] else 0.0,
         }
@@ -402,6 +409,7 @@ def _class_row(r: Row, names: dict[str, str]) -> dict[str, object]:
         "late_minutes": r.late_minutes,
         "remark": inst.check.remark if inst.check else None,
         "is_makeup": inst.is_makeup,
+        "is_extra": inst.is_extra,
         "rescheduled_from": r.rescheduled_from,
         "rescheduled_to": r.rescheduled_to,
     }

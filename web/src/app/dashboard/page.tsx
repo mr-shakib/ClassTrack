@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { RescheduledTag, rescheduledRowClass } from "@/components/Rescheduled";
+import { ExtraTag, RescheduledTag, rescheduledRowClass } from "@/components/Rescheduled";
 import StatusBadge from "@/components/StatusBadge";
 import { Card, EmptyState, ErrorNote, Spinner, SummaryCard } from "@/components/ui";
 import { api } from "@/lib/api";
@@ -161,6 +161,10 @@ export default function DashboardPage() {
                       {r.is_makeup ? (
                         <div className="mt-1">
                           <RescheduledTag from={r.rescheduled_from} />
+                        </div>
+                      ) : r.is_extra ? (
+                        <div className="mt-1">
+                          <ExtraTag />
                         </div>
                       ) : null}
                     </td>

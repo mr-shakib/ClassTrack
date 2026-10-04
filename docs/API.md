@@ -291,6 +291,34 @@ links to `/teacher#makeup-{id}`, where the reschedule stays visible until marked
 Once an approved makeup's slot ends without completion, the sweep sends the teacher one
 `MAKEUP_REMINDER`.
 
+### Extra classes
+
+A teacher books an empty room for one of their own sections, on top of the routine.
+
+| Method | Path | Roles | Purpose |
+|---|---|---|---|
+| `GET` | `/extra-classes/sections` | TEACHER | Course-sections they have on the routine in force |
+| `GET` | `/extra-classes` | TEACHER | Their extra classes, latest first (`InstanceOut`) |
+| `POST` | `/extra-classes` | TEACHER | `{ course_code, section, date, time_slot, room }` — book it |
+| `POST` | `/extra-classes/{id}/cancel` | TEACHER | Give the room back, before it starts |
+
+- Booked at once, with no approval, like an in-room reschedule. Admins get an `EXTRA_BOOKED`
+  notification. Find rooms with `/makeup/free-rooms`, and check a choice with
+  `/makeup/check-conflict` (pass `section`).
+- It becomes an ordinary class instance with `is_extra: true` and no `session_id`. Staff
+  check it, it holds its room, and it counts like any class: held, towards the course's
+  minimum (`held`, plus `extra_held` in report tallies, never `scheduled`); missed, as missed.
+- It is never owed: a missed extra class is not in `needs_reschedule`, cannot be rescheduled,
+  and its notifications and absence email ask for no reschedule.
+- `422` for a section the teacher does not have, a room not on the routine, a Friday, a date
+  outside the current semester, or a slot already started. `409` if the room, the teacher or
+  the section is busy then, or on a holiday or exam day.
+- Cancelling after it starts is refused; an admin can still cancel it with
+  `POST /instances/{id}/cancel`.
+
+Every in-room booking, extra or reschedule, counts the room's holders again once it is
+written. If two bookings for the same room race, the later one gets `409` and is rolled back.
+
 ## 7. Reports
 
 | Method | Path | Roles | Purpose |

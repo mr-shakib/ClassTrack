@@ -58,6 +58,7 @@ class RoomRow(BaseModel):
     scheduled_start: str
     scheduled_end: str
     is_makeup: bool
+    is_extra: bool = False
     #: Set on a makeup: the missed class it recovers, on another day.
     rescheduled_from: SlotRef | None = None
     #: "KT-3", "G1-0", "Other" -- shown so staff can see the card is theirs.
@@ -126,6 +127,7 @@ class InstanceOut(ORMModel):
     batch: str
     teacher_initial: str
     is_makeup: bool
+    is_extra: bool = False
     status: StatusOut | None = None
     rescheduled_from: SlotRef | None = None
     rescheduled_to: SlotRef | None = None
@@ -174,6 +176,7 @@ class DashboardRow(BaseModel):
     checked_by: str | None = None
     checked_at: str | None = None
     is_makeup: bool = False
+    is_extra: bool = False
     rescheduled_from: SlotRef | None = None
 
 

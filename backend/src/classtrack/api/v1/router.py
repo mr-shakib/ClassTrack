@@ -6,6 +6,7 @@ from classtrack.api.v1.routes import (
     admin,
     auth,
     checking,
+    extra_classes,
     health,
     instances,
     makeup,
@@ -14,5 +15,15 @@ from classtrack.api.v1.routes import (
 )
 
 api_router = APIRouter()
-for module in (health, auth, checking, instances, makeup, reports, notifications, admin):
+for module in (
+    health,
+    auth,
+    checking,
+    instances,
+    makeup,
+    extra_classes,
+    reports,
+    notifications,
+    admin,
+):
     api_router.include_router(module.router)

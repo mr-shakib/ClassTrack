@@ -16,6 +16,7 @@ from datetime import date as Date
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from classtrack.core.errors import ConflictError
 from classtrack.models import (
     BLOCKING_KINDS,
     ClassInstance,
@@ -193,6 +194,28 @@ async def check(
             )
 
     return report
+
+
+async def ensure_room_unshared(session: AsyncSession, booked: ClassInstance) -> None:
+    """Back out of a booking that lost a race for its room.
+
+    ``check`` reads before anything is written, so two teachers who take the
+    same empty room for the same slot at the same moment can both pass it.
+    Counting again once our own row is flushed closes that: a rival committed
+    in between is visible now. SQLite admits one writer at a time, so from our
+    first write until our commit no rival can slip a row in behind this count.
+    """
+    holders = [
+        o
+        for o in await _occupants(session, booked.date, booked.time_slot)
+        if o.room == booked.room
+    ]
+    if len(holders) > 1:
+        raise ConflictError(
+            f"{booked.room} was booked by someone else for that time a moment ago. "
+            "Pick another room.",
+            detail={"room": booked.room, "date": booked.date.isoformat()},
+        )
 
 
 async def _occupants(

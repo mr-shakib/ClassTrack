@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ApiError, api } from "@/lib/api";
 import type { CheckOutcome, RoomRow } from "@/lib/types";
-import { RescheduledTag, shortDay } from "./Rescheduled";
+import { ExtraTag, RescheduledTag, shortDay } from "./Rescheduled";
 
 /**
  * One room on the checking screen.
@@ -53,6 +53,10 @@ export default function RoomCard({
   const makeupTag = row.is_makeup ? (
     <div className="mt-2">
       <RescheduledTag from={row.rescheduled_from} size="lg" />
+    </div>
+  ) : row.is_extra ? (
+    <div className="mt-2">
+      <ExtraTag size="lg" />
     </div>
   ) : null;
 

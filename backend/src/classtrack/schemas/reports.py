@@ -34,6 +34,8 @@ class Tally(BaseModel):
     cancelled: int = 0
     pending: int = 0
     makeup_held: int = 0
+    #: Extra classes held, on top of the routine; counted in ``held`` too.
+    extra_held: int = 0
     #: Held / (held + missed), as a percentage. Not-checked classes are left out:
     #: a staff gap says nothing about the teacher.
     conduct_rate: float = 0.0
@@ -90,6 +92,7 @@ class ClassRow(BaseModel):
     late_minutes: int | None = None
     remark: str | None = None
     is_makeup: bool = False
+    is_extra: bool = False
     #: Set on a makeup: the missed class it recovers.
     rescheduled_from: SlotRef | None = None
     #: Set on a missed class: where it was moved.

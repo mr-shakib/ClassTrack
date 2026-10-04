@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { formatDay } from "@/components/MakeupTracker";
+import { ConflictList, RoomPicker, useFreeRooms } from "@/components/RoomPicker";
 import {
   Button,
   Card,
@@ -13,7 +14,7 @@ import {
 } from "@/components/ui";
 import { ApiError, SLOTS, api, todayISO } from "@/lib/api";
 import { ADMIN_ROLES, useRequireRole } from "@/lib/auth";
-import type { ClassInstance, ConflictReport, FreeRoom, MakeupMode, Role } from "@/lib/types";
+import type { ClassInstance, ConflictReport, MakeupMode, Role } from "@/lib/types";
 
 const TEACHER_PAGE_ROLES: Role[] = ["TEACHER", ...ADMIN_ROLES];
 
@@ -43,9 +44,6 @@ function MakeupForm() {
   // Online only: a time the teacher picks off the clock, in 24-hour HH:MM.
   const [startTime, setStartTime] = useState("");
   const [room, setRoom] = useState("");
-  const [rooms, setRooms] = useState<FreeRoom[] | null>(null);
-  const [roomsLoading, setRoomsLoading] = useState(false);
-  const [sameType, setSameType] = useState(true);
   const [reason, setReason] = useState("");
   const [driveLink, setDriveLink] = useState("");
   const [report, setReport] = useState<ConflictReport | null>(null);
@@ -64,36 +62,8 @@ function MakeupForm() {
       );
   }, [permitted, instanceId]);
 
-  // The empty rooms depend on the cell, so reload them whenever it changes.
-  useEffect(() => {
-    if (mode !== "PHYSICAL" || !date || !slot) {
-      setRooms(null);
-      return;
-    }
-    let alive = true;
-    setRoomsLoading(true);
-    api
-      .freeRooms(date, slot)
-      .then((r) => {
-        if (alive) setRooms(r);
-      })
-      .catch((err) => {
-        if (!alive) return;
-        setRooms([]);
-        setError(err instanceof ApiError ? err.message : "Could not load empty rooms.");
-      })
-      .finally(() => {
-        if (alive) setRoomsLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [mode, date, slot]);
-
-  // A room picked for one slot may be taken in the next.
-  useEffect(() => {
-    if (rooms && room && !rooms.some((r) => r.room === room)) setRoom("");
-  }, [rooms, room]);
+  // The empty rooms depend on the cell, so they reload whenever it changes.
+  const freeRooms = useFreeRooms(date, slot, mode === "PHYSICAL");
 
   const online = mode === "ONLINE";
   // An online class may be held at any time, so the teacher picks one off the
@@ -204,9 +174,6 @@ function MakeupForm() {
   }
 
   const blocked = report != null && !report.ok;
-  const shown =
-    rooms?.filter((r) => !sameType || !original || r.room_type === original.room_type) ?? [];
-  const typeLabel = original?.room_type.toLowerCase() ?? "";
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
@@ -310,62 +277,15 @@ function MakeupForm() {
           </div>
 
           {mode === "PHYSICAL" ? (
-            <div>
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <span className="text-base font-semibold">
-                  Empty room{room ? ` · ${room}` : ""}
-                </span>
-                {original ? (
-                  <label className="flex items-center gap-2 text-base text-ink-soft">
-                    <input
-                      type="checkbox"
-                      className="size-5 accent-brand"
-                      checked={sameType}
-                      onChange={(e) => setSameType(e.target.checked)}
-                    />
-                    Only {typeLabel} rooms
-                  </label>
-                ) : null}
-              </div>
-
-              {!date ? (
-                <p className="rounded-xl bg-canvas px-4 py-3 text-base text-ink-soft">
-                  Pick a date and time to see which rooms are empty.
-                </p>
-              ) : roomsLoading ? (
-                <p className="text-base text-ink-faint">Finding empty rooms…</p>
-              ) : shown.length === 0 ? (
-                <p className="rounded-xl bg-canvas px-4 py-3 text-base text-ink-soft">
-                  No empty {sameType ? `${typeLabel} ` : ""}rooms at this time. Try
-                  another time{sameType ? " or include every room type" : ""}.
-                </p>
-              ) : (
-                <div className="grid max-h-96 grid-cols-2 gap-2 overflow-y-auto p-0.5 sm:grid-cols-4">
-                  {shown.map((r) => {
-                    const on = room === r.room;
-                    return (
-                      <button
-                        key={r.room}
-                        type="button"
-                        aria-pressed={on}
-                        onClick={() => setRoom(r.room)}
-                        className={`min-h-16 rounded-xl px-3 py-2 text-left ring-2 ring-inset transition-colors ${
-                          on
-                            ? "bg-brand text-white ring-brand"
-                            : "bg-surface text-ink ring-line hover:bg-canvas"
-                        }`}
-                      >
-                        <span className="block text-lg font-bold">{r.room}</span>
-                        <span className="block text-sm opacity-80">
-                          {r.zone}
-                          {sameType ? "" : ` · ${r.room_type}`}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <RoomPicker
+              date={date}
+              rooms={freeRooms.rooms}
+              loading={freeRooms.loading}
+              error={freeRooms.error}
+              room={room}
+              onPick={setRoom}
+              roomType={original?.room_type}
+            />
           ) : null}
 
           {mode === "ONLINE" ? (
@@ -397,19 +317,7 @@ function MakeupForm() {
           {checking ? (
             <p className="text-base text-ink-faint">Checking availability…</p>
           ) : report && !report.ok ? (
-            <div className="rounded-xl border-2 border-bad/30 bg-bad-soft px-4 py-3">
-              <p className="text-lg font-bold text-bad">
-                {report.conflicts.length} conflict
-                {report.conflicts.length === 1 ? "" : "s"}
-              </p>
-              <ul className="mt-1 space-y-1">
-                {report.conflicts.map((c, i) => (
-                  <li key={i} className="text-base text-bad">
-                    <span className="font-semibold">{c.type}:</span> {c.message}
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <ConflictList report={report} />
           ) : null}
 
           {error ? <ErrorNote message={error} /> : null}

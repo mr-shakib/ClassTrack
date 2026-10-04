@@ -124,6 +124,10 @@ class ClassInstance(Base, TimestampMixin):
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     is_makeup: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    #: A class the teacher booked in an empty room on top of the routine. Checked
+    #: and counted like any other, but never owed: missing one asks for no
+    #: reschedule. Like a makeup it has no ``session_id``.
+    is_extra: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     makeup_id: Mapped[int | None] = mapped_column(
         ForeignKey("makeup_class.id", ondelete="SET NULL")
     )

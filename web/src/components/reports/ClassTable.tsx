@@ -1,5 +1,11 @@
 import OutcomeBadge from "@/components/OutcomeBadge";
-import { MovedToTag, RescheduledTag, rescheduledRowClass, shortDay } from "@/components/Rescheduled";
+import {
+  ExtraTag,
+  MovedToTag,
+  RescheduledTag,
+  rescheduledRowClass,
+  shortDay,
+} from "@/components/Rescheduled";
 import type { ClassRow } from "@/lib/types";
 
 /** Every class in a report, one row each, with its outcome and where it moved. */
@@ -46,6 +52,7 @@ export default function ClassTable({
               <td className="px-4 py-2">
                 <div className="flex flex-wrap items-center gap-1.5">
                   {c.is_makeup ? <RescheduledTag from={c.rescheduled_from} /> : null}
+                  {c.is_extra ? <ExtraTag /> : null}
                   {c.rescheduled_to ? <MovedToTag to={c.rescheduled_to} /> : null}
                   {c.remark ? <span className="text-xs text-ink-faint">{c.remark}</span> : null}
                 </div>

@@ -9,6 +9,7 @@ import type {
   Dashboard,
   DailyReport,
   DayStatus,
+  ExtraSection,
   FreeRoom,
   Holiday,
   IngestionReport,
@@ -165,6 +166,18 @@ export const api = {
   }) => post<ConflictReport>("/makeup/check-conflict", payload),
   freeRooms: (date: string, slot: string) =>
     get<FreeRoom[]>(`/makeup/free-rooms${qs({ date, time_slot: slot })}`),
+
+  // --- extra classes ------------------------------------------------------
+  extraSections: () => get<ExtraSection[]>("/extra-classes/sections"),
+  extraClasses: () => get<ClassInstance[]>("/extra-classes"),
+  bookExtraClass: (payload: {
+    course_code: string;
+    section: string;
+    date: string;
+    time_slot: string;
+    room: string;
+  }) => post<ClassInstance>("/extra-classes", payload),
+  cancelExtraClass: (id: number) => post<ClassInstance>(`/extra-classes/${id}/cancel`),
   createMakeup: (payload: {
     original_instance_id: number;
     mode: MakeupMode;

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { OUTCOME, OUTCOME_ORDER } from "@/components/OutcomeBadge";
-import { MovedToTag, RescheduledTag, rescheduledRowClass } from "@/components/Rescheduled";
+import { ExtraTag, MovedToTag, RescheduledTag, rescheduledRowClass } from "@/components/Rescheduled";
 import StatusBadge from "@/components/StatusBadge";
 import { Card, EmptyState, ErrorNote, Field, Spinner, inputClass } from "@/components/ui";
 import { SLOTS, api, todayISO } from "@/lib/api";
@@ -351,6 +351,7 @@ function DayTable({ rows, currentSlot }: { rows: DayRow[]; currentSlot: string |
               <td className="px-4 py-2">
                 <div className="flex flex-wrap items-center gap-1.5">
                   {r.is_makeup ? <RescheduledTag from={r.rescheduled_from} /> : null}
+                  {r.is_extra ? <ExtraTag /> : null}
                   {r.rescheduled_to ? <MovedToTag to={r.rescheduled_to} /> : null}
                   {r.remark ? <span className="text-xs text-ink-faint">{r.remark}</span> : null}
                 </div>

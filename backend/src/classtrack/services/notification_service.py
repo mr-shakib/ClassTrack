@@ -111,6 +111,20 @@ async def notify_missed(session: AsyncSession, instance: ClassInstance) -> None:
             instance.teacher_initial,
         )
         return
+    if instance.is_extra:
+        # Recorded, but not owed: there is nothing to reschedule.
+        await _dispatch(
+            session,
+            user_id=user.id,
+            kind=NotificationKind.MISSED_CLASS,
+            title="Extra class missed",
+            body=(
+                f"Your extra class, {_describe(instance)}, has been marked as missed. "
+                "It was not on the routine, so it needs no reschedule."
+            ),
+            link="/teacher",
+        )
+        return
     await _dispatch(
         session,
         user_id=user.id,
@@ -147,7 +161,14 @@ async def notify_reported(
         )
         return
     link = "/teacher"
-    if outcome is CheckOutcome.TEACHER_NOT_FOUND:
+    if outcome is CheckOutcome.TEACHER_NOT_FOUND and instance.is_extra:
+        title = "Reported absent from your extra class"
+        body = (
+            f"Office staff found no teacher in {instance.room} for your extra class, "
+            f"{_describe(instance)}. If you are on your way, staff can still record "
+            "you as late."
+        )
+    elif outcome is CheckOutcome.TEACHER_NOT_FOUND:
         title = "Reported absent — reschedule required"
         body = (
             f"Office staff found no teacher in {instance.room} for your "
@@ -182,6 +203,15 @@ async def _email_absent(session: AsyncSession, instance: ClassInstance) -> None:
         )
         return
     public_url = get_settings().public_url
+    # An extra class is not owed, so its email asks for no reschedule.
+    reschedule = (
+        ""
+        if instance.is_extra
+        else "If you cannot hold this class, please request a reschedule in ClassTrack. "
+    )
+    link = None
+    if public_url and not instance.is_extra:
+        link = f"{public_url.rstrip('/')}{_reschedule_link(instance)}"
     email_service.queue(
         session,
         email_service.Email(
@@ -193,13 +223,13 @@ async def _email_absent(session: AsyncSession, instance: ClassInstance) -> None:
             body=(
                 f"Dear {teacher.name},\n\n"
                 f"Office staff found no teacher in room {instance.room} for your "
-                f"{_describe(instance)}.\n\n"
-                "If you cannot hold this class, please request a reschedule in ClassTrack. "
+                f"{'extra class, ' if instance.is_extra else ''}{_describe(instance)}.\n\n"
+                f"{reschedule}"
                 "If you are on your way, staff can still record you as late when you "
                 "arrive.\n\n"
                 "This is an automated message from ClassTrack, Department of CSE."
             ),
-            link=f"{public_url.rstrip('/')}{_reschedule_link(instance)}" if public_url else None,
+            link=link,
             link_label="Request a reschedule",
         ),
     )
@@ -276,6 +306,27 @@ async def notify_makeup_scheduled(
             body=(
                 f"{makeup.teacher_initial} rescheduled {_describe(original)} to "
                 f"{_rescheduled_to(makeup)}. An empty room needs no approval, so it is "
+                "booked and in staff checking."
+            ),
+            link="/today",
+        )
+
+
+async def notify_extra_booked(session: AsyncSession, instance: ClassInstance) -> None:
+    """Tell the admins a room was taken for an extra class.
+
+    Like an in-room reschedule it needed no decision, so nothing reaches the
+    approvals queue; the admins hear of it here instead.
+    """
+    for admin in await _admins(session):
+        await _dispatch(
+            session,
+            user_id=admin.id,
+            kind=NotificationKind.EXTRA_BOOKED,
+            title=f"Extra class booked in {instance.room}",
+            body=(
+                f"{instance.teacher_initial} booked {instance.room} for an extra class: "
+                f"{_describe(instance)}. An empty room needs no approval, so it is "
                 "booked and in staff checking."
             ),
             link="/today",

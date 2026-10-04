@@ -21,6 +21,8 @@ const ACTION_LABEL: Record<string, string> = {
   holiday_removed: "Calendar day removed",
   password_changed: "Changed own password",
   contact_email_changed: "Absence email changed",
+  extra_class_booked: "Extra class booked",
+  extra_class_cancelled: "Extra class cancelled",
 };
 
 export default function AuditPage() {

@@ -107,6 +107,7 @@ def _room_row(
         "scheduled_start": _hhmm(inst.start_min),
         "scheduled_end": _hhmm(inst.end_min),
         "is_makeup": inst.is_makeup,
+        "is_extra": inst.is_extra,
         "rescheduled_from": moved_from.get(inst.id),
         "zone": zones.room_zone(inst.room).short_label,
         "zone_key": zones.zone_key(inst.room),
@@ -274,6 +275,7 @@ async def dashboard(session: AsyncSession) -> dict:
                     else None
                 ),
                 "is_makeup": inst.is_makeup,
+                "is_extra": inst.is_extra,
                 "rescheduled_from": moved_from.get(inst.id),
             }
         )
@@ -359,6 +361,7 @@ async def day_status(session: AsyncSession, *, on: Date | None = None) -> dict:
                     else None
                 ),
                 "is_makeup": inst.is_makeup,
+                "is_extra": inst.is_extra,
                 "rescheduled_from": moved_from.get(inst.id),
                 "rescheduled_to": moved_to.get(inst.id),
             }

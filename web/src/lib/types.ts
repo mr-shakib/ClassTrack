@@ -114,6 +114,8 @@ export interface RoomRow {
   scheduled_start: string;
   scheduled_end: string;
   is_makeup: boolean;
+  /** Booked by the teacher on top of the routine: checked and counted, never owed. */
+  is_extra: boolean;
   /** Set on a makeup: the missed class it recovers, on another day. */
   rescheduled_from: SlotRef | null;
   zone: string | null;
@@ -169,6 +171,8 @@ export interface ClassInstance {
   batch: string;
   teacher_initial: string;
   is_makeup: boolean;
+  /** Booked by the teacher on top of the routine: checked and counted, never owed. */
+  is_extra: boolean;
   status: ClassStatus | null;
   rescheduled_from: SlotRef | null;
   rescheduled_to: SlotRef | null;
@@ -208,6 +212,8 @@ export interface DashboardRow {
   checked_by: string | null;
   checked_at: string | null;
   is_makeup: boolean;
+  /** Booked by the teacher on top of the routine: checked and counted, never owed. */
+  is_extra: boolean;
   rescheduled_from: SlotRef | null;
 }
 
@@ -317,6 +323,8 @@ export interface Tally {
   cancelled: number;
   pending: number;
   makeup_held: number;
+  /** Extra classes held, on top of the routine; also counted in `held`. */
+  extra_held: number;
   /** Held ÷ (held + missed). Not-checked classes are left out. */
   conduct_rate: number;
   avg_late_minutes: number;
@@ -372,6 +380,8 @@ export interface ClassRow {
   late_minutes: number | null;
   remark: string | null;
   is_makeup: boolean;
+  /** Booked by the teacher on top of the routine: checked and counted, never owed. */
+  is_extra: boolean;
   rescheduled_from: SlotRef | null;
   rescheduled_to: SlotRef | null;
 }
@@ -638,4 +648,13 @@ export interface UnreportedReport {
   by_staff: StaffMisses[];
   /** Classes on floors nobody covers — an admin gap, not a staff failure. */
   unassigned: UnreportedClass[];
+}
+
+/** A course-section a teacher may book an extra class for. */
+export interface ExtraSection {
+  course_code: string;
+  course_title: string;
+  section: string;
+  /** The kind of room it usually meets in, offered first. */
+  room_type: string;
 }

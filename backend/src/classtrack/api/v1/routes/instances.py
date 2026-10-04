@@ -75,7 +75,9 @@ async def list_instances(
 
     query = select(ClassInstance).options(selectinload(ClassInstance.check))
     if needs_reschedule:
+        # An extra class is never owed, so it is never on this list.
         query = query.outerjoin(CheckRecord, CheckRecord.instance_id == ClassInstance.id).where(
+            ClassInstance.is_extra.is_(False),
             (ClassInstance.status == ClassStatus.MISSED)
             | (
                 ClassInstance.status.is_(None)

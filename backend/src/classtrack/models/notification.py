@@ -30,6 +30,9 @@ class NotificationKind(str, enum.Enum):
     ONLINE_REQUEST = "ONLINE_REQUEST"
     ONLINE_DECISION = "ONLINE_DECISION"
     DISPUTE_RAISED = "DISPUTE_RAISED"
+    #: A teacher booked an empty room for an extra class. Kept within 16
+    #: characters, the column width the existing kinds gave the table.
+    EXTRA_BOOKED = "EXTRA_BOOKED"
 
 
 class Notification(Base, TimestampMixin):
