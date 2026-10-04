@@ -41,6 +41,8 @@ export interface User {
   full_name: string;
   role: Role;
   teacher_initial: string | null;
+  /** A teacher's faculty photo, when the directory has one. */
+  photo_url?: string | null;
 }
 
 export interface CheckRecord {
@@ -77,6 +79,8 @@ export interface Profile {
   department: string | null;
   /** Where a teacher's absence reports are mailed. Null for anyone else. */
   contact_email: string | null;
+  /** A teacher's faculty photo, when the directory has one. */
+  photo_url: string | null;
 }
 
 export interface StaffMember {

@@ -45,8 +45,11 @@ async def logout(response: Response) -> Message:
 
 
 @router.get("/me", response_model=UserOut, summary="Current user")
-async def me(user: CurrentUser) -> UserOut:
-    return UserOut.model_validate(user)
+async def me(session: SessionDep, user: CurrentUser) -> UserOut:
+    out = UserOut.model_validate(user)
+    teacher = await profile_service.teacher_of(session, user)
+    out.photo_url = teacher.image_url if teacher else None
+    return out
 
 
 async def _profile(session: AsyncSession, user: User) -> ProfileOut:
@@ -60,6 +63,7 @@ async def _profile(session: AsyncSession, user: User) -> ProfileOut:
         designation=teacher.designation if teacher else None,
         department=teacher.department if teacher else None,
         contact_email=teacher.email if teacher else None,
+        photo_url=teacher.image_url if teacher else None,
     )
 
 

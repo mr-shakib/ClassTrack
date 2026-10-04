@@ -6,8 +6,9 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { ADMIN_ROLES, CHECKING_ROLES, MANAGEMENT_ROLES, ROLE_LABELS, useAuth } from "@/lib/auth";
-import type { Role } from "@/lib/types";
-import { Button } from "./ui";
+import type { Role, User } from "@/lib/types";
+import { Avatar } from "./Avatar";
+import { ChevronDownIcon, LockIcon, SignOutIcon, UserIcon } from "./icons";
 
 const NAV: { href: string; label: string; roles: Role[] }[] = [
   { href: "/staff", label: "Checking", roles: CHECKING_ROLES },
@@ -115,6 +116,116 @@ function Bell() {
   );
 }
 
+/**
+ * Who is signed in, and the way to their profile and out. The avatar and name
+ * open a menu; on a phone the avatar alone does.
+ */
+function AccountMenu({ user, onSignOut }: { user: User; onSignOut: () => void }) {
+  const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Whatever was picked, the menu has done its job once the page changes.
+  useEffect(() => setOpen(false), [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  const item =
+    "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-base font-medium transition-colors";
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Account menu"
+        className={`flex items-center gap-2.5 rounded-full p-0.5 transition-colors sm:rounded-xl sm:py-1 sm:pl-1 sm:pr-2 ${
+          open ? "bg-canvas ring-1 ring-line" : "hover:bg-canvas"
+        }`}
+      >
+        <Avatar name={user.full_name} initial={user.teacher_initial} photo={user.photo_url} />
+        <span className="hidden min-w-0 text-left sm:block">
+          <span className="block max-w-48 truncate text-sm font-semibold leading-tight text-ink">
+            {user.full_name}
+          </span>
+          <span className="block text-xs leading-tight text-ink-faint">
+            {ROLE_LABELS[user.role]}
+          </span>
+        </span>
+        <ChevronDownIcon
+          className={`hidden size-4 text-ink-faint transition-transform sm:block ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+
+      {open ? (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          {/* Pinned to the viewport on a phone, like the notifications. */}
+          <div
+            role="menu"
+            className="fixed inset-x-3 top-16 z-20 overflow-hidden rounded-2xl border border-line bg-surface shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80"
+          >
+            <div className="flex items-center gap-3 border-b border-line bg-canvas/70 px-4 py-4">
+              <Avatar
+                name={user.full_name}
+                initial={user.teacher_initial}
+                photo={user.photo_url}
+                size="md"
+              />
+              <div className="min-w-0">
+                <p className="break-words text-base font-semibold leading-snug text-ink">
+                  {user.full_name}
+                </p>
+                <p className="truncate text-sm text-ink-soft">
+                  {ROLE_LABELS[user.role]}
+                  {user.teacher_initial ? ` · ${user.teacher_initial}` : ""}
+                </p>
+              </div>
+            </div>
+            <div className="p-1.5">
+              <Link
+                role="menuitem"
+                href="/profile"
+                className={`${item} text-ink hover:bg-canvas`}
+              >
+                <UserIcon className="size-5 text-ink-faint" />
+                Your profile
+              </Link>
+              <Link
+                role="menuitem"
+                href="/profile#password"
+                className={`${item} text-ink hover:bg-canvas`}
+              >
+                <LockIcon className="size-5 text-ink-faint" />
+                Change password
+              </Link>
+            </div>
+            <div className="border-t border-line p-1.5">
+              <button
+                type="button"
+                role="menuitem"
+                onClick={onSignOut}
+                className={`${item} font-semibold text-bad hover:bg-bad-soft`}
+              >
+                <SignOutIcon className="size-5" />
+                Sign out
+              </button>
+            </div>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 export default function Shell({ children }: { children: React.ReactNode }) {
   const { user, signOut } = useAuth();
   const pathname = usePathname();
@@ -173,41 +284,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             <Bell />
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* The name opens the profile; on a phone, where the name is hidden,
-                an icon stands in for it. */}
-            <Link
-              href="/profile"
-              aria-label="Your profile"
-              aria-current={pathname === "/profile" ? "page" : undefined}
-              className={`rounded-lg p-2.5 text-ink-soft hover:bg-canvas sm:px-2 sm:py-1 sm:text-right ${
-                pathname === "/profile" ? "bg-brand-soft" : ""
-              }`}
-            >
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                aria-hidden
-                className="sm:hidden"
-              >
-                <path d="M10 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0 1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z" />
-              </svg>
-              <span className="hidden sm:block">
-                <span className="block text-sm font-medium leading-tight text-ink">
-                  {user.full_name}
-                </span>
-                <span className="block text-xs leading-tight text-ink-faint">
-                  {ROLE_LABELS[user.role]}
-                  {user.teacher_initial ? ` · ${user.teacher_initial}` : ""}
-                </span>
-              </span>
-            </Link>
-            <Button variant="ghost" onClick={signOut} aria-label="Sign out">
-              Sign out
-            </Button>
-          </div>
+          <AccountMenu user={user} onSignOut={signOut} />
         </div>
       </header>
 

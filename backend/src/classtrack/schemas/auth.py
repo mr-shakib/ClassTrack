@@ -23,6 +23,8 @@ class UserOut(ORMModel):
     full_name: str
     role: Role
     teacher_initial: str | None = None
+    #: A teacher's photo from the faculty directory, for the header.
+    photo_url: str | None = None
 
 
 class PasswordChange(BaseModel):
@@ -43,6 +45,8 @@ class ProfileOut(BaseModel):
     #: Where a teacher's absence reports are mailed. Null for anyone else, and
     #: for a teacher with none on file.
     contact_email: str | None = None
+    #: A teacher's photo from the faculty directory, when it has one.
+    photo_url: str | None = None
 
 
 class ProfileUpdate(BaseModel):
