@@ -129,7 +129,9 @@ class StaffOut(ORMModel):
 
 class StaffCreateRequest(BaseModel):
     full_name: str = Field(min_length=1, max_length=255)
-    email: EmailStr
+    #: An email address or an employee ID: what they sign in with. Checked by
+    #: the service, which can say which of the two was malformed.
+    email: str = Field(min_length=1, max_length=255)
     password: str = Field(min_length=6)
     #: At least one. Staff exist to check a floor.
     zones: list[str] = Field(min_length=1)
@@ -146,6 +148,10 @@ class TeacherOut(BaseModel):
 
 class TeacherAccountRequest(BaseModel):
     password: str = Field(min_length=6, max_length=128)
+
+
+class TeacherAccountsCreated(BaseModel):
+    created: int
 
 
 class ZoneAssignRequest(BaseModel):

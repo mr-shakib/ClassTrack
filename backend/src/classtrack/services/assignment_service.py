@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+import re
+
+from email_validator import EmailNotValidError, validate_email
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from classtrack.core.errors import NotFoundError, ValidationError
 from classtrack.core.security import hash_password
-from classtrack.models import ClassSession, Role, Routine, StaffZone, User
+from classtrack.models import ClassSession, Role, Routine, StaffZone, Teacher, User
 from classtrack.services import audit_service, zones
+
+#: A staff sign-in without an "@". Kept free of spaces and "@" so it can never
+#: be mistaken for an email address at sign-in.
+EMPLOYEE_ID = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
 
 
 async def zones_for_user(session: AsyncSession, user_id: int) -> list[str]:
@@ -66,10 +73,28 @@ async def create_staff(
     A staff account exists to check a floor, so it is created with one. An
     account with no floor has nothing to do and would silently show an empty
     checking screen.
+
+    ``email`` is what they sign in with: an email address, or an employee ID
+    for staff who have no address. The ID is kept in ``user.email`` as is --
+    nothing mails a staff account, and it is the only column a sign-in matches.
     """
     email = email.strip().lower()
     if not email:
-        raise ValidationError("An email address is required.")
+        raise ValidationError("An email address or employee ID is required.")
+    if "@" in email:
+        try:
+            validate_email(email, check_deliverability=False)
+        except EmailNotValidError as exc:
+            raise ValidationError(f"{email} is not a valid email address.") from exc
+    else:
+        if not EMPLOYEE_ID.fullmatch(email):
+            raise ValidationError(
+                "An employee ID is letters, digits, dots, dashes or underscores, no spaces."
+            )
+        # Sign-in tries a teacher initial before an employee ID, so an ID that
+        # spells one would sign in to the teacher's account, never this one.
+        if await session.scalar(select(Teacher).where(Teacher.initial == email.upper())):
+            raise ValidationError(f"{email} is a faculty initial. Use another employee ID.")
     if await session.scalar(select(User).where(User.email == email)):
         raise ValidationError(f"{email} already has an account.")
     if len(password) < 6:

@@ -73,6 +73,51 @@ async def create_teacher_account(
     return account
 
 
+async def create_all_teacher_accounts(
+    session: AsyncSession, *, password: str, actor: User
+) -> list[User]:
+    """Give every faculty member who has no account one, all on ``password``.
+
+    Teachers who already have an account, deactivated or not, keep it as it is.
+    The hash is computed once and shared: the accounts share the password
+    anyway, so a salt each buys nothing, and a bcrypt round per teacher would
+    hold the request for a minute across the whole faculty.
+    """
+    if len(password) < MIN_PASSWORD:
+        raise ValidationError(f"The password must be at least {MIN_PASSWORD} characters.")
+
+    have = await teacher_accounts(session)
+    taken = set((await session.scalars(select(User.email))).all())
+    password_hash = hash_password(password)
+
+    created: list[User] = []
+    for teacher in (await session.scalars(select(Teacher).order_by(Teacher.initial))).all():
+        email = f"{teacher.initial.lower()}@{PLACEHOLDER_DOMAIN}"
+        if teacher.initial in have or email in taken:
+            continue
+        account = User(
+            email=email,
+            full_name=teacher.name,
+            role=Role.TEACHER,
+            teacher_initial=teacher.initial,
+            password_hash=password_hash,
+        )
+        session.add(account)
+        created.append(account)
+    await session.flush()
+
+    for account in created:
+        audit_service.record(
+            session,
+            actor_id=actor.id,
+            entity_type="user",
+            entity_id=account.id,
+            action="teacher_account_created",
+            after={"teacher_initial": account.teacher_initial, "full_name": account.full_name},
+        )
+    return created
+
+
 async def reset_teacher_password(
     session: AsyncSession, *, initial: str, password: str, actor: User
 ) -> User:

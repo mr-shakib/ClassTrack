@@ -51,3 +51,34 @@ async def test_password_reset_takes_effect(session, hod, teacher_user):
 
 async def test_email_sign_in_still_works(session, staff):
     assert (await auth_service.authenticate(session, "Staff@Test.edu", "x")).id == staff.id
+
+
+async def test_one_step_gives_every_teacher_without_an_account_one(session, hod, teacher_user):
+    session.add_all(
+        [
+            Teacher(initial="SRH", name="Dr. Sheak Rashed Haider Noori", department="cse"),
+            Teacher(initial="MAH", name="Mr. Mahfuz", department="cse"),
+        ]
+    )
+    await session.flush()
+    before = teacher_user.password_hash
+
+    created = await account_service.create_all_teacher_accounts(
+        session, password="default1", actor=hod
+    )
+    await session.flush()
+
+    assert sorted(a.teacher_initial for a in created) == ["MAH", "SRH"]
+    assert teacher_user.password_hash == before          # an existing account is left alone
+    assert (await auth_service.authenticate(session, "srh", "default1")).teacher_initial == "SRH"
+    assert (await auth_service.authenticate(session, "MAH", "default1")).teacher_initial == "MAH"
+
+    again = await account_service.create_all_teacher_accounts(
+        session, password="default1", actor=hod
+    )
+    assert again == []
+
+
+async def test_one_step_refuses_a_short_password(session, hod):
+    with pytest.raises(ValidationError, match="at least"):
+        await account_service.create_all_teacher_accounts(session, password="123", actor=hod)

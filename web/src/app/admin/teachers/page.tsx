@@ -63,6 +63,7 @@ export default function TeachersPage() {
         <p className="mt-2 text-xs text-ink-faint">
           {withAccount} of {rows.length} teachers have an account.
         </p>
+        <CreateAllAccounts missing={rows.length - withAccount} onCreated={load} />
       </Card>
 
       {error ? <ErrorNote message={error} /> : null}
@@ -103,6 +104,92 @@ export default function TeachersPage() {
           </ul>
         )}
       </Card>
+    </div>
+  );
+}
+
+/** One step for the whole faculty: every teacher without an account gets one,
+ *  all on the same default password. Existing accounts are left alone. */
+function CreateAllAccounts({
+  missing,
+  onCreated,
+}: {
+  missing: number;
+  onCreated: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const { created } = await api.createAllTeacherAccounts(password);
+      setNotice(
+        `${created} account${created === 1 ? "" : "s"} created. Each teacher signs in with their initial and the default password.`,
+      );
+      setPassword("");
+      setOpen(false);
+      onCreated();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not create the accounts.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-3">
+      {open ? (
+        <form onSubmit={submit} className="flex flex-wrap items-center gap-2 rounded-lg bg-canvas p-2.5">
+          <span className="text-sm text-ink-soft">
+            Default password for {missing} teacher{missing === 1 ? "" : "s"}
+          </span>
+          <input
+            type="text"
+            className={`${inputClass} max-w-52`}
+            placeholder="Default password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            minLength={6}
+            required
+            autoFocus
+          />
+          <Button type="submit" disabled={busy || password.length < 6}>
+            {busy ? "Creating…" : `Create ${missing} account${missing === 1 ? "" : "s"}`}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              setOpen(false);
+              setPassword("");
+              setError(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <span className="w-full text-xs text-ink-faint">
+            At least 6 characters. Teachers who already have an account keep their password.
+          </span>
+        </form>
+      ) : missing > 0 ? (
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setOpen(true);
+            setNotice(null);
+          }}
+        >
+          Create all {missing} missing account{missing === 1 ? "" : "s"}
+        </Button>
+      ) : null}
+      {error ? <p className="mt-2 text-xs text-bad">{error}</p> : null}
+      {notice ? <p className="mt-2 text-xs text-ok">{notice}</p> : null}
     </div>
   );
 }

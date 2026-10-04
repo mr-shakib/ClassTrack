@@ -237,6 +237,8 @@ export const api = {
     post<TeacherAccount>(`/admin/teachers/${encodeURIComponent(initial)}/account`, {
       password,
     }),
+  createAllTeacherAccounts: (password: string) =>
+    post<{ created: number }>("/admin/teachers/accounts", { password }),
   resetTeacherPassword: (initial: string, password: string) =>
     put<{ detail: string }>(`/admin/teachers/${encodeURIComponent(initial)}/password`, {
       password,

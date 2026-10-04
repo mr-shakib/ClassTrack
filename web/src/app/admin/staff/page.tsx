@@ -145,13 +145,14 @@ function AddStaff({ zones, onAdded }: { zones: Zone[]; onAdded: () => void }) {
               required
             />
           </Field>
-          <Field label="Email">
+          <Field label="Email or employee ID" hint="They sign in with this.">
             <input
-              type="email"
+              type="text"
+              autoCapitalize="none"
               className={inputClass}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="staff3@diu.edu"
+              placeholder="staff3@diu.edu or 710001234"
               required
             />
           </Field>

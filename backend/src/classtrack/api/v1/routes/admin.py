@@ -38,6 +38,7 @@ from classtrack.schemas.admin import (
     StaffCreateRequest,
     StaffOut,
     TeacherAccountRequest,
+    TeacherAccountsCreated,
     TeacherOut,
     UserIn,
     UserOut,
@@ -766,6 +767,22 @@ async def create_teacher_account(
         has_account=True,
         account_active=account.is_active,
     )
+
+
+@router.post(
+    "/teachers/accounts",
+    response_model=TeacherAccountsCreated,
+    summary="Create an account for every teacher without one",
+)
+async def create_all_teacher_accounts(
+    payload: TeacherAccountRequest, session: SessionDep, user: ManagerUser
+) -> TeacherAccountsCreated:
+    """Each signs in with their initial and this shared password."""
+    created = await account_service.create_all_teacher_accounts(
+        session, password=payload.password, actor=user
+    )
+    await session.commit()
+    return TeacherAccountsCreated(created=len(created))
 
 
 @router.put(

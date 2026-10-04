@@ -409,3 +409,51 @@ async def test_new_staff_can_sign_in(session, hod):
 
     user = await auth_service.authenticate(session, "signsin@diu.edu", "secret123")
     assert user.role is Role.STAFF
+
+
+async def test_staff_can_be_given_an_employee_id_instead_of_an_email(session, hod):
+    """Staff without an address on file sign in with their employee ID."""
+    from classtrack.services import auth_service
+
+    await _routine_with_rooms(session, ROOMS)
+    member = await assignment_service.create_staff(
+        session,
+        full_name="No Address",
+        email=" EMP-7100 ",
+        password="secret123",
+        zone_keys=["KT-2"],
+        actor=hod,
+    )
+    await session.commit()
+    assert member.email == "emp-7100"
+
+    user = await auth_service.authenticate(session, "Emp-7100", "secret123")
+    assert user.id == member.id
+
+
+@pytest.mark.parametrize("value", ["710 001", "bad@", "@diu.edu", "-710"])
+async def test_create_staff_rejects_a_malformed_email_or_employee_id(session, hod, value):
+    await _routine_with_rooms(session, ROOMS)
+    with pytest.raises(ValidationError):
+        await assignment_service.create_staff(
+            session,
+            full_name="Malformed",
+            email=value,
+            password="secret123",
+            zone_keys=["KT-2"],
+            actor=hod,
+        )
+
+
+async def test_an_employee_id_cannot_spell_a_faculty_initial(session, hod, teacher_user):
+    """Sign-in tries the initial first, so the staff account could never be reached."""
+    await _routine_with_rooms(session, ROOMS)
+    with pytest.raises(ValidationError, match="faculty initial"):
+        await assignment_service.create_staff(
+            session,
+            full_name="Clash",
+            email="tca",
+            password="secret123",
+            zone_keys=["KT-2"],
+            actor=hod,
+        )
