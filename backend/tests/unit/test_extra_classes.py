@@ -220,7 +220,7 @@ async def test_a_missed_extra_class_is_recorded_but_not_owed(
         )
     ).all()
     assert [n.title for n in told] == [
-        "Reported absent from your extra class",
+        "Extra class missed",
         "Extra class missed",
     ]
     assert all("reschedule" not in (n.link or "") for n in told)

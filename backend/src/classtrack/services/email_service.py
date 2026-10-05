@@ -33,7 +33,7 @@ FOOTER_URL = "https://shakibhowlader.online"
 class Email:
     to: str
     subject: str
-    #: Plain text. A blank line separates paragraphs.
+    #: Plain text. A blank line separates paragraphs; a single newline breaks a line.
     body: str
     link: str | None = None
     link_label: str | None = None
@@ -57,7 +57,8 @@ def _text(email: Email) -> str:
 
 def _html(email: Email) -> str:
     paragraphs = "".join(
-        f'<p style="margin:0 0 16px">{html.escape(p)}</p>' for p in email.body.split("\n\n")
+        '<p style="margin:0 0 16px">' + html.escape(p).replace("\n", "<br>") + "</p>"
+        for p in email.body.split("\n\n")
     )
     button = ""
     if email.link is not None:

@@ -99,6 +99,18 @@ def _describe(instance: ClassInstance) -> str:
     )
 
 
+def _course(instance: ClassInstance) -> str:
+    """Routine course codes carry their section already, as in "CSE322(67_D1)"."""
+    if instance.section in instance.course_code:
+        return instance.course_code
+    return f"{instance.course_code} ({instance.section})"
+
+
+def _at(instance: ClassInstance) -> str:
+    """The class as one phrase: CSE322(67_D1) at 08:30-10:00 on 05 October 2026."""
+    return f"{_course(instance)} at {instance.time_slot} on {instance.date:%d %B %Y}"
+
+
 async def notify_missed(session: AsyncSession, instance: ClassInstance) -> None:
     """Tell the teacher their class was recorded as missed (BR-07)."""
     user = await _user_for_teacher(session, instance.teacher_initial)
@@ -160,24 +172,20 @@ async def notify_reported(
         )
         return
     link = "/teacher"
+    # Worded passively: the teacher is told what was recorded, not who recorded it.
     if outcome is CheckOutcome.TEACHER_NOT_FOUND and instance.is_extra:
-        title = "Reported absent from your extra class"
-        body = (
-            f"Office staff found no teacher in {instance.room} for your extra class, "
-            f"{_describe(instance)}. If you are on your way, staff can still record "
-            "you as late."
-        )
+        title = "Extra class missed"
+        body = f"The extra class {_at(instance)} (room {instance.room}) has been marked as missed."
     elif outcome is CheckOutcome.TEACHER_NOT_FOUND:
-        title = "Reported absent — reschedule required"
+        title = "Class missed"
         body = (
-            f"Office staff found no teacher in {instance.room} for your "
-            f"{_describe(instance)}. If you cannot hold it, request a reschedule now. "
-            "If you are on your way, staff can still record you as late."
+            f"{_at(instance)} (room {instance.room}) has been marked as missed. "
+            "It can be rescheduled if it cannot be taken."
         )
         link = _reschedule_link(instance)
     else:
-        title = "Reported late to class"
-        body = f"Office staff recorded a late start for your {_describe(instance)}."
+        title = "Class marked late"
+        body = f"{_at(instance)} has been marked as late."
     await _dispatch(
         session,
         user_id=user.id,
@@ -202,34 +210,40 @@ async def _email_absent(session: AsyncSession, instance: ClassInstance) -> None:
         )
         return
     public_url = get_settings().public_url
-    # An extra class is not owed, so its email asks for no reschedule.
-    reschedule = (
-        ""
-        if instance.is_extra
-        else "If you cannot hold this class, please request a reschedule in ClassTrack. "
-    )
     link = None
     if public_url and not instance.is_extra:
         link = f"{public_url.rstrip('/')}{_reschedule_link(instance)}"
+    kind = "Extra class" if instance.is_extra else "Class"
+    # Worded passively, in plain words: what was recorded, not who recorded it.
+    paragraphs = [
+        f"Dear {teacher.name},",
+        f"The {kind.lower()} below has been marked as missed.",
+        f"Course: {_course(instance)}\n"
+        f"Time: {instance.time_slot}, {instance.date:%d %B %Y}\n"
+        f"Room: {instance.room}",
+        "If the class is starting soon, it can still be changed to late.",
+    ]
+    # An extra class is not owed, so its email offers no reschedule.
+    if not instance.is_extra:
+        paragraphs.append(
+            "If the class cannot be taken today, it can be rescheduled in ClassTrack."
+            + (" Use the button below." if link else "")
+        )
+    paragraphs += [
+        "If this is a mistake, it can be corrected by the department office.",
+        "This is an automatic message from ClassTrack, Department of CSE.",
+    ]
     email_service.queue(
         session,
         email_service.Email(
             to=teacher.email,
             subject=(
-                f"Reported absent: {instance.course_code}, "
-                f"{instance.date:%d %b} {instance.time_slot}"
+                f"{kind} missed: {_course(instance)}, "
+                f"{instance.date:%d %b}, {instance.time_slot}"
             ),
-            body=(
-                f"Dear {teacher.name},\n\n"
-                f"Office staff found no teacher in room {instance.room} for your "
-                f"{'extra class, ' if instance.is_extra else ''}{_describe(instance)}.\n\n"
-                f"{reschedule}"
-                "If you are on your way, staff can still record you as late when you "
-                "arrive.\n\n"
-                "This is an automated message from ClassTrack, Department of CSE."
-            ),
+            body="\n\n".join(paragraphs),
             link=link,
-            link_label="Request a reschedule",
+            link_label="Reschedule this class",
         ),
     )
 

@@ -48,9 +48,22 @@ async def test_absence_queues_an_email_to_the_faculty_address(session, instance,
 
     [email] = email_service.take(session)
     assert email.to == ADDRESS
-    assert "CSE311(70_A)" in email.subject
+    assert email.subject.startswith("Class missed: CSE311(70_A)")
     assert "KT-305" in email.body
     assert "Teacher A" in email.body
+
+
+async def test_the_absence_email_says_what_was_recorded_not_who_recorded_it(
+    session, instance, staff, with_email
+):
+    await _report(session, instance, staff, CheckOutcome.TEACHER_NOT_FOUND)
+
+    [email] = email_service.take(session)
+    assert "The class below has been marked as missed." in email.body
+    assert "it can still be changed to late" in email.body
+    assert "it can be rescheduled in ClassTrack" in email.body
+    for blaming in ("staff", "found no teacher", "absent"):
+        assert blaming not in email.body.lower()
 
 
 async def test_absence_emails_a_teacher_with_no_account(
@@ -120,7 +133,7 @@ async def test_send_posts_to_resend(monkeypatch):
             email_service.Email(
                 to=ADDRESS,
                 subject="Reported absent",
-                body="Dear <Teacher>,\n\nSecond paragraph.",
+                body="Dear <Teacher>,\n\nCourse: X\nRoom: Y",
                 link="https://class.example.edu/teacher",
                 link_label="Request a reschedule",
             )
@@ -137,6 +150,7 @@ async def test_send_posts_to_resend(monkeypatch):
     assert sent["subject"] == "Reported absent"
     assert "Request a reschedule: https://class.example.edu/teacher" in sent["text"]
     assert "&lt;Teacher&gt;" in sent["html"]
+    assert "Course: X<br>Room: Y" in sent["html"]
     assert sent["text"].endswith("Developed by Shakib Howlader\nhttps://shakibhowlader.online")
     assert '<a href="https://shakibhowlader.online" style="color:#6b7280">Shakib Howlader</a>' in (
         sent["html"]
