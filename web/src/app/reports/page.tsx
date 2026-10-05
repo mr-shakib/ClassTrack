@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import DailyReportView from "@/components/reports/DailyReportView";
+import MissedReportView from "@/components/reports/MissedReportView";
 import OverviewReport from "@/components/reports/OverviewReport";
 import { type Period, currentMonthPeriod } from "@/components/reports/PeriodPicker";
 import StaffReportView from "@/components/reports/StaffReportView";
@@ -10,11 +11,12 @@ import { Spinner } from "@/components/ui";
 import { mayReadReports, mayReport, useAuth, useRequireAccess } from "@/lib/auth";
 
 
-type Tab = "overview" | "daily" | "teacher" | "staff";
+type Tab = "overview" | "daily" | "missed" | "teacher" | "staff";
 
 const TABS: { key: Tab; label: string; admin: boolean }[] = [
   { key: "overview", label: "Monthly & semester", admin: true },
   { key: "daily", label: "Daily", admin: true },
+  { key: "missed", label: "Missed classes", admin: true },
   { key: "teacher", label: "Teacher-wise", admin: false },
   { key: "staff", label: "Staff monitoring", admin: true },
 ];
@@ -64,6 +66,7 @@ export default function ReportsPage() {
 
       {tab === "overview" && isAdmin ? <OverviewReport onOpenTeacher={openTeacher} /> : null}
       {tab === "daily" && isAdmin ? <DailyReportView /> : null}
+      {tab === "missed" && isAdmin ? <MissedReportView onOpenTeacher={openTeacher} /> : null}
       {tab === "teacher" ? (
         <TeacherReportView isAdmin={isAdmin} initial={teacher.initial} period={teacher.period} />
       ) : null}
