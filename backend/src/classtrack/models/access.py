@@ -148,8 +148,8 @@ PERMISSION_INFO: tuple[PermissionInfo, ...] = (
     PermissionInfo(
         Permission.MANAGE_TEACHERS,
         "People",
-        "Manage teacher accounts",
-        "Give teachers accounts and reset their passwords.",
+        "Manage teachers",
+        "Add teachers, edit their details, give them accounts and reset their passwords.",
     ),
     PermissionInfo(
         Permission.MANAGE_ACCOUNTS,

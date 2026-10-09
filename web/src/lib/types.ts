@@ -362,13 +362,26 @@ export interface FreeRoom {
   zone: string;
 }
 
-/** A faculty member, and whether an admin has given them a sign-in yet. */
-export interface TeacherAccount {
+/** A faculty member's details, as an admin adds or corrects them. */
+export interface TeacherDetails {
+  /** As the routine writes it; their sign-in once they have an account. */
   initial: string;
   name: string;
   designation: string | null;
+  /** Where absence reports are mailed. */
+  email: string | null;
+  office_room: string | null;
+  photo_url: string | null;
+}
+
+/** A faculty member, and whether an admin has given them a sign-in yet. */
+export interface TeacherAccount extends TeacherDetails {
+  id: number;
   has_account: boolean;
   account_active: boolean | null;
+  /** For changing the account's roles; null without one. */
+  account_id: number | null;
+  roles: Account["roles"];
 }
 
 /** Counts per outcome. Every class falls in exactly one bucket. */

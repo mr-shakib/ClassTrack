@@ -182,16 +182,52 @@ class StaffCreateRequest(BaseModel):
 
 
 class TeacherOut(BaseModel):
+    id: int
     initial: str
     name: str
     designation: str | None = None
+    #: Where absence reports are mailed.
+    email: str | None = None
+    office_room: str | None = None
+    photo_url: str | None = None
     has_account: bool = False
     #: Null when there is no account.
     account_active: bool | None = None
+    #: The account, to change its roles through ``PATCH /admin/users/{id}``.
+    account_id: int | None = None
+    roles: list[RoleRef] = Field(default_factory=list)
+
+
+class TeacherIn(BaseModel):
+    """A faculty member's details. On an edit every field is replaced, so one
+    sent empty or null is cleared."""
+
+    model_config = {"str_strip_whitespace": True}
+
+    #: As the routine writes it. Checked by the service.
+    initial: str = Field(min_length=1, max_length=16)
+    name: str = Field(min_length=2, max_length=255)
+    designation: str | None = Field(default=None, max_length=255)
+    email: str | None = Field(default=None, max_length=255)
+    office_room: str | None = Field(default=None, max_length=64)
+    photo_url: str | None = Field(default=None, max_length=512)
+
+
+class TeacherCreate(TeacherIn):
+    #: Give them a sign-in now. Left out, they can be given one later.
+    password: str | None = Field(default=None, min_length=6, max_length=128)
+    #: The account's roles. Left out, it gets the Teacher role; choosing them
+    #: takes the right to manage accounts.
+    role_ids: list[int] | None = Field(default=None, min_length=1)
 
 
 class TeacherAccountRequest(BaseModel):
     password: str = Field(min_length=6, max_length=128)
+
+
+class TeacherAccountCreate(TeacherAccountRequest):
+    #: As on ``TeacherCreate``: left out, the account gets the Teacher role.
+    role_ids: list[int] | None = Field(default=None, min_length=1)
 
 
 class TeacherAccountsCreated(BaseModel):

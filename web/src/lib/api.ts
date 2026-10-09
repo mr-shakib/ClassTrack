@@ -33,6 +33,7 @@ import type {
   StaffMember,
   StaffReport,
   TeacherAccount,
+  TeacherDetails,
   TeacherReport,
   TeacherResponseValue,
   UnreportedReport,
@@ -259,9 +260,17 @@ export const api = {
   audit: (params: { entity_type?: string; entity_id?: number; limit?: number }) =>
     get<AuditEntry[]>(`/admin/audit${qs(params)}`),
   teachers: (q?: string) => get<TeacherAccount[]>(`/admin/teachers${qs({ q })}`),
-  createTeacherAccount: (initial: string, password: string) =>
+  /** With a password, they get a sign-in too; `role_ids` left out, the Teacher role. */
+  addTeacher: (payload: TeacherDetails & { password?: string; role_ids?: number[] }) =>
+    post<TeacherAccount>("/admin/teachers", payload),
+  /** Every detail is replaced; the initial changes only while no class carries it. */
+  updateTeacher: (initial: string, payload: TeacherDetails) =>
+    put<TeacherAccount>(`/admin/teachers/${encodeURIComponent(initial)}`, payload),
+  /** `roleIds` left out, the account gets the Teacher role. */
+  createTeacherAccount: (initial: string, password: string, roleIds?: number[]) =>
     post<TeacherAccount>(`/admin/teachers/${encodeURIComponent(initial)}/account`, {
       password,
+      role_ids: roleIds,
     }),
   createAllTeacherAccounts: (password: string) =>
     post<{ created: number }>("/admin/teachers/accounts", { password }),

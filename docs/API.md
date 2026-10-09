@@ -64,7 +64,7 @@ request (the session token carries only who you are).
 | `calendar.manage` | Holidays and closed days | CO, admins |
 | `settings.manage` | Monitoring rules | CO, admins |
 | `staff.manage` | Staff accounts and floors | CO, admins |
-| `teachers.manage` | Teacher accounts and their passwords | CO, admins |
+| `teachers.manage` | Add and edit teachers, their accounts and passwords | CO, admins |
 | `accounts.manage` | Create accounts, give and take roles, deactivate | admins |
 | `roles.manage` | Create and edit roles | admins |
 | `audit.view` | Audit log | CO, admins |
@@ -115,16 +115,28 @@ one is at least 6 characters and at most 72 bytes (bcrypt's limit). Both changes
 are audited, the password change without the password. Name, initial and
 designation stay with the faculty list, which admins keep.
 
-### Teacher accounts
+### Teachers and their accounts
 
-| Method | Path | Roles | Purpose |
+| Method | Path | Permission | Purpose |
 |---|---|---|---|
-| `GET` | `/admin/teachers` | HOD, SA | Faculty list, with `has_account` per initial |
-| `POST` | `/admin/teachers/{initial}/account` | HOD, SA | `{ "password": "..." }` — create the sign-in |
-| `PUT` | `/admin/teachers/{initial}/password` | HOD, SA | `{ "password": "..." }` — reset it |
+| `GET` | `/admin/teachers` | teachers or reports | Faculty list: details, `has_account`, the account's `account_id` and `roles` |
+| `POST` | `/admin/teachers` | teachers | `{ initial, name, designation?, email?, office_room?, photo_url?, password?, role_ids? }` — add a teacher; with a password, their account too |
+| `PUT` | `/admin/teachers/{initial}` | teachers | `{ initial, name, designation, email, office_room, photo_url }` — every detail replaced |
+| `POST` | `/admin/teachers/{initial}/account` | teachers | `{ "password": "...", "role_ids"?: [...] }` — create the sign-in |
+| `POST` | `/admin/teachers/accounts` | teachers | `{ "password": "..." }` — an account for every teacher without one |
+| `PUT` | `/admin/teachers/{initial}/password` | teachers | `{ "password": "..." }` — reset it |
 
 One account per initial. The account's email is a placeholder
 (`<initial>@teacher.classtrack`); the teacher signs in with the initial.
+
+- **The initial** is as the routine writes it (up to six letters, e.g. `SRH`). It
+  changes only while no routine row, class or makeup carries it; the account follows,
+  so the teacher signs in with the new one. A changed name follows to the account too.
+- **Roles.** Without `role_ids` a new account gets the Teacher role. Choosing them is
+  giving them, so it needs `accounts.manage` as well (`403` otherwise), and the rules
+  above hold: a teacher role among them, and only roles whose permissions you hold.
+  Change an existing teacher's roles with `PATCH /admin/users/{account_id}`.
+- Adding and editing are audited as `teacher_added` and `teacher_updated`.
 
 ## 2. Staff checking — the hot path
 

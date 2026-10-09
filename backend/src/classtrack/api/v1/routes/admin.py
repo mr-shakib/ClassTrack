@@ -58,8 +58,11 @@ from classtrack.schemas.admin import (
     SettingsIn,
     StaffCreateRequest,
     StaffOut,
+    TeacherAccountCreate,
     TeacherAccountRequest,
     TeacherAccountsCreated,
+    TeacherCreate,
+    TeacherIn,
     TeacherOut,
     UserIn,
     UserOut,
@@ -72,6 +75,7 @@ from classtrack.services import (
     account_service,
     assignment_service,
     audit_service,
+    faculty_service,
     instance_service,
     role_service,
     semester_service,
@@ -820,6 +824,28 @@ async def audit(
     return out
 
 
+def _teacher_out(teacher: Teacher, account: User | None) -> TeacherOut:
+    return TeacherOut(
+        id=teacher.id,
+        initial=teacher.initial,
+        name=teacher.name,
+        designation=teacher.designation,
+        email=teacher.email,
+        office_room=teacher.office_room,
+        photo_url=teacher.image_url,
+        has_account=account is not None,
+        account_active=account.is_active if account else None,
+        account_id=account.id if account else None,
+        roles=[RoleRef.model_validate(r) for r in account.ordered_roles] if account else [],
+    )
+
+
+async def _teacher_and_account(session, initial: str) -> TeacherOut:
+    teacher = await session.scalar(select(Teacher).where(Teacher.initial == initial))
+    account = await session.scalar(select(User).where(User.teacher_initial == initial))
+    return _teacher_out(teacher, account)
+
+
 @router.get("/teachers", response_model=list[TeacherOut], summary="Faculty directory")
 async def teachers(
     session: SessionDep,
@@ -831,19 +857,45 @@ async def teachers(
         like = f"%{q.strip()}%"
         query = query.where(Teacher.name.ilike(like) | Teacher.initial.ilike(like))
     accounts = await account_service.teacher_accounts(session)
-    out = []
-    for t in (await session.scalars(query)).all():
-        account = accounts.get(t.initial)
-        out.append(
-            TeacherOut(
-                initial=t.initial,
-                name=t.name,
-                designation=t.designation,
-                has_account=account is not None,
-                account_active=account.is_active if account else None,
-            )
+    return [_teacher_out(t, accounts.get(t.initial)) for t in (await session.scalars(query)).all()]
+
+
+@router.post("/teachers", response_model=TeacherOut, summary="Add a teacher to the faculty list")
+async def add_teacher(
+    payload: TeacherCreate, session: SessionDep, user: TeacherAdminUser
+) -> TeacherOut:
+    """With a password, they get a sign-in at once -- with the Teacher role, or
+    the roles chosen."""
+    if payload.role_ids is not None and payload.password is None:
+        raise ValidationError("Roles go with an account: set a password to give them one.")
+    teacher = await faculty_service.add_teacher(
+        session,
+        actor=user,
+        **payload.model_dump(exclude={"password", "role_ids"}),
+    )
+    if payload.password is not None:
+        roles = (
+            await role_service.resolve(session, payload.role_ids)
+            if payload.role_ids is not None
+            else None
         )
-    return out
+        await account_service.create_teacher_account(
+            session, initial=teacher.initial, password=payload.password, actor=user, roles=roles
+        )
+    await session.commit()
+    return await _teacher_and_account(session, teacher.initial)
+
+
+@router.put("/teachers/{initial}", response_model=TeacherOut, summary="Change a teacher's details")
+async def update_teacher(
+    initial: str, payload: TeacherIn, session: SessionDep, user: TeacherAdminUser
+) -> TeacherOut:
+    """Every detail is replaced. The initial changes only while no class carries it."""
+    teacher = await faculty_service.update_teacher(
+        session, actor=user, current_initial=initial, **payload.model_dump()
+    )
+    await session.commit()
+    return await _teacher_and_account(session, teacher.initial)
 
 
 @router.post(
@@ -852,23 +904,19 @@ async def teachers(
     summary="Create a teacher's sign-in account",
 )
 async def create_teacher_account(
-    initial: str, payload: TeacherAccountRequest, session: SessionDep, user: TeacherAdminUser
+    initial: str, payload: TeacherAccountCreate, session: SessionDep, user: TeacherAdminUser
 ) -> TeacherOut:
     """The teacher then signs in with their initial and this password."""
+    roles = (
+        await role_service.resolve(session, payload.role_ids)
+        if payload.role_ids is not None
+        else None
+    )
     account = await account_service.create_teacher_account(
-        session, initial=initial, password=payload.password, actor=user
+        session, initial=initial, password=payload.password, actor=user, roles=roles
     )
     await session.commit()
-    teacher = await session.scalar(
-        select(Teacher).where(Teacher.initial == account.teacher_initial)
-    )
-    return TeacherOut(
-        initial=account.teacher_initial or "",
-        name=account.full_name,
-        designation=teacher.designation if teacher else None,
-        has_account=True,
-        account_active=account.is_active,
-    )
+    return await _teacher_and_account(session, account.teacher_initial or "")
 
 
 @router.post(
