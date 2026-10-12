@@ -167,6 +167,8 @@ export const api = {
     teacher_initial?: string | null;
     room?: string | null;
     section?: string | null;
+    /** Needed with a retake section, which names its students only with its course. */
+    course_code?: string | null;
   }) => post<ConflictReport>("/makeup/check-conflict", payload),
   freeRooms: (date: string, slot: string) =>
     get<FreeRoom[]>(`/makeup/free-rooms${qs({ date, time_slot: slot })}`),

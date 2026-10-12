@@ -97,6 +97,7 @@ async def check_conflict(
         teacher_initial=initial or "",
         room=payload.room,
         section=payload.section,
+        course_code=payload.course_code,
     )
     return ConflictReportOut.model_validate(report.as_dict())
 

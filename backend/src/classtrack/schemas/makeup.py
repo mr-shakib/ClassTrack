@@ -21,6 +21,8 @@ class ConflictReportOut(BaseModel):
     ok: bool
     overridable: bool
     conflicts: list[ConflictItem]
+    #: What could not be checked. Never blocks.
+    warnings: list[str] = []
 
 
 class ConflictCheckRequest(BaseModel):
@@ -31,6 +33,8 @@ class ConflictCheckRequest(BaseModel):
     teacher_initial: str | None = None
     room: str | None = None
     section: str | None = None
+    #: The class's course, which a retake section needs to name its students.
+    course_code: str | None = None
 
 
 class MakeupCreateRequest(BaseModel):

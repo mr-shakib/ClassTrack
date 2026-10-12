@@ -920,6 +920,32 @@ async def test_a_chosen_time_clear_of_the_teachers_day_is_allowed(
     assert makeup.time_slot == "17:30-19:00"
 
 
+async def test_a_pending_request_holds_its_students(session, instance, staff, teacher_user):
+    """Another teacher of the same section cannot take the time it asks for."""
+    await _make_missed(session, instance, staff)
+    await makeup_service.create(
+        session,
+        original_instance_id=instance.id,
+        user=teacher_user,
+        mode=MakeupMode.ONLINE,
+        on=LATER,
+        start_time=EVENING,
+    )
+    await session.flush()
+
+    report = await conflict_service.check(
+        session,
+        on=LATER,
+        time_slot="20:00-21:30",
+        start_min=20 * 60,
+        end_min=21 * 60 + 30,
+        teacher_initial="OTH",
+        section=instance.section,
+        course_code="CSE312(70_A)",
+    )
+    assert [c.type for c in report.conflicts] == ["SECTION"]
+
+
 async def test_two_online_classes_of_one_teacher_may_not_overlap(
     session, instance, staff, teacher_user
 ):

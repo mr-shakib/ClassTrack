@@ -28,7 +28,7 @@ from classtrack.models import (
     Routine,
     Semester,
 )
-from classtrack.routine import clock
+from classtrack.routine import audience, clock
 from classtrack.routine.lattice import SLOTS
 from classtrack.services import zones
 
@@ -38,6 +38,12 @@ _VACATED = (
     ClassStatus.MISSED,
     ClassStatus.NOT_CHECKED,
     ClassStatus.ONLINE_REJECTED,
+)
+
+#: Said of every retake: who its students are is not on the routine.
+RETAKE_UNCHECKED = (
+    "A retake's students come from several batches, and the routine does not say "
+    "which, so their other classes at this time cannot be checked. Make sure they are free."
 )
 
 
@@ -54,6 +60,9 @@ class ConflictReport:
     #: v1 blocks on any conflict. The flag is the seam for the
     #: override-with-mandatory-reason flow described in the source SRS 11.
     overridable: bool = True
+    #: What could not be checked, said so the person can check it themselves.
+    #: Never blocks.
+    warnings: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -67,6 +76,7 @@ class ConflictReport:
                 {"type": c.type, "message": c.message, "instance_id": c.instance_id}
                 for c in self.conflicts
             ],
+            "warnings": list(self.warnings),
         }
 
 
@@ -80,6 +90,7 @@ async def check(
     end_min: int | None = None,
     room: str | None = None,
     section: str | None = None,
+    course_code: str | None = None,
     semester_id: int | None = None,
     exclude_instance_id: int | None = None,
     exclude_makeup_id: int | None = None,
@@ -88,6 +99,10 @@ async def check(
 
     ``room`` is None for an online makeup, which occupies no room and therefore
     cannot conflict on one.
+
+    ``section`` and ``course_code`` are the class's: a clash is any class at
+    that time with some of the same students, as ``routine/audience.py`` reads
+    them. A retake section names its students only together with its course.
 
     ``start_min``/``end_min`` are set only for an online class held at a time
     the teacher chose off the clock. Such a period is not a cell, so it cannot
@@ -137,6 +152,9 @@ async def check(
     occupants = await _occupants(
         session, on, time_slot, exclude_instance_id, start_min=start_min, end_min=end_min
     )
+    retake = audience.is_retake(section)
+    if retake:
+        report.warnings.append(RETAKE_UNCHECKED)
 
     # Name the occupant's own time, not the proposed one: an overlapping class
     # runs at a different time, and "already teaches ... at 10:00-11:30" is what
@@ -160,7 +178,9 @@ async def check(
                     occupant.id,
                 )
             )
-        if section is not None and occupant.section == section:
+        if section and audience.share_students(
+            course_code or "", section, occupant.course_code, occupant.section
+        ):
             report.conflicts.append(
                 Conflict(
                     "SECTION",
@@ -169,11 +189,29 @@ async def check(
                     occupant.id,
                 )
             )
+        elif section and not retake and audience.is_retake(occupant.section):
+            report.warnings.append(
+                f"{occupant.course_code} is a retake at {occupant.time_slot}. Its students "
+                f"come from several batches: make sure none of them is in section {section}."
+            )
 
-    # An undecided request has no instance yet, but the teacher is spoken for
-    # at that time: they must not be approved into a time they have filled.
+    # An undecided request has no instance yet, but its teacher and students
+    # are spoken for at that time: they must not be booked into it twice.
     pending_requests = await _pending_requests(
         session, on, time_slot, exclude_makeup_id, start_min=start_min, end_min=end_min
+    )
+    # The class each request recovers says whose students it holds.
+    recovers = (
+        {
+            i.id: i
+            for i in await session.scalars(
+                select(ClassInstance).where(
+                    ClassInstance.id.in_({p.original_instance_id for p in pending_requests})
+                )
+            )
+        }
+        if section and pending_requests
+        else {}
     )
     for pending in pending_requests:
         if pending.teacher_initial == teacher_initial:
@@ -192,7 +230,20 @@ async def check(
                     f"at {pending.time_slot}.",
                 )
             )
+        original = recovers.get(pending.original_instance_id)
+        if original is not None and audience.share_students(
+            course_code or "", section or "", original.course_code, original.section
+        ):
+            report.conflicts.append(
+                Conflict(
+                    "SECTION",
+                    f"Section {section} already has a reschedule request for "
+                    f"{original.course_code} at {pending.time_slot}.",
+                    original.id,
+                )
+            )
 
+    report.warnings = list(dict.fromkeys(report.warnings))
     return report
 
 

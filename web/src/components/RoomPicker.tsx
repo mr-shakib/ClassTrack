@@ -135,6 +135,23 @@ export function RoomPicker({
   );
 }
 
+/** What could not be checked about a proposed time, for the teacher to check
+ *  themselves. It does not stop the booking. */
+export function WarningList({ warnings }: { warnings: string[] }) {
+  return (
+    <div className="rounded-xl border-2 border-warn/30 bg-warn-soft px-4 py-3">
+      <p className="text-lg font-bold text-warn">Check before you book</p>
+      <ul className="mt-1 space-y-1">
+        {warnings.map((w) => (
+          <li key={w} className="text-base text-warn">
+            {w}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /** What stands in the way of a proposed time: room, teacher, section, holiday. */
 export function ConflictList({ report }: { report: ConflictReport }) {
   return (

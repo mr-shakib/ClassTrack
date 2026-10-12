@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { formatDay } from "@/components/MakeupTracker";
-import { ConflictList, RoomPicker, useFreeRooms } from "@/components/RoomPicker";
+import { ConflictList, RoomPicker, WarningList, useFreeRooms } from "@/components/RoomPicker";
 import {
   Button,
   Card,
@@ -90,6 +90,7 @@ function MakeupForm() {
           start_time: ownTime ? startTime : null,
           room: mode === "PHYSICAL" ? room : null,
           section: original.section,
+          course_code: original.course_code,
         }),
       );
     } catch {
@@ -315,8 +316,11 @@ function MakeupForm() {
 
           {checking ? (
             <p className="text-base text-ink-faint">Checking availability…</p>
-          ) : report && !report.ok ? (
-            <ConflictList report={report} />
+          ) : report ? (
+            <>
+              {!report.ok ? <ConflictList report={report} /> : null}
+              {report.warnings.length > 0 ? <WarningList warnings={report.warnings} /> : null}
+            </>
           ) : null}
 
           {error ? <ErrorNote message={error} /> : null}

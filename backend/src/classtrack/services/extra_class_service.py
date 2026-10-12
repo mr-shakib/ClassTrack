@@ -132,6 +132,7 @@ async def book(
         teacher_initial=initial,
         room=room,
         section=section,
+        course_code=template.course_code,
         semester_id=semester.id,
     )
     if not report.ok:

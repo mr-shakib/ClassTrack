@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import tempfile
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, Query, UploadFile
@@ -38,6 +38,7 @@ from classtrack.models import (
     Teacher,
     User,
 )
+from classtrack.routine import audience
 from classtrack.schemas.admin import (
     ActivateRequest,
     AuditOut,
@@ -137,7 +138,10 @@ async def ingest(
 def _scan_conflicts(sessions: list[ClassSession]) -> list[dict]:
     """Find problems a human must resolve before the routine goes live (SRS 4.2).
 
-    On the lattice these are all duplicate-key checks: two classes in one cell.
+    On the lattice these are all checks within one cell. Room and teacher are
+    duplicate keys; a section clashes with any class sharing its students, as
+    ``routine/audience.py`` reads them -- a section's theory class with its own
+    lab groups, but never one course's retake group with another's.
     """
     conflicts: list[dict] = []
 
@@ -167,17 +171,22 @@ def _scan_conflicts(sessions: list[ClassSession]) -> list[dict]:
                 }
             )
 
-    sections = Counter((s.day, s.time_slot, s.section) for s in sessions)
-    for (day, slot, section), count in sections.items():
-        if count > 1:
-            conflicts.append(
-                {
-                    "type": "SECTION",
-                    "message": f"Section {section} has {count} classes on {day} at {slot}.",
-                    "day": day,
-                    "time_slot": slot,
-                }
-            )
+    cells: defaultdict[tuple[str, str], list[ClassSession]] = defaultdict(list)
+    for s in sessions:
+        cells[(s.day, s.time_slot)].append(s)
+    for (day, slot), here in cells.items():
+        for i, a in enumerate(here):
+            for b in here[i + 1 :]:
+                if audience.share_students(a.course_code, a.section, b.course_code, b.section):
+                    conflicts.append(
+                        {
+                            "type": "SECTION",
+                            "message": f"{a.course_code} and {b.course_code} share students "
+                            f"on {day} at {slot}.",
+                            "day": day,
+                            "time_slot": slot,
+                        }
+                    )
 
     for sess in sessions:
         if not sess.teacher or sess.teacher == "TBA":

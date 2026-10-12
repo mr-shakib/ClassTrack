@@ -327,6 +327,8 @@ export interface ConflictReport {
   ok: boolean;
   overridable: boolean;
   conflicts: Conflict[];
+  /** What could not be checked, such as a retake's students. Never blocks. */
+  warnings: string[];
 }
 
 export interface Makeup {

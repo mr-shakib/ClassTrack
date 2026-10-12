@@ -268,15 +268,28 @@ Roles: MGR. Frontend polls every 30s.
 ```jsonc
 // POST /makeup/check-conflict
 { "date": "2026-09-20", "time_slot": "02:30-04:00",
-  "room": "KT-305", "teacher_initial": "TCA", "section": "70-A" }
+  "room": "KT-305", "teacher_initial": "TCA", "section": "70-A",
+  "course_code": "CSE311(70_A)" }
 // 200
 { "ok": false, "overridable": true,
   "conflicts": [ { "type": "ROOM",
                    "message": "KT-305 is occupied by CSE333 (68-B)",
-                   "instance_id": 1120 } ] }
+                   "instance_id": 1120 } ],
+  "warnings": [] }
 ```
 
-Conflict types: `TEACHER` · `ROOM` · `SECTION` · `HOLIDAY` · `SLOT`.
+Conflict types: `TEACHER` · `ROOM` · `SECTION` · `HOLIDAY` · `EXAM` · `SLOT`.
+
+`SECTION` means some of the class's students already have a class, or a pending reschedule
+request, at that time. A section's theory class (`66_B`) shares students with its lab groups
+(`66_B1`, `66_B2`); two lab groups do not. A retake section (`RE_A`) is reused by every course
+with a retake, so it names its students only with its course: send `course_code` with
+`section`, or a retake is compared with nothing. `CSE447(RE_A)` and `CSE491(RE_A)` never clash.
+
+`warnings` never block. They say what could not be checked: a retake's students come from
+several batches the routine does not name, so their other classes are unknown. Rescheduling a
+retake always carries one; rescheduling a regular section into a time a retake runs carries
+one naming it.
 
 `check-conflict` takes `start_time` in place of `time_slot` too, and the form uses it to
 validate an online class as the teacher picks the time. A period off the clock is matched by

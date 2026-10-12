@@ -234,6 +234,7 @@ async def create(
         teacher_initial=original.teacher_initial,
         room=room,
         section=original.section,
+        course_code=original.course_code,
         semester_id=semester_id,
     )
     if not report.ok:
@@ -354,6 +355,7 @@ async def decide(
             teacher_initial=makeup.teacher_initial,
             room=makeup.room,
             section=original.section,
+            course_code=original.course_code,
             semester_id=semester_id,
             exclude_makeup_id=makeup.id,
         )

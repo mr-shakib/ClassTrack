@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { formatDay } from "@/components/MakeupTracker";
-import { ConflictList, RoomPicker, useFreeRooms } from "@/components/RoomPicker";
+import { ConflictList, RoomPicker, WarningList, useFreeRooms } from "@/components/RoomPicker";
 import StatusBadge from "@/components/StatusBadge";
 import {
   Button,
@@ -138,14 +138,20 @@ function BookingForm({
     setChecking(true);
     try {
       setReport(
-        await api.checkConflict({ date, time_slot: slot, room, section: section.section }),
+        await api.checkConflict({
+          date,
+          time_slot: slot,
+          room,
+          section: section.section,
+          course_code: section.course_code,
+        }),
       );
     } catch {
       setReport(null);
     } finally {
       setChecking(false);
     }
-  }, [date, slot, room, section.section]);
+  }, [date, slot, room, section.section, section.course_code]);
 
   useEffect(() => {
     const timer = setTimeout(() => void validate(), 350);
@@ -239,8 +245,11 @@ function BookingForm({
 
         {checking ? (
           <p className="text-base text-ink-faint">Checking availability…</p>
-        ) : report && !report.ok ? (
-          <ConflictList report={report} />
+        ) : report ? (
+          <>
+            {!report.ok ? <ConflictList report={report} /> : null}
+            {report.warnings.length > 0 ? <WarningList warnings={report.warnings} /> : null}
+          </>
         ) : null}
 
         {error ? <ErrorNote message={error} /> : null}
