@@ -87,7 +87,9 @@ faculty initial, which always keep one), `STAFF` (assigned floors) or `OFFICE`.
 Rules the API holds to, whoever asks:
 
 - **No escalation.** Giving or taking a role, or adding or removing a permission from one,
-  needs every permission involved — `403` otherwise, naming what is missing.
+  needs every permission involved — `403` otherwise, naming what is missing. A teacher's
+  own permissions (`reschedules.request`, `extra_classes.book`) are exempt: they reach only
+  the holder's classes, so an office admin may give the Teacher role.
 - **No lockout.** Super admin always has every permission and cannot be deleted; the last
   active Super admin keeps the role and stays active. Nobody changes their own roles, or
   takes `roles.manage` off a role they hold.

@@ -7,7 +7,8 @@ import pytest
 from sqlalchemy import select
 
 from classtrack.core.errors import ForbiddenError, ValidationError
-from classtrack.models import AuditLog, BuiltinRole, Teacher
+from classtrack.core.security import hash_password
+from classtrack.models import AuditLog, BuiltinRole, Permission, RoleKind, Teacher, User
 from classtrack.services import account_service, auth_service, faculty_service, role_service
 
 
@@ -127,3 +128,38 @@ async def test_choosing_roles_takes_the_right_to_manage_accounts(session, coordi
         session, initial="NRF", password="secret1", actor=coordinator
     )
     assert [r.key for r in account.roles] == ["TEACHER"]
+
+
+async def test_an_office_admin_gives_the_teacher_role_without_teaching(session, hod):
+    # A Convener manages teachers and accounts but has no classes of their own:
+    # the Teacher role's own-class permissions do not stop them giving it.
+    convener = await role_service.create_role(
+        session,
+        actor=hod,
+        name="Convener",
+        description="",
+        kind=RoleKind.OFFICE,
+        permissions=[Permission.MANAGE_TEACHERS.value, Permission.MANAGE_ACCOUNTS.value],
+    )
+    admin = User(
+        email="convener@test.edu",
+        full_name="Convener",
+        password_hash=hash_password("x"),
+        roles=[convener],
+    )
+    session.add(admin)
+    await session.flush()
+    teacher = await role_service.builtin(session, BuiltinRole.TEACHER)
+    committee = await role_service.builtin(session, BuiltinRole.COMMITTEE)
+
+    await faculty_service.add_teacher(session, actor=admin, initial="NRF", name="Ms. N")
+    account = await account_service.create_teacher_account(
+        session, initial="NRF", password="secret1", actor=admin, roles=[teacher]
+    )
+    assert [r.key for r in account.roles] == ["TEACHER"]
+
+    # Anything else they do not hold, they still cannot give.
+    with pytest.raises(ForbiddenError, match="do not have"):
+        await role_service.set_roles(
+            session, actor=admin, target=account, roles=[teacher, committee]
+        )

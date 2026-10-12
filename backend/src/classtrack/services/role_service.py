@@ -4,7 +4,9 @@ Three rules hold whatever the request:
 
 * **No escalation.** You may only give a role, or add a permission to one, if
   you hold every permission involved yourself. Managing accounts or roles
-  cannot be turned into more access than the manager has.
+  cannot be turned into more access than the manager has. A teacher's own
+  permissions are the exception: they reach only the holder's own classes, so
+  an office admin may give the Teacher role without teaching themselves.
 * **No lockout.** Super admin always holds every permission, cannot be
   deleted, and its last active holder keeps it and stays active.
 * **Kind matches the account.** A teacher account (one with a faculty initial)
@@ -23,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from classtrack.core.errors import ForbiddenError, NotFoundError, ValidationError
 from classtrack.models import (
     BUILTIN_ROLES,
+    TEACHER_PERMISSIONS,
     BuiltinRole,
     Permission,
     Role,
@@ -102,7 +105,12 @@ def _permissions(values: Iterable[str]) -> list[Permission]:
 
 
 def _require_held(actor: User, permissions: Iterable[Permission], what: str) -> None:
-    missing = sorted(p.value for p in permissions if p not in actor.permissions)
+    # A teacher's own permissions give no say over anyone else's classes.
+    missing = sorted(
+        p.value
+        for p in permissions
+        if p not in actor.permissions and p not in TEACHER_PERMISSIONS
+    )
     if missing:
         raise ForbiddenError(
             f"You cannot {what}: it grants permissions you do not have yourself.",

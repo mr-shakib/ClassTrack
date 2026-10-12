@@ -1,5 +1,6 @@
 "use client";
 
+import { mayGive } from "@/lib/auth";
 import type { RoleInfo, RoleKind, User } from "@/lib/types";
 
 const KIND_TAG: Partial<Record<RoleKind, { label: string; className: string }>> = {
@@ -7,10 +8,9 @@ const KIND_TAG: Partial<Record<RoleKind, { label: string; className: string }>> 
   STAFF: { label: "floor staff", className: "bg-info-soft text-info" },
 };
 
-/** The no-escalation rule, as the API applies it: a role can only be given by
- *  someone who holds every permission in it. */
+/** A role can only be given by someone who may give every permission in it. */
 export const canGrant = (me: User, role: RoleInfo) =>
-  role.permissions.every((p) => me.permissions.includes(p));
+  role.permissions.every((p) => mayGive(me, p));
 
 /** Pick one or more roles. Teacher roles appear only for a teacher account; a
  *  role this admin cannot give is shown, greyed, with the reason. */

@@ -25,6 +25,15 @@ export function can(user: User | null | undefined, ...permissions: Permission[])
   return !!user && permissions.some((p) => user.permissions.includes(p));
 }
 
+/** A teacher's own permissions, which reach only their own classes. Mirrors
+ *  `TEACHER_PERMISSIONS` in models/access.py. */
+const TEACHER_PERMISSIONS: Permission[] = ["reschedules.request", "extra_classes.book"];
+
+/** The no-escalation rule, as the API applies it: a permission can only be
+ *  given by someone who holds it -- except a teacher's own, which anyone may. */
+export const mayGive = (user: User, permission: Permission) =>
+  TEACHER_PERMISSIONS.includes(permission) || user.permissions.includes(permission);
+
 /** The names of the user's roles, as the header and menus show them. */
 export const roleNames = (user: User) => user.roles.map((r) => r.name).join(" · ");
 
