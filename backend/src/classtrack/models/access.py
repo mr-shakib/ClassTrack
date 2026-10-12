@@ -26,6 +26,7 @@ class Permission(str, enum.Enum):
     # Monitoring
     CHECK_CLASSES = "checking.submit"
     CORRECT_CHECKS = "checking.correct"
+    MARK_DAY_CONDUCTED = "checking.mark_day"
     VIEW_DASHBOARD = "dashboard.view"
     CANCEL_CLASSES = "classes.cancel"
     # Reschedules
@@ -72,6 +73,12 @@ PERMISSION_INFO: tuple[PermissionInfo, ...] = (
         "Monitoring",
         "Correct past checks",
         "Change a check after its day is over, or report a class before it starts.",
+    ),
+    PermissionInfo(
+        Permission.MARK_DAY_CONDUCTED,
+        "Monitoring",
+        "Mark a day conducted",
+        "When monitoring was off for a day, record every class nobody reported as held.",
     ),
     PermissionInfo(
         Permission.VIEW_DASHBOARD,
@@ -209,6 +216,7 @@ _COORDINATION = frozenset(
     {
         Permission.CHECK_CLASSES,
         Permission.CORRECT_CHECKS,
+        Permission.MARK_DAY_CONDUCTED,
         Permission.VIEW_DASHBOARD,
         Permission.CANCEL_CLASSES,
         Permission.MANAGE_ROUTINE,

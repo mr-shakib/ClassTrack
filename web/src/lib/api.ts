@@ -14,6 +14,7 @@ import type {
   Holiday,
   IngestionReport,
   Makeup,
+  MarkDay,
   MakeupMode,
   Notification,
   Overview,
@@ -132,6 +133,11 @@ export const api = {
       reason?: string | null;
     },
   ) => post<CheckResponse>(`/checking/${instanceId}`, payload),
+  /** What marking a day conducted would do. */
+  dayToMark: (date: string) => get<MarkDay>(`/checking/day/${date}`),
+  /** For a day monitoring was off: every class nobody reported is recorded as held. */
+  markDayConducted: (date: string, reason: string | null) =>
+    post<MarkDay>(`/checking/day/${date}/conducted`, { reason }),
   /** A teacher's classes over a range, newest first -- to find one to correct. */
   searchChecking: (teacher: string, from?: string, to?: string) =>
     get<RoomRow[]>(`/checking/search${qs({ teacher, from, to })}`),

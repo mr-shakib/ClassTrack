@@ -12,6 +12,8 @@ deliberately separate steps.
 from __future__ import annotations
 
 import logging
+from collections import Counter
+from datetime import date as Date
 from datetime import datetime, time
 
 from sqlalchemy import select
@@ -174,3 +176,106 @@ async def submit(
 
     await session.flush()
     return instance
+
+
+#: What a class marked conducted carries as its remark, so the record says how
+#: it came to be held without anyone having seen it.
+MARKED_REMARK = "Monitoring was off this day; recorded as held."
+
+
+def _day_kind(instance: ClassInstance) -> str:
+    """``unreported``, ``reported`` or ``other`` -- see ``MarkDayOut``."""
+    if instance.status is ClassStatus.NOT_CHECKED or (
+        instance.status is None and instance.check is None
+    ):
+        return "unreported"
+    if instance.check is not None and (instance.status is None or instance.status in _AMENDABLE):
+        return "reported"
+    return "other"
+
+
+async def _day(session: AsyncSession, on: Date) -> list[ClassInstance]:
+    return list(
+        (
+            await session.scalars(
+                select(ClassInstance)
+                .where(ClassInstance.date == on)
+                .options(selectinload(ClassInstance.check))
+            )
+        ).all()
+    )
+
+
+def _tally(instances: list[ClassInstance], on: Date, marked: int = 0) -> dict[str, object]:
+    kinds = Counter(_day_kind(i) for i in instances)
+    return {
+        "date": on,
+        "unreported": kinds["unreported"],
+        "reported": kinds["reported"],
+        "other": kinds["other"],
+        "marked": marked,
+    }
+
+
+async def day_summary(session: AsyncSession, *, on: Date) -> dict[str, object]:
+    """What marking ``on`` conducted would do, before anyone does it."""
+    return _tally(await _day(session, on), on)
+
+
+async def mark_day_conducted(
+    session: AsyncSession,
+    *,
+    on: Date,
+    user: User,
+    reason: str | None = None,
+    now: datetime | None = None,
+) -> dict[str, object]:
+    """Record every class of ``on`` that nobody reported as held.
+
+    For a day monitoring was off -- staff away, or the department deciding not
+    to check -- when the classes ran but nobody was there to say so. A class
+    staff did report keeps that report: it was seen, and this was not. A
+    cancelled, rescheduled or online class is not touched.
+
+    Each class gets a RUNNING check by ``user``, as though they had reported
+    it, and its own audit entry, so it can be corrected one by one afterwards.
+    """
+    now = now or status_engine.now_local()
+    if on > now.date():
+        raise ValidationError(
+            "Pick today or an earlier day. A class cannot be recorded as held before its day."
+        )
+    why = (reason or "").strip() or None
+
+    instances = await _day(session, on)
+    marked = 0
+    for instance in instances:
+        if _day_kind(instance) != "unreported":
+            continue
+        before = {"status": instance.status.value if instance.status else None, "outcome": None}
+        record = CheckRecord(
+            instance_id=instance.id,
+            checked_by_id=user.id,
+            outcome=CheckOutcome.RUNNING,
+            remark=MARKED_REMARK,
+            checked_at=now,
+        )
+        session.add(record)
+        instance.check = record
+        instance.status = ClassStatus.RUNNING
+        instance.resolved_at = utcnow()
+        audit_service.record(
+            session,
+            actor_id=user.id,
+            entity_type="class_instance",
+            entity_id=instance.id,
+            action="day_marked_conducted",
+            before=before,
+            after={"status": ClassStatus.RUNNING.value, "outcome": CheckOutcome.RUNNING.value},
+            reason=why or f"Monitoring was off on {on:%d %B %Y}.",
+        )
+        marked += 1
+
+    await session.flush()
+    logger.info("%s marked %d classes of %s conducted", user.full_name, marked, on)
+    return _tally(instances, on, marked)

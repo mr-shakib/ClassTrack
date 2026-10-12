@@ -70,6 +70,7 @@ P = Permission
 # --- monitoring ---------------------------------------------------------------
 #: The checking screen: report classes, or find one to correct.
 CheckerUser = _gate(P.CHECK_CLASSES, P.CORRECT_CHECKS)
+DayMarkerUser = _gate(P.MARK_DAY_CONDUCTED)
 DashboardUser = _gate(P.VIEW_DASHBOARD)
 CancelUser = _gate(P.CANCEL_CLASSES)
 

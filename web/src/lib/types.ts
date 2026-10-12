@@ -4,6 +4,7 @@
 export type Permission =
   | "checking.submit"
   | "checking.correct"
+  | "checking.mark_day"
   | "dashboard.view"
   | "classes.cancel"
   | "reschedules.decide"
@@ -198,6 +199,19 @@ export interface FloorSummary {
   checked: number;
   /** One of the caller's assigned floors: listed first, never a restriction. */
   is_mine: boolean;
+}
+
+/** A day's classes, by what marking it conducted does to them. */
+export interface MarkDay {
+  date: string;
+  /** Nobody reported these: marking the day records them as held. */
+  unreported: number;
+  /** Already reported -- by staff, or by marking the day before -- and kept. */
+  reported: number;
+  /** Cancelled, rescheduled or online: left as they are. */
+  other: number;
+  /** How many the request marked; zero for the preview. */
+  marked: number;
 }
 
 export interface CheckingScreen {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { MarkDayConducted } from "@/components/MarkDayConducted";
 import RoomCard from "@/components/RoomCard";
 import TeacherSearch from "@/components/TeacherSearch";
 import { Card, EmptyState, ErrorNote, Spinner } from "@/components/ui";
@@ -26,6 +27,7 @@ export default function StaffPage() {
   // Staff can report until the end of the class's day; an admin or the
   // committee may correct it afterwards.
   const canOverride = can(user, "checking.correct");
+  const canMarkDay = can(user, "checking.mark_day");
 
   const [mode, setMode] = useState<"floor" | "teacher">("floor");
   const [date, setDate] = useState(todayISO());
@@ -227,6 +229,11 @@ export default function StaffPage() {
         className="min-h-12 rounded-xl border-2 border-line bg-surface px-3 text-base"
         aria-label="Date"
       />
+
+      {/* A day to come cannot have been held yet. */}
+      {canMarkDay && date <= todayISO() ? (
+        <MarkDayConducted key={date} date={date} onMarked={() => void load(false)} />
+      ) : null}
 
       {error ? <ErrorNote message={error} /> : null}
 

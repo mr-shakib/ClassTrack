@@ -7,7 +7,7 @@ from datetime import timedelta
 
 from fastapi import APIRouter, BackgroundTasks, Query
 
-from classtrack.api.deps import CheckerUser, DashboardUser, SessionDep
+from classtrack.api.deps import CheckerUser, DashboardUser, DayMarkerUser, SessionDep
 from classtrack.core.errors import ValidationError
 from classtrack.routine.lattice import SLOTS
 from classtrack.schemas.monitoring import (
@@ -16,6 +16,8 @@ from classtrack.schemas.monitoring import (
     CheckResponse,
     DashboardOut,
     DayStatus,
+    MarkDayOut,
+    MarkDayRequest,
     RoomRow,
 )
 from classtrack.services import (
@@ -90,6 +92,36 @@ async def search(
         session, teacher_initial=teacher.strip(), start=start, end=end
     )
     return [RoomRow.model_validate(r) for r in rows]
+
+
+@router.get(
+    "/checking/day/{on}",
+    response_model=MarkDayOut,
+    summary="What marking a day conducted would do",
+)
+async def day_to_mark(
+    on: Date,
+    session: SessionDep,
+    user: DayMarkerUser,  # noqa: ARG001
+) -> MarkDayOut:
+    return MarkDayOut.model_validate(await check_service.day_summary(session, on=on))
+
+
+@router.post(
+    "/checking/day/{on}/conducted",
+    response_model=MarkDayOut,
+    summary="Record every class of a day nobody reported as held",
+)
+async def mark_day_conducted(
+    on: Date, payload: MarkDayRequest, session: SessionDep, user: DayMarkerUser
+) -> MarkDayOut:
+    """For a day monitoring was off. Classes staff reported keep their report;
+    cancelled, rescheduled and online classes are left alone."""
+    result = await check_service.mark_day_conducted(
+        session, on=on, user=user, reason=payload.reason
+    )
+    await session.commit()
+    return MarkDayOut.model_validate(result)
 
 
 @router.post(

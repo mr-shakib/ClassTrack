@@ -52,6 +52,7 @@ request (the session token carries only who you are).
 |---|---|---|
 | `checking.submit` | Report classes on the checking screen | Staff, Committee, CO, admins |
 | `checking.correct` | Correct a check after its day, or before the class starts | Committee, CO, admins |
+| `checking.mark_day` | Mark a day monitoring was off conducted | CO, admins |
 | `dashboard.view` | Live dashboard and day status | CO, admins |
 | `classes.cancel` | Cancel a class | CO, admins |
 | `reschedules.decide` | Decide online reschedule requests | admins |
@@ -234,6 +235,24 @@ and reschedule links. The screen filters by teacher, floor, slot and outcome cli
 Roles: ST, C, MGR. A teacher's checkable classes over a range (default: the last 14 days,
 at most six months), newest first, as room rows with their own `date`, `time_slot` and
 `slot_state`. For finding a past class to correct.
+
+### `GET /checking/day/{date}` · `POST /checking/day/{date}/conducted`
+Permission: `checking.mark_day`. For a day monitoring was off. The `POST` records every class
+of the day **nobody reported** — still open, or swept to `NOT_CHECKED` — as `RUNNING`, with a
+check by the caller and the remark *"Monitoring was off this day; recorded as held."* A class
+staff reported keeps its report; cancelled, rescheduled and online classes are not touched.
+Each class marked gets its own `day_marked_conducted` audit entry carrying `reason`, so it can
+be corrected one at a time afterwards. Today may be marked, even before its classes start; a
+later day is `422`. Marking again marks nothing more.
+
+The `GET` previews it with the same shape and `marked: 0`.
+
+```jsonc
+// POST /checking/day/2026-10-11/conducted
+{ "reason": "Office staff on leave" }
+// 200
+{ "date": "2026-10-11", "unreported": 0, "reported": 162, "other": 4, "marked": 148 }
+```
 
 ### `GET /dashboard/live`
 Roles: MGR. Frontend polls every 30s.

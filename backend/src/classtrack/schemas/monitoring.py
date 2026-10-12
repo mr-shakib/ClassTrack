@@ -113,6 +113,25 @@ class CheckResponse(BaseModel):
     outside_window: bool = False
 
 
+class MarkDayRequest(BaseModel):
+    #: Why monitoring was off. Recorded with each class it marks.
+    reason: str | None = Field(default=None, max_length=2000)
+
+
+class MarkDayOut(BaseModel):
+    """A day's classes, by what marking it conducted does to them."""
+
+    date: Date
+    #: Nobody reported these: marking the day records them as held.
+    unreported: int
+    #: Already reported -- by staff, or by marking the day before -- and kept.
+    reported: int
+    #: Cancelled, rescheduled or online: left as they are.
+    other: int
+    #: How many this request marked. Zero for the preview.
+    marked: int = 0
+
+
 class InstanceOut(ORMModel):
     id: int
     date: Date
