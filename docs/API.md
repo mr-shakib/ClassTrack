@@ -205,7 +205,7 @@ and `reason` is optional.
 
 | Method | Path | Roles | Purpose |
 |---|---|---|---|
-| `GET` | `/instances` | all (scoped) | Filter by date, teacher, room, status, section |
+| `GET` | `/instances` | all (scoped) | Filter by date (or `from`/`to`, inclusive), teacher, room, status, section |
 | `GET` | `/instances/{id}` | all (scoped) | Detail + check + makeup chain + audit |
 | `POST` | `/instances/{id}/cancel` | MGR | Cancel with reason |
 

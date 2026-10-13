@@ -136,6 +136,8 @@ export interface Profile {
   teacher_initial: string | null;
   designation: string | null;
   department: string | null;
+  /** A teacher's office, from the faculty directory. */
+  office_room: string | null;
   /** Where a teacher's absence reports are mailed. Null for anyone else. */
   contact_email: string | null;
   /** A teacher's faculty photo, when the directory has one. */

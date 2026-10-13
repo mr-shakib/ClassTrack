@@ -71,6 +71,8 @@ class ProfileOut(BaseModel):
     teacher_initial: str | None = None
     designation: str | None = None
     department: str | None = None
+    #: A teacher's office, from the faculty directory.
+    office_room: str | None = None
     #: Where a teacher's absence reports are mailed. Null for anyone else, and
     #: for a teacher with none on file.
     contact_email: str | None = None

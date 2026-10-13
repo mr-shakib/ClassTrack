@@ -61,6 +61,7 @@ async def _profile(session: AsyncSession, user: User) -> ProfileOut:
         teacher_initial=user.teacher_initial,
         designation=teacher.designation if teacher else None,
         department=teacher.department if teacher else None,
+        office_room=teacher.office_room if teacher else None,
         contact_email=teacher.email if teacher else None,
         photo_url=teacher.image_url if teacher else None,
     )

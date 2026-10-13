@@ -56,6 +56,8 @@ async def list_instances(
     session: SessionDep,
     user: CurrentUser,
     on: Date | None = Query(default=None, alias="date"),
+    date_from: Date | None = Query(default=None, alias="from"),
+    date_to: Date | None = Query(default=None, alias="to"),
     teacher: str | None = None,
     room: str | None = None,
     section: str | None = None,
@@ -65,6 +67,7 @@ async def list_instances(
 ) -> list[InstanceOut]:
     """``needs_reschedule`` selects what the teacher owes a new slot for: missed
     classes, plus those staff reported absent that the sweep has not yet settled.
+    ``from`` and ``to`` bound the dates, both inclusive: a teacher's coming week.
     """
     # A TEACHER is forced onto their own initial regardless of the query.
     initial = scope_teacher(user, teacher)
@@ -82,6 +85,10 @@ async def list_instances(
         )
     if on is not None:
         query = query.where(ClassInstance.date == on)
+    if date_from is not None:
+        query = query.where(ClassInstance.date >= date_from)
+    if date_to is not None:
+        query = query.where(ClassInstance.date <= date_to)
     if initial is not None:
         query = query.where(ClassInstance.teacher_initial == initial)
     if room is not None:
