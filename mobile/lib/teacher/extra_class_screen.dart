@@ -138,7 +138,8 @@ class _ExtraClassScreenState extends State<ExtraClassScreen> {
         room: _room!,
       );
       setState(() {
-        _notice = '${made.room} is booked for ${made.courseCode} · ${made.section} on '
+        _notice =
+            '${made.room} is booked for ${made.courseCode} · ${made.section} on '
             '${formatDay(made.date)} at ${slotLabel(made.timeSlot)}. Staff will check it then.';
         _room = null;
         _report = null;
@@ -291,13 +292,15 @@ class _ExtraClassScreenState extends State<ExtraClassScreen> {
                     style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
                     child: _busy
                         ? const ButtonSpinner()
-                        : Text(blocked
-                            ? 'Resolve the conflict first'
-                            : _date == null
+                        : Text(
+                            blocked
+                                ? 'Resolve the conflict first'
+                                : _date == null
                                 ? 'Pick a date'
                                 : _room == null
-                                    ? 'Pick an empty room'
-                                    : 'Book $_room'),
+                                ? 'Pick an empty room'
+                                : 'Book $_room',
+                          ),
                   ),
                 ],
               ),
@@ -343,11 +346,15 @@ class _BookedRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('${inst.courseCode} · ${inst.section}',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.ink)),
+                    Text(
+                      '${inst.courseCode} · ${inst.section}',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.ink),
+                    ),
                     const SizedBox(height: 2),
-                    Text('${shortDay(inst.date)} · ${slotLabel(inst.timeSlot)} · ${inst.room}',
-                        style: TextStyle(fontSize: 14.5, color: p.inkSoft, fontFeatures: tabular)),
+                    Text(
+                      '${shortDay(inst.date)} · ${slotLabel(inst.timeSlot)} · ${inst.room}',
+                      style: TextStyle(fontSize: 14.5, color: p.inkSoft, fontFeatures: tabular),
+                    ),
                   ],
                 ),
               ),

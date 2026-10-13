@@ -77,19 +77,28 @@ class _LoginScreenState extends State<LoginScreen> {
                             colors: [p.brandSolid, Color.lerp(p.brandSolid, p.infoSolid, 0.6)!],
                           ),
                           boxShadow: [
-                            BoxShadow(color: p.brandSolid.withValues(alpha: 0.3), blurRadius: 18, offset: const Offset(0, 8)),
+                            BoxShadow(
+                              color: p.brandSolid.withValues(alpha: 0.3),
+                              blurRadius: 18,
+                              offset: const Offset(0, 8),
+                            ),
                           ],
                         ),
                         child: const Icon(Icons.event_available_rounded, color: Colors.white, size: 40),
                       ),
                     ),
                     const SizedBox(height: 18),
-                    Text('ClassTrack',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: p.ink, letterSpacing: -0.8)),
+                    Text(
+                      'ClassTrack',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: p.ink, letterSpacing: -0.8),
+                    ),
                     const SizedBox(height: 4),
-                    Text('Class monitoring & makeup management',
-                        textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: p.inkSoft)),
+                    Text(
+                      'Class monitoring & makeup management',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 15, color: p.inkSoft),
+                    ),
                     const SizedBox(height: 28),
                     if (notice != null) ...[
                       Notice(notice, tone: Tone.info, icon: Icons.info_outline_rounded),
@@ -100,10 +109,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text('Sign in', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: p.ink)),
+                          Text(
+                            'Sign in',
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: p.ink),
+                          ),
                           const SizedBox(height: 4),
-                          Text('Teachers use their initial, e.g. SRH. Staff may use their employee ID.',
-                              style: TextStyle(fontSize: 14, color: p.inkSoft, height: 1.4)),
+                          Text(
+                            'Teachers use their initial, e.g. SRH. Staff may use their employee ID.',
+                            style: TextStyle(fontSize: 14, color: p.inkSoft, height: 1.4),
+                          ),
                           const SizedBox(height: 18),
                           TextField(
                             controller: _username,
@@ -141,11 +155,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             onPressed: _busy ? null : _submit,
                             style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
                             child: _busy
-                                ? const Row(mainAxisSize: MainAxisSize.min, children: [
-                                    ButtonSpinner(),
-                                    SizedBox(width: 10),
-                                    Text('Signing in…'),
-                                  ])
+                                ? const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [ButtonSpinner(), SizedBox(width: 10), Text('Signing in…')],
+                                  )
                                 : const Text('Sign in'),
                           ),
                         ],
@@ -163,7 +176,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text('Department of CSE', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: p.inkFaint)),
+                    Text(
+                      'Department of CSE',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13, color: p.inkFaint),
+                    ),
                   ],
                 ),
               ),

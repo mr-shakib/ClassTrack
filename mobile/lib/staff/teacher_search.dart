@@ -68,8 +68,8 @@ class _TeacherSearchState extends State<TeacherSearch> {
   }
 
   void _patch(RoomRow next) => setState(() {
-        _rows = [for (final r in _rows!) r.instanceId == next.instanceId ? next : r];
-      });
+    _rows = [for (final r in _rows!) r.instanceId == next.instanceId ? next : r];
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -87,7 +87,10 @@ class _TeacherSearchState extends State<TeacherSearch> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Teacher initial', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.ink)),
+              Text(
+                'Teacher initial',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.ink),
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: _initial,
@@ -96,17 +99,18 @@ class _TeacherSearchState extends State<TeacherSearch> {
                 onSubmitted: (_) => _search(),
                 onChanged: (_) => setState(() {}),
                 style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: 1.5),
-                decoration: const InputDecoration(
-                  hintText: 'e.g. SRH',
-                  prefixIcon: Icon(Icons.person_search_rounded),
-                ),
+                decoration: const InputDecoration(hintText: 'e.g. SRH', prefixIcon: Icon(Icons.person_search_rounded)),
               ),
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Expanded(child: _DateField(label: 'From', value: _from, onTap: () => _pick(true))),
+                  Expanded(
+                    child: _DateField(label: 'From', value: _from, onTap: () => _pick(true)),
+                  ),
                   const SizedBox(width: 10),
-                  Expanded(child: _DateField(label: 'To', value: _to, onTap: () => _pick(false))),
+                  Expanded(
+                    child: _DateField(label: 'To', value: _to, onTap: () => _pick(false)),
+                  ),
                 ],
               ),
               const SizedBox(height: 14),
@@ -117,8 +121,10 @@ class _TeacherSearchState extends State<TeacherSearch> {
               ),
               if (!widget.canOverride) ...[
                 const SizedBox(height: 10),
-                Text("You can change today's classes. Older ones are shown for reference.",
-                    style: TextStyle(fontSize: 14, color: p.inkSoft)),
+                Text(
+                  "You can change today's classes. Older ones are shown for reference.",
+                  style: TextStyle(fontSize: 14, color: p.inkSoft),
+                ),
               ],
             ],
           ),
@@ -136,13 +142,21 @@ class _TeacherSearchState extends State<TeacherSearch> {
             )
           else ...[
             Text.rich(
-              TextSpan(children: [
-                TextSpan(text: '${_rows!.length}', style: TextStyle(fontWeight: FontWeight.w800, color: p.ink)),
-                const TextSpan(text: ' classes for '),
-                TextSpan(text: _searched, style: TextStyle(fontWeight: FontWeight.w800, color: p.ink)),
-                if (_rows!.first.teacherName != null) TextSpan(text: ' · ${_rows!.first.teacherName}'),
-                const TextSpan(text: ', newest first'),
-              ]),
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: '${_rows!.length}',
+                    style: TextStyle(fontWeight: FontWeight.w800, color: p.ink),
+                  ),
+                  const TextSpan(text: ' classes for '),
+                  TextSpan(
+                    text: _searched,
+                    style: TextStyle(fontWeight: FontWeight.w800, color: p.ink),
+                  ),
+                  if (_rows!.first.teacherName != null) TextSpan(text: ' · ${_rows!.first.teacherName}'),
+                  const TextSpan(text: ', newest first'),
+                ],
+              ),
               style: TextStyle(fontSize: 15, color: p.inkSoft),
             ),
             const SizedBox(height: 14),
@@ -191,9 +205,15 @@ class _DateField extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: p.inkSoft)),
+              Text(
+                label,
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: p.inkSoft),
+              ),
               const SizedBox(height: 2),
-              Text(shortDay(value), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.ink)),
+              Text(
+                shortDay(value),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.ink),
+              ),
             ],
           ),
         ),

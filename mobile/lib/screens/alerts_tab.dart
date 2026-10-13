@@ -79,32 +79,33 @@ class _AlertsTabState extends State<AlertsTab> {
       appBar: AppBar(
         title: const Text('Alerts'),
         actions: [
-          if (unread > 0)
-            TextButton(onPressed: _markAll, child: const Text('Mark all read')),
+          if (unread > 0) TextButton(onPressed: _markAll, child: const Text('Mark all read')),
           const SizedBox(width: 6),
         ],
       ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: items == null
-            ? ListView(children: [
-                if (_error != null) LoadError(message: _error!, onRetry: _load) else const Loading(),
-              ])
+            ? ListView(
+                children: [if (_error != null) LoadError(message: _error!, onRetry: _load) else const Loading()],
+              )
             : items.isEmpty
-                ? ListView(children: const [
-                    SizedBox(height: 60),
-                    EmptyState(
-                      icon: Icons.notifications_none_rounded,
-                      title: "You're all caught up",
-                      body: 'Reports about your classes and decisions on your reschedules show up here.',
-                    ),
-                  ])
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
-                    itemCount: items.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 10),
-                    itemBuilder: (context, i) => _NotificationTile(n: items[i], onTap: () => _open(items[i]), palette: p),
+            ? ListView(
+                children: const [
+                  SizedBox(height: 60),
+                  EmptyState(
+                    icon: Icons.notifications_none_rounded,
+                    title: "You're all caught up",
+                    body: 'Reports about your classes and decisions on your reschedules show up here.',
                   ),
+                ],
+              )
+            : ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+                itemCount: items.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                itemBuilder: (context, i) => _NotificationTile(n: items[i], onTap: () => _open(items[i]), palette: p),
+              ),
       ),
     );
   }
@@ -162,12 +163,14 @@ class _NotificationTile extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: Text(n.title,
-                              style: TextStyle(
-                                fontSize: 15.5,
-                                fontWeight: n.unread ? FontWeight.w800 : FontWeight.w600,
-                                color: p.ink,
-                              )),
+                          child: Text(
+                            n.title,
+                            style: TextStyle(
+                              fontSize: 15.5,
+                              fontWeight: n.unread ? FontWeight.w800 : FontWeight.w600,
+                              color: p.ink,
+                            ),
+                          ),
                         ),
                         const SizedBox(width: 8),
                         Text(relativeTime(n.createdAt), style: TextStyle(fontSize: 12.5, color: p.inkFaint)),

@@ -75,9 +75,11 @@ class _CheckingTabState extends State<CheckingTab> with WidgetsBindingObserver {
   }
 
   void _openFloor(FloorTally f) {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => FloorScreen(controller: _c, floorKey: f.floor.key),
-    ));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => FloorScreen(controller: _c, floorKey: f.floor.key),
+      ),
+    );
   }
 
   @override
@@ -99,20 +101,15 @@ class _CheckingTabState extends State<CheckingTab> with WidgetsBindingObserver {
                   if (!_byTeacher)
                     ListenableBuilder(
                       listenable: _c,
-                      builder: (context, _) => _DateButton(
-                        label: _c.isToday ? 'Today' : shortDay(_c.date),
-                        onTap: _pickDate,
-                      ),
+                      builder: (context, _) =>
+                          _DateButton(label: _c.isToday ? 'Today' : shortDay(_c.date), onTap: _pickDate),
                     ),
                 ],
               ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: _ModeSwitch(
-                byTeacher: _byTeacher,
-                onChanged: (v) => setState(() => _byTeacher = v),
-              ),
+              child: _ModeSwitch(byTeacher: _byTeacher, onChanged: (v) => setState(() => _byTeacher = v)),
             ),
             Expanded(
               child: _byTeacher
@@ -163,8 +160,11 @@ class _CheckingTabState extends State<CheckingTab> with WidgetsBindingObserver {
       if (_c.slotState == 'ONGOING')
         Notice('You can report these classes any time today.', tone: Tone.ok, icon: Icons.lock_open_rounded)
       else if (_c.closed)
-        Notice('This day is over. Classes nobody reported are recorded as not checked.',
-            tone: Tone.gap, icon: Icons.event_busy_rounded)
+        Notice(
+          'This day is over. Classes nobody reported are recorded as not checked.',
+          tone: Tone.gap,
+          icon: Icons.event_busy_rounded,
+        )
       else
         Notice(
           'This class has not started yet. It opens at '
@@ -225,7 +225,10 @@ class _DateButton extends StatelessWidget {
             children: [
               Icon(Icons.calendar_today_rounded, size: 17, color: p.brand),
               const SizedBox(width: 8),
-              Text(label, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: p.ink)),
+              Text(
+                label,
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: p.ink),
+              ),
               Icon(Icons.arrow_drop_down_rounded, color: p.inkSoft),
             ],
           ),
@@ -244,6 +247,7 @@ class _ModeSwitch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
+    final dark = Theme.of(context).brightness == Brightness.dark;
     Widget option(String label, IconData icon, bool value) {
       final on = byTeacher == value;
       return Expanded(
@@ -253,7 +257,8 @@ class _ModeSwitch extends StatelessWidget {
             duration: const Duration(milliseconds: 180),
             height: 46,
             decoration: BoxDecoration(
-              color: on ? p.surface : Colors.transparent,
+              // On charcoal the surface is too close to the track to read as picked.
+              color: on ? (dark ? p.line : p.surface) : Colors.transparent,
               borderRadius: BorderRadius.circular(11),
               boxShadow: on
                   ? [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 1))]
@@ -264,12 +269,10 @@ class _ModeSwitch extends StatelessWidget {
               children: [
                 Icon(icon, size: 19, color: on ? p.brand : p.inkSoft),
                 const SizedBox(width: 7),
-                Text(label,
-                    style: TextStyle(
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w700,
-                      color: on ? p.brand : p.inkSoft,
-                    )),
+                Text(
+                  label,
+                  style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: on ? p.brand : p.inkSoft),
+                ),
               ],
             ),
           ),
@@ -280,13 +283,15 @@ class _ModeSwitch extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark ? p.surface.withValues(alpha: 0.5) : p.line.withValues(alpha: 0.6),
+        color: dark ? p.surface : p.line.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(14),
       ),
-      child: Row(children: [
-        option('By floor', Icons.layers_outlined, false),
-        option('Find by teacher', Icons.person_search_outlined, true),
-      ]),
+      child: Row(
+        children: [
+          option('By floor', Icons.layers_outlined, false),
+          option('Find by teacher', Icons.person_search_outlined, true),
+        ],
+      ),
     );
   }
 }
@@ -329,8 +334,10 @@ class _SlotHero extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(mediumDay(c.date),
-                        style: const TextStyle(color: Colors.white70, fontSize: 14.5, fontWeight: FontWeight.w600)),
+                    Text(
+                      mediumDay(c.date),
+                      style: const TextStyle(color: Colors.white70, fontSize: 14.5, fontWeight: FontWeight.w600),
+                    ),
                     const SizedBox(height: 2),
                     FittedBox(
                       fit: BoxFit.scaleDown,
@@ -354,10 +361,15 @@ class _SlotHero extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text.rich(
-                      TextSpan(children: [
-                        TextSpan(text: '$done'),
-                        TextSpan(text: '/${rooms.length}', style: const TextStyle(fontSize: 22, color: Colors.white70)),
-                      ]),
+                      TextSpan(
+                        children: [
+                          TextSpan(text: '$done'),
+                          TextSpan(
+                            text: '/${rooms.length}',
+                            style: const TextStyle(fontSize: 22, color: Colors.white70),
+                          ),
+                        ],
+                      ),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 34,
@@ -366,8 +378,10 @@ class _SlotHero extends StatelessWidget {
                         letterSpacing: -1,
                       ),
                     ),
-                    const Text('rooms done',
-                        style: TextStyle(color: Colors.white70, fontSize: 13.5, fontWeight: FontWeight.w600)),
+                    const Text(
+                      'rooms done',
+                      style: TextStyle(color: Colors.white70, fontSize: 13.5, fontWeight: FontWeight.w600),
+                    ),
                   ],
                 ),
             ],
@@ -389,8 +403,10 @@ class _SlotHero extends StatelessWidget {
                   decoration: BoxDecoration(color: state.$2, shape: BoxShape.circle),
                 ),
                 const SizedBox(width: 8),
-                Text(state.$1!,
-                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
+                Text(
+                  state.$1!,
+                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700),
+                ),
               ],
             ),
           ],
@@ -523,11 +539,20 @@ class _FloorCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(f.floor.label,
-                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.4, color: p.ink)),
+                        Text(
+                          f.floor.label,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.4,
+                            color: p.ink,
+                          ),
+                        ),
                         const SizedBox(height: 2),
-                        Text('${f.total} ${f.total == 1 ? 'class' : 'classes'}',
-                            style: TextStyle(fontSize: 14.5, color: p.inkSoft)),
+                        Text(
+                          '${f.total} ${f.total == 1 ? 'class' : 'classes'}',
+                          style: TextStyle(fontSize: 14.5, color: p.inkSoft),
+                        ),
                       ],
                     ),
                   ),
@@ -543,27 +568,34 @@ class _FloorCard extends StatelessWidget {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  if (complete) ...[
-                    Icon(Icons.check_circle_rounded, color: p.ok, size: 20),
-                    const SizedBox(width: 6),
-                  ],
+                  if (complete) ...[Icon(Icons.check_circle_rounded, color: p.ok, size: 20), const SizedBox(width: 6)],
                   Expanded(
                     child: Text(
-                      complete ? 'All done' : closed ? '${f.left} not reported' : '${f.left} to check',
+                      complete
+                          ? 'All done'
+                          : closed
+                          ? '${f.left} not reported'
+                          : '${f.left} to check',
                       style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.w800,
-                        color: complete ? p.ok : closed ? p.gap : p.ink,
+                        color: complete
+                            ? p.ok
+                            : closed
+                            ? p.gap
+                            : p.ink,
                       ),
                     ),
                   ),
-                  Text('${f.checked}/${f.total}',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: p.inkSoft,
-                        fontFeatures: tabular,
-                      )),
+                  Text(
+                    '${f.checked}/${f.total}',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: p.inkSoft,
+                      fontFeatures: tabular,
+                    ),
+                  ),
                   const SizedBox(width: 10),
                   Container(
                     width: 34,

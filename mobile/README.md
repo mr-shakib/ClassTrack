@@ -11,11 +11,15 @@ Admin work (dashboards, reports, approvals, routines) stays on the website.
 | Who | Tab | Mirrors on the web |
 |---|---|---|
 | Office staff, committee, admins who check | **Checking**: pick a floor, then one tap per room (running / late / absent); *Find by teacher* to correct a past record | `/staff` |
-| Teachers | **My classes**: semester figures, *Reschedule required*, open reschedules with mark-done and Drive link, today, courses against the minimum, past reschedules | `/teacher` |
-| Teachers | Reschedule a missed class (in a room, or online at any time) and book extra classes | `/teacher/makeup`, `/teacher/extra` |
-| Everyone | **Alerts** (tapping one opens what it is about) and **Profile** (absence email, password, sign out) | the bell, `/profile` |
+| Teachers | **Home**: the class on now (or next), what is waiting on them, today as a timeline, the next seven days | — |
+| Teachers | **Reschedule**: *Reschedule required*, makeups under way with mark-done and Drive link, extra classes, past reschedules | `/teacher`, `/teacher/makeup`, `/teacher/extra` |
+| Everyone | **Alerts**: tapping one opens what it is about | the bell |
+| Everyone | **Profile**: for a teacher the semester's figures, courses against the minimum and the weekly routine; for staff their floors; then details, absence email, password, sign out | `/profile` |
 
-A teacher who also checks classes gets both tabs. An account with neither is pointed to the website.
+A teacher who also checks classes gets Home, Reschedule and Checking. An account with neither is pointed to the website.
+
+Home reads the teacher's classes from today to three weeks ahead (`/instances?from=&to=`). A server
+older than that filter sends every class instead, and the app keeps only the window.
 
 ## Run
 
@@ -59,9 +63,9 @@ the user in the background. A 401 signs out with a notice on the sign-in screen.
 | `lib/api/` | `client.dart` (every endpoint the app calls), `models.dart` (mirrors `web/src/lib/types.ts`) |
 | `lib/session.dart` | Sign-in, the stored token, the cached user |
 | `lib/staff/` | Checking: floors, a floor's rooms, the room card, find by teacher |
-| `lib/teacher/` | My classes, reschedule, extra class, and the booking pieces they share |
+| `lib/teacher/` | Home, Reschedule, the reschedule and extra-class screens, and `teacher_data.dart`, which loads what all three teacher tabs show |
 | `lib/screens/` | Sign-in, the tab shell, alerts, profile |
-| `lib/theme.dart` | The palette from `web/src/app/globals.css`, light and dark |
+| `lib/theme.dart` | The palette from `web/src/app/globals.css`, light, and a charcoal dark |
 | `lib/util/time.dart` | The six slots, and dates on Dhaka's clock |
 
 ## Rules kept from the web app

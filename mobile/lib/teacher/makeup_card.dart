@@ -66,14 +66,14 @@ class _MakeupCardState extends State<MakeupCard> {
     final step = m.status == 'COMPLETED'
         ? steps.length
         : pending
-            ? 1
-            : steps.length - (ended ? 1 : 2);
+        ? 1
+        : steps.length - (ended ? 1 : 2);
 
     final (footerBg, footerBorder) = pending
         ? (p.canvas, p.line)
         : ended
-            ? (p.warnSoft, p.warn.withValues(alpha: 0.25))
-            : (p.okSoft, p.ok.withValues(alpha: 0.2));
+        ? (p.warnSoft, p.warn.withValues(alpha: 0.25))
+        : (p.okSoft, p.ok.withValues(alpha: 0.2));
 
     return Container(
       clipBehavior: Clip.antiAlias,
@@ -94,8 +94,10 @@ class _MakeupCardState extends State<MakeupCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(m.originalCourseCode ?? '—',
-                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: p.ink, letterSpacing: -0.4)),
+                      Text(
+                        m.originalCourseCode ?? '—',
+                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: p.ink, letterSpacing: -0.4),
+                      ),
                       Text('Section ${m.originalSection ?? '—'}', style: TextStyle(fontSize: 15.5, color: p.inkSoft)),
                     ],
                   ),
@@ -114,7 +116,12 @@ class _MakeupCardState extends State<MakeupCard> {
                 _Steps(steps: steps, step: step),
                 if (m.decisionNote != null && m.decisionNote!.isNotEmpty) ...[
                   const SizedBox(height: 14),
-                  Notice('“${m.decisionNote}”', title: 'Head of Department', tone: Tone.neutral, icon: Icons.format_quote_rounded),
+                  Notice(
+                    '“${m.decisionNote}”',
+                    title: 'Head of Department',
+                    tone: Tone.neutral,
+                    icon: Icons.format_quote_rounded,
+                  ),
                 ],
                 if (m.driveLink != null && m.driveLink!.isNotEmpty) ...[
                   const SizedBox(height: 12),
@@ -128,7 +135,10 @@ class _MakeupCardState extends State<MakeupCard> {
             ),
           ),
           Container(
-            decoration: BoxDecoration(color: footerBg, border: Border(top: BorderSide(color: footerBorder, width: 1.5))),
+            decoration: BoxDecoration(
+              color: footerBg,
+              border: Border(top: BorderSide(color: footerBorder, width: 1.5)),
+            ),
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -157,14 +167,16 @@ class _MakeupCardState extends State<MakeupCard> {
     }
     if (!ended) {
       return [
-        Text(m.online ? 'Approved — hold the class at the new time' : 'Booked — hold the class at the new time',
-            style: head(p.ok)),
+        Text(
+          m.online ? 'Approved — hold the class at the new time' : 'Booked — hold the class at the new time',
+          style: head(p.ok),
+        ),
         const SizedBox(height: 4),
         Text(
           m.online
               ? (m.driveLink != null && m.driveLink!.isNotEmpty
-                  ? 'It is not checked in a room. Your Drive link is saved — after the class, come back here and mark it done.'
-                  : 'It is not checked in a room. After it ends, come back here and submit its Drive link.')
+                    ? 'It is not checked in a room. Your Drive link is saved — after the class, come back here and mark it done.'
+                    : 'It is not checked in a room. After it ends, come back here and submit its Drive link.')
               : 'Room ${m.room} is held for you and staff will check it. After the class, come back here and mark it done.',
           style: body,
         ),
@@ -246,8 +258,10 @@ class MakeupTimes extends StatelessWidget {
             children: [
               Text('MISSED CLASS', style: label(p.inkFaint)),
               const SizedBox(height: 4),
-              Text(m.originalDate == null ? '—' : formatDay(m.originalDate!),
-                  style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: p.ink)),
+              Text(
+                m.originalDate == null ? '—' : formatDay(m.originalDate!),
+                style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: p.ink),
+              ),
               Text(
                 [if (m.originalTimeSlot != null) slotLabel(m.originalTimeSlot!), ?m.originalRoom].join(' · '),
                 style: TextStyle(fontSize: 14.5, color: p.inkSoft, fontFeatures: tabular),
@@ -271,9 +285,14 @@ class MakeupTimes extends StatelessWidget {
             children: [
               Text('RESCHEDULED TO', style: label(p.brand)),
               const SizedBox(height: 4),
-              Text(formatDay(m.date), style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: p.ink)),
-              Text('${slotLabel(m.timeSlot)} · ${m.online ? 'Online' : 'Room ${m.room}'}',
-                  style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: p.ink, fontFeatures: tabular)),
+              Text(
+                formatDay(m.date),
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: p.ink),
+              ),
+              Text(
+                '${slotLabel(m.timeSlot)} · ${m.online ? 'Online' : 'Room ${m.room}'}',
+                style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600, color: p.ink, fontFeatures: tabular),
+              ),
             ],
           ),
         ),
@@ -300,7 +319,10 @@ class _Steps extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Container(height: 3, color: i == 0 ? Colors.transparent : (i <= step ? p.okSolid : p.line)),
+                      child: Container(
+                        height: 3,
+                        color: i == 0 ? Colors.transparent : (i <= step ? p.okSolid : p.line),
+                      ),
                     ),
                     Container(
                       width: 34,
@@ -316,11 +338,13 @@ class _Steps extends StatelessWidget {
                       child: Center(
                         child: i < step
                             ? const Icon(Icons.check_rounded, color: Colors.white, size: 20)
-                            : Text('${i + 1}',
+                            : Text(
+                                '${i + 1}',
                                 style: TextStyle(
                                   fontWeight: FontWeight.w800,
                                   color: i == step ? Colors.white : p.inkFaint,
-                                )),
+                                ),
+                              ),
                       ),
                     ),
                     Expanded(
@@ -368,24 +392,32 @@ class MakeupHistoryRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${m.originalCourseCode ?? '—'} · ${m.originalSection ?? '—'}',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.ink)),
+                Text(
+                  '${m.originalCourseCode ?? '—'} · ${m.originalSection ?? '—'}',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.ink),
+                ),
                 const SizedBox(height: 2),
-                Text('${shortDay(m.date)} · ${slotLabel(m.timeSlot)} · ${m.online ? 'Online' : 'Room ${m.room}'}',
-                    style: TextStyle(fontSize: 14, color: p.inkSoft, fontFeatures: tabular)),
+                Text(
+                  '${shortDay(m.date)} · ${slotLabel(m.timeSlot)} · ${m.online ? 'Online' : 'Room ${m.room}'}',
+                  style: TextStyle(fontSize: 14, color: p.inkSoft, fontFeatures: tabular),
+                ),
                 if (m.originalDate != null)
                   Text('Makes up ${shortDay(m.originalDate!)}', style: TextStyle(fontSize: 13, color: p.inkFaint)),
                 if (m.status == 'REJECTED' && !m.online)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
-                    child: Text('Request another slot from “Reschedule required”.',
-                        style: TextStyle(fontSize: 14, color: p.bad, fontWeight: FontWeight.w600)),
+                    child: Text(
+                      'Request another slot from “Reschedule required”.',
+                      style: TextStyle(fontSize: 14, color: p.bad, fontWeight: FontWeight.w600),
+                    ),
                   ),
                 if (m.decisionNote != null && m.decisionNote!.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
-                    child: Text('“${m.decisionNote}”',
-                        style: TextStyle(fontSize: 14, color: p.inkSoft, fontStyle: FontStyle.italic)),
+                    child: Text(
+                      '“${m.decisionNote}”',
+                      style: TextStyle(fontSize: 14, color: p.inkSoft, fontStyle: FontStyle.italic),
+                    ),
                   ),
                 if (m.driveLink != null && m.driveLink!.isNotEmpty)
                   Padding(
@@ -395,12 +427,17 @@ class MakeupHistoryRow extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(Icons.open_in_new_rounded, size: 16, color: p.brand),
-                          const SizedBox(width: 6),
-                          Text('Open Drive link',
-                              style: TextStyle(color: p.brand, fontWeight: FontWeight.w700, fontSize: 14.5)),
-                        ]),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.open_in_new_rounded, size: 16, color: p.brand),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Open Drive link',
+                              style: TextStyle(color: p.brand, fontWeight: FontWeight.w700, fontSize: 14.5),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

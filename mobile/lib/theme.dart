@@ -83,30 +83,32 @@ class Palette extends ThemeExtension<Palette> {
     infoSolid: Color(0xFF0E7490),
   );
 
+  /// Charcoal: neutral greys rather than a blue-black, so the status
+  /// colours are the only colour on the screen.
   static const dark = Palette(
-    ink: Color(0xFFE6EBF5),
-    inkSoft: Color(0xFFA9B4C8),
-    inkFaint: Color(0xFF6B7891),
-    line: Color(0xFF243049),
-    surface: Color(0xFF131C2E),
-    canvas: Color(0xFF0B1220),
-    brand: Color(0xFF8DA8FF),
-    brandSoft: Color(0xFF1A2550),
-    brandSolid: Color(0xFF2F5FE6),
+    ink: Color(0xFFECECEC),
+    inkSoft: Color(0xFFA6A6A6),
+    inkFaint: Color(0xFF6E6E6E),
+    line: Color(0xFF2F2F2F),
+    surface: Color(0xFF1E1E1E),
+    canvas: Color(0xFF121212),
+    brand: Color(0xFF8FA9FF),
+    brandSoft: Color(0xFF1E2333),
+    brandSolid: Color(0xFF3363E8),
     ok: Color(0xFF6EE7B7),
-    okSoft: Color(0xFF0B2A22),
+    okSoft: Color(0xFF15261F),
     okSolid: Color(0xFF05845F),
     warn: Color(0xFFFCD34D),
-    warnSoft: Color(0xFF2E2210),
+    warnSoft: Color(0xFF2A2416),
     warnSolid: Color(0xFFB45309),
     bad: Color(0xFFFCA5A5),
-    badSoft: Color(0xFF341416),
+    badSoft: Color(0xFF2E1B1B),
     badSolid: Color(0xFFC62828),
     gap: Color(0xFFC4B5FD),
-    gapSoft: Color(0xFF221A3D),
+    gapSoft: Color(0xFF241F31),
     gapSolid: Color(0xFF6D28D9),
     info: Color(0xFF67E8F9),
-    infoSoft: Color(0xFF0B2A33),
+    infoSoft: Color(0xFF152629),
     infoSolid: Color(0xFF0E7490),
   );
 
@@ -155,10 +157,7 @@ const tabular = [FontFeature.tabularFigures()];
 
 ThemeData buildTheme(Brightness brightness) {
   final p = brightness == Brightness.dark ? Palette.dark : Palette.light;
-  final scheme = ColorScheme.fromSeed(
-    seedColor: Palette.light.brand,
-    brightness: brightness,
-  ).copyWith(
+  final scheme = ColorScheme.fromSeed(seedColor: Palette.light.brand, brightness: brightness).copyWith(
     primary: p.brandSolid,
     onPrimary: Colors.white,
     primaryContainer: p.brandSoft,
@@ -221,11 +220,26 @@ ThemeData buildTheme(Brightness brightness) {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       hintStyle: TextStyle(color: p.inkFaint, fontWeight: FontWeight.w400),
       labelStyle: TextStyle(color: p.inkSoft),
-      border: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: p.line, width: 1.5)),
-      enabledBorder: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: p.line, width: 1.5)),
-      focusedBorder: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: p.brand, width: 2)),
-      errorBorder: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: p.bad, width: 1.5)),
-      focusedErrorBorder: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide(color: p.bad, width: 2)),
+      border: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide(color: p.line, width: 1.5),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide(color: p.line, width: 1.5),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide(color: p.brand, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide(color: p.bad, width: 1.5),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: BorderSide(color: p.bad, width: 2),
+      ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
@@ -287,13 +301,8 @@ ThemeData buildTheme(Brightness brightness) {
       surfaceTintColor: Colors.transparent,
       showDragHandle: true,
     ),
-    datePickerTheme: DatePickerThemeData(
-      backgroundColor: p.surface,
-      surfaceTintColor: Colors.transparent,
-    ),
-    timePickerTheme: TimePickerThemeData(
-      backgroundColor: p.surface,
-    ),
+    datePickerTheme: DatePickerThemeData(backgroundColor: p.surface, surfaceTintColor: Colors.transparent),
+    timePickerTheme: TimePickerThemeData(backgroundColor: p.surface),
     progressIndicatorTheme: ProgressIndicatorThemeData(color: p.brand),
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? Colors.white : null),

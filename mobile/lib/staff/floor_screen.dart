@@ -31,15 +31,15 @@ class FloorScreen extends StatelessWidget {
         final canOverride = user?.mayCorrect ?? false;
 
         Widget card(RoomRow row) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: RoomCard(
-                key: ValueKey(row.instanceId),
-                row: row,
-                locked: locked,
-                canOverride: canOverride,
-                onChanged: c.patch,
-              ),
-            );
+          padding: const EdgeInsets.only(bottom: 12),
+          child: RoomCard(
+            key: ValueKey(row.instanceId),
+            row: row,
+            locked: locked,
+            canOverride: canOverride,
+            onChanged: c.patch,
+          ),
+        );
 
         return Scaffold(
           appBar: AppBar(
@@ -134,10 +134,18 @@ class _Summary extends StatelessWidget {
                 ),
               ),
               Text.rich(
-                TextSpan(children: [
-                  TextSpan(text: '$done', style: TextStyle(color: p.ink)),
-                  TextSpan(text: ' of $total done', style: TextStyle(color: p.inkSoft, fontWeight: FontWeight.w600)),
-                ]),
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '$done',
+                      style: TextStyle(color: p.ink),
+                    ),
+                    TextSpan(
+                      text: ' of $total done',
+                      style: TextStyle(color: p.inkSoft, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
                 style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5, fontFeatures: tabular),
               ),
             ],
@@ -168,8 +176,10 @@ class _FloorDone extends StatelessWidget {
         children: [
           const Icon(Icons.task_alt_rounded, color: Colors.white, size: 44),
           const SizedBox(height: 8),
-          const Text('This floor is done',
-              style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+          const Text(
+            'This floor is done',
+            style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),
+          ),
           const SizedBox(height: 14),
           FilledButton(
             onPressed: onNext,

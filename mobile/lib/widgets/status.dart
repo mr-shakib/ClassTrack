@@ -53,9 +53,7 @@ class RescheduledTag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
-    final label = from == null
-        ? 'Makeup class'
-        : 'Makeup · from ${shortDay(from!.date)} ${slotStart(from!.timeSlot)}';
+    final label = from == null ? 'Makeup class' : 'Makeup · from ${shortDay(from!.date)} ${slotStart(from!.timeSlot)}';
     return Pill(label, color: p.info, background: p.infoSoft, icon: Icons.sync_rounded, large: large);
   }
 }

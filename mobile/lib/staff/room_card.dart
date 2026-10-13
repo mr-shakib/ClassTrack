@@ -75,10 +75,12 @@ class _RoomCardState extends State<RoomCard> {
     });
 
     // Shown at once; an empty `checkedAt` marks it as still saving.
-    widget.onChanged(previous.withCheck(
-      CheckRecord(outcome: outcome, arrivalTime: arrival, remark: remark, checkedAt: ''),
-      outcome == 'TEACHER_NOT_FOUND' ? null : outcome,
-    ));
+    widget.onChanged(
+      previous.withCheck(
+        CheckRecord(outcome: outcome, arrivalTime: arrival, remark: remark, checkedAt: ''),
+        outcome == 'TEACHER_NOT_FOUND' ? null : outcome,
+      ),
+    );
 
     try {
       final res = await api.submitCheck(
@@ -88,17 +90,19 @@ class _RoomCardState extends State<RoomCard> {
         remark: remark,
         reason: _reason.text.trim().isEmpty ? null : _reason.text.trim(),
       );
-      widget.onChanged(previous.withCheck(
-        CheckRecord(
-          outcome: outcome,
-          arrivalTime: arrival,
-          lateMinutes: res.lateMinutes,
-          remark: remark,
-          checkedAt: res.checkedAt,
-          checkedBy: res.checkedBy,
+      widget.onChanged(
+        previous.withCheck(
+          CheckRecord(
+            outcome: outcome,
+            arrivalTime: arrival,
+            lateMinutes: res.lateMinutes,
+            remark: remark,
+            checkedAt: res.checkedAt,
+            checkedBy: res.checkedBy,
+          ),
+          res.status,
         ),
-        res.status,
-      ));
+      );
       if (mounted) {
         setState(() {
           _confirmingLate = false;
@@ -123,14 +127,13 @@ class _RoomCardState extends State<RoomCard> {
       context: context,
       initialTime: TimeOfDay(hour: int.tryParse(parts.first) ?? 0, minute: int.tryParse(parts.last) ?? 0),
       helpText: 'Teacher arrived at',
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-        child: child!,
-      ),
+      builder: (context, child) =>
+          MediaQuery(data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true), child: child!),
     );
     if (picked != null) {
-      setState(() => _arrival =
-          '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}');
+      setState(
+        () => _arrival = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}',
+      );
     }
   }
 
@@ -192,14 +195,9 @@ class _RoomCardState extends State<RoomCard> {
             // The line above already says when.
             if (!widget.showWhen)
               Text(
-              range ? '${row.scheduledStart}–${row.scheduledEnd}' : row.scheduledStart,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: p.inkSoft,
-                fontFeatures: tabular,
+                range ? '${row.scheduledStart}–${row.scheduledEnd}' : row.scheduledStart,
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: p.inkSoft, fontFeatures: tabular),
               ),
-            ),
           ],
         ),
       ],
@@ -267,10 +265,15 @@ class _RoomCardState extends State<RoomCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Reason for the change (optional)',
-                      style: TextStyle(color: p.brand, fontWeight: FontWeight.w700, fontSize: 14)),
+                  Text(
+                    'Reason for the change (optional)',
+                    style: TextStyle(color: p.brand, fontWeight: FontWeight.w700, fontSize: 14),
+                  ),
                   const SizedBox(height: 8),
-                  TextField(controller: _reason, decoration: const InputDecoration(hintText: 'Not required')),
+                  TextField(
+                    controller: _reason,
+                    decoration: const InputDecoration(hintText: 'Not required'),
+                  ),
                 ],
               ),
             ),
@@ -350,7 +353,10 @@ class _RoomCardState extends State<RoomCard> {
           _header(context),
           _who(context, withTeacher: false),
           const SizedBox(height: 14),
-          Text('Teacher arrived at', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.ink)),
+          Text(
+            'Teacher arrived at',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.ink),
+          ),
           const SizedBox(height: 8),
           Material(
             color: p.warnSoft,
@@ -386,7 +392,11 @@ class _RoomCardState extends State<RoomCard> {
             ),
           ),
           const SizedBox(height: 6),
-          Text('Tap the time to change it.', textAlign: TextAlign.center, style: TextStyle(color: p.inkFaint, fontSize: 13.5)),
+          Text(
+            'Tap the time to change it.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: p.inkFaint, fontSize: 13.5),
+          ),
           const SizedBox(height: 12),
           _BigAction(
             label: 'Save',
@@ -418,10 +428,10 @@ class _RoomCardState extends State<RoomCard> {
     final (text, color, icon) = switch (check.outcome) {
       'RUNNING' => ('Class is running', p.okSolid, Icons.check_circle_rounded),
       'LATE' => (
-          'Teacher was late${check.lateMinutes != null ? ' — ${check.lateMinutes} min' : ''}',
-          p.warnSolid,
-          Icons.schedule_rounded
-        ),
+        'Teacher was late${check.lateMinutes != null ? ' — ${check.lateMinutes} min' : ''}',
+        p.warnSolid,
+        Icons.schedule_rounded,
+      ),
       _ => ('Teacher not found', p.badSolid, Icons.person_off_rounded),
     };
     final mayChange = !widget.locked || widget.canOverride;
@@ -447,7 +457,10 @@ class _RoomCardState extends State<RoomCard> {
               Icon(icon, color: Colors.white, size: 24),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800)),
+                child: Text(
+                  text,
+                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
+                ),
               ),
             ],
           ),
@@ -458,15 +471,17 @@ class _RoomCardState extends State<RoomCard> {
             children: [
               Expanded(
                 child: saving
-                    ? Row(children: [
-                        SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: p.inkFaint),
-                        ),
-                        const SizedBox(width: 8),
-                        Text('Saving…', style: TextStyle(color: p.inkFaint, fontSize: 14)),
-                      ])
+                    ? Row(
+                        children: [
+                          SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: p.inkFaint),
+                          ),
+                          const SizedBox(width: 8),
+                          Text('Saving…', style: TextStyle(color: p.inkFaint, fontSize: 14)),
+                        ],
+                      )
                     : Text(
                         check.checkedBy != null ? 'by ${check.checkedBy}' : 'Saved',
                         style: TextStyle(color: p.inkFaint, fontSize: 14),
@@ -503,7 +518,10 @@ class _RoomCardState extends State<RoomCard> {
             opacity: 0.85,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [_header(context, range: false), _who(context, withTeacher: widget.showWhen)],
+              children: [
+                _header(context, range: false),
+                _who(context, withTeacher: widget.showWhen),
+              ],
             ),
           ),
           const SizedBox(height: 12),
@@ -568,8 +586,10 @@ class _BigAction extends StatelessWidget {
                       children: [
                         Icon(icon, color: Colors.white, size: 24),
                         const SizedBox(height: 4),
-                        Text(label,
-                            style: const TextStyle(color: Colors.white, fontSize: 16.5, fontWeight: FontWeight.w800)),
+                        Text(
+                          label,
+                          style: const TextStyle(color: Colors.white, fontSize: 16.5, fontWeight: FontWeight.w800),
+                        ),
                       ],
                     )
                   : busy
@@ -578,7 +598,10 @@ class _BigAction extends StatelessWidget {
                       children: [
                         ButtonSpinner(),
                         SizedBox(width: 10),
-                        Text('Saving…', style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
+                        Text(
+                          'Saving…',
+                          style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800),
+                        ),
                       ],
                     )
                   : Padding(

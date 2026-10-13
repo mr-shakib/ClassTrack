@@ -127,10 +127,8 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
       context: context,
       initialTime: TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1])),
       helpText: 'Class starts at',
-      builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-        child: child!,
-      ),
+      builder: (context, child) =>
+          MediaQuery(data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true), child: child!),
     );
     if (picked == null) return;
     // The latest start that still finishes before midnight.
@@ -138,8 +136,9 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
       if (mounted) showMessage(context, 'Start by 22:30, so the class ends before midnight.');
       return;
     }
-    setState(() => _startTime =
-        '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}');
+    setState(
+      () => _startTime = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}',
+    );
     _validate();
   }
 
@@ -174,7 +173,8 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
     final p = context.palette;
     final o = _original;
     final blocked = _report != null && !_report!.ok;
-    final ready = !_busy &&
+    final ready =
+        !_busy &&
         !blocked &&
         !_checking &&
         _date != null &&
@@ -184,12 +184,12 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
     final label = _busy
         ? (_online ? 'Sending…' : 'Booking…')
         : blocked
-            ? 'Resolve the conflict first'
-            : _date == null
-                ? 'Pick a date'
-                : _online
-                    ? (_startTime == null ? 'Pick a start time' : 'Send for approval')
-                    : (_room == null ? 'Pick an empty room' : 'Book $_room');
+        ? 'Resolve the conflict first'
+        : _date == null
+        ? 'Pick a date'
+        : _online
+        ? (_startTime == null ? 'Pick a start time' : 'Send for approval')
+        : (_room == null ? 'Pick an empty room' : 'Book $_room');
 
     return Scaffold(
       appBar: AppBar(title: const Text('Reschedule a class')),
@@ -220,7 +220,7 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                 Text(
                   _online
                       ? 'Hold it at any time of any day — nobody checks a room for it. Needs approval. '
-                          'You can add a Drive link now, or after the class.'
+                            'You can add a Drive link now, or after the class.'
                       : 'Booked as soon as you pick an empty room, with no approval. Staff check it there, at the new time.',
                   style: TextStyle(fontSize: 14.5, color: p.inkSoft, height: 1.4),
                 ),
@@ -253,8 +253,10 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
                     onTap: _pickStart,
                   ),
                   const SizedBox(height: 22),
-                  const FieldLabel('Drive link (optional)',
-                      hint: 'The Head of Department or Associate Head can open it while deciding.'),
+                  const FieldLabel(
+                    'Drive link (optional)',
+                    hint: 'The Head of Department or Associate Head can open it while deciding.',
+                  ),
                   TextField(
                     controller: _driveLink,
                     keyboardType: TextInputType.url,
@@ -298,12 +300,7 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
             ),
       bottomNavigationBar: o == null
           ? null
-          : _BottomAction(
-              label: label,
-              busy: _busy,
-              enabled: ready,
-              onPressed: _submit,
-            ),
+          : _BottomAction(label: label, busy: _busy, enabled: ready, onPressed: _submit),
     );
   }
 
@@ -311,8 +308,8 @@ class _RescheduleScreenState extends State<RescheduleScreen> {
     final online = _online;
     final message = online
         ? 'Sent to the Head of Department for ${formatDay(_date!)} at ${endsLabel(_startTime!)}. '
-            'You will get a notification when they decide. '
-            '${_driveLink.text.trim().isNotEmpty ? 'Your Drive link was sent with the request.' : 'After the class, submit its Drive link.'}'
+              'You will get a notification when they decide. '
+              '${_driveLink.text.trim().isNotEmpty ? 'Your Drive link was sent with the request.' : 'After the class, submit its Drive link.'}'
         : '$_room is booked for you on ${formatDay(_date!)} at ${slotLabel(_slot)}. Staff will check it at that time.';
     return _SuccessView(
       title: online ? 'Reschedule requested' : 'Class rescheduled',
@@ -340,14 +337,21 @@ class _MissedClass extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('MISSED CLASS',
-              style: TextStyle(color: p.bad, fontWeight: FontWeight.w800, fontSize: 12.5, letterSpacing: 0.8)),
+          Text(
+            'MISSED CLASS',
+            style: TextStyle(color: p.bad, fontWeight: FontWeight.w800, fontSize: 12.5, letterSpacing: 0.8),
+          ),
           const SizedBox(height: 6),
-          Text(o.courseCode, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: p.ink, letterSpacing: -0.5)),
+          Text(
+            o.courseCode,
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: p.ink, letterSpacing: -0.5),
+          ),
           Text('Section ${o.section}', style: TextStyle(fontSize: 16, color: p.ink)),
           const SizedBox(height: 6),
-          Text('${formatDay(o.date)} · ${slotLabel(o.timeSlot)} · ${o.room}',
-              style: TextStyle(fontSize: 14.5, color: p.inkSoft, fontFeatures: tabular)),
+          Text(
+            '${formatDay(o.date)} · ${slotLabel(o.timeSlot)} · ${o.room}',
+            style: TextStyle(fontSize: 14.5, color: p.inkSoft, fontFeatures: tabular),
+          ),
         ],
       ),
     );
@@ -365,17 +369,19 @@ class _BottomAction extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = context.palette;
     return Container(
-      decoration: BoxDecoration(color: p.surface, border: Border(top: BorderSide(color: p.line))),
+      decoration: BoxDecoration(
+        color: p.surface,
+        border: Border(top: BorderSide(color: p.line)),
+      ),
       padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.of(context).viewPadding.bottom),
       child: FilledButton(
         onPressed: enabled ? onPressed : null,
         style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
         child: busy
-            ? Row(mainAxisSize: MainAxisSize.min, children: [
-                const ButtonSpinner(),
-                const SizedBox(width: 10),
-                Text(label),
-              ])
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [const ButtonSpinner(), const SizedBox(width: 10), Text(label)],
+              )
             : Text(label),
       ),
     );
@@ -404,12 +410,17 @@ class _SuccessView extends StatelessWidget {
                 child: Icon(Icons.check_rounded, color: p.ok, size: 56),
               ),
               const SizedBox(height: 22),
-              Text(title,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: p.ink, letterSpacing: -0.5)),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, color: p.ink, letterSpacing: -0.5),
+              ),
               const SizedBox(height: 10),
-              Text(message,
-                  textAlign: TextAlign.center, style: TextStyle(fontSize: 16.5, color: p.inkSoft, height: 1.45)),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16.5, color: p.inkSoft, height: 1.45),
+              ),
               const Spacer(),
               FilledButton(
                 onPressed: onDone,

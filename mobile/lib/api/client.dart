@@ -9,10 +9,7 @@ import 'models.dart';
 /// Where the API lives. Build with
 /// `--dart-define=API_BASE=http://10.0.2.2:8000/api/v1` to use a local backend
 /// from the Android emulator.
-const apiBase = String.fromEnvironment(
-  'API_BASE',
-  defaultValue: 'https://class.bitstreamhq.com/api/v1',
-);
+const apiBase = String.fromEnvironment('API_BASE', defaultValue: 'https://class.bitstreamhq.com/api/v1');
 
 /// The website the API belongs to, for links out of the app.
 String get siteUrl => apiBase.replaceFirst(RegExp(r'/api/v1/?$'), '');
@@ -146,13 +143,15 @@ class Api {
     String? arrivalTime,
     String? remark,
     String? reason,
-  }) async =>
-      CheckResponse.fromJson(await _post('/checking/$instanceId', {
-        'outcome': outcome,
-        'arrival_time': arrivalTime,
-        'remark': remark,
-        'reason': reason,
-      }) as Json);
+  }) async => CheckResponse.fromJson(
+    await _post('/checking/$instanceId', {
+          'outcome': outcome,
+          'arrival_time': arrivalTime,
+          'remark': remark,
+          'reason': reason,
+        })
+        as Json,
+  );
 
   /// A teacher's classes over a range, newest first: to find one to correct.
   Future<List<RoomRow>> searchChecking(String teacher, String from, String to) async =>
@@ -160,10 +159,24 @@ class Api {
 
   // --- a teacher's own classes ----------------------------------------------------
 
-  Future<List<ClassInstance>> instances({String? date, bool? needsReschedule, int? limit}) async => _list(
-        await _get('/instances', {'date': date, 'needs_reschedule': needsReschedule, 'limit': limit}),
-        ClassInstance.fromJson,
-      );
+  /// `from` and `to` are inclusive. A server older than them ignores both and
+  /// sends everything, so callers filter the dates again.
+  Future<List<ClassInstance>> instances({
+    String? date,
+    String? from,
+    String? to,
+    bool? needsReschedule,
+    int? limit,
+  }) async => _list(
+    await _get('/instances', {
+      'date': date,
+      'from': from,
+      'to': to,
+      'needs_reschedule': needsReschedule,
+      'limit': limit,
+    }),
+    ClassInstance.fromJson,
+  );
 
   Future<ClassInstance> instance(int id) async => ClassInstance.fromJson(await _get('/instances/$id') as Json);
 
@@ -174,8 +187,9 @@ class Api {
 
   Future<List<Makeup>> makeups() async => _list(await _get('/makeup'), Makeup.fromJson);
 
-  Future<Makeup> completeMakeup(int id, {String? driveLink}) async =>
-      Makeup.fromJson(await _post('/makeup/$id/complete', driveLink == null ? null : {'drive_link': driveLink}) as Json);
+  Future<Makeup> completeMakeup(int id, {String? driveLink}) async => Makeup.fromJson(
+    await _post('/makeup/$id/complete', driveLink == null ? null : {'drive_link': driveLink}) as Json,
+  );
 
   Future<ConflictReport> checkConflict({
     required String date,
@@ -184,15 +198,17 @@ class Api {
     String? room,
     String? section,
     String? courseCode,
-  }) async =>
-      ConflictReport.fromJson(await _post('/makeup/check-conflict', {
-        'date': date,
-        'time_slot': timeSlot,
-        'start_time': startTime,
-        'room': room,
-        'section': section,
-        'course_code': courseCode,
-      }) as Json);
+  }) async => ConflictReport.fromJson(
+    await _post('/makeup/check-conflict', {
+          'date': date,
+          'time_slot': timeSlot,
+          'start_time': startTime,
+          'room': room,
+          'section': section,
+          'course_code': courseCode,
+        })
+        as Json,
+  );
 
   Future<List<FreeRoom>> freeRooms(String date, String slot) async =>
       _list(await _get('/makeup/free-rooms', {'date': date, 'time_slot': slot}), FreeRoom.fromJson);
@@ -206,17 +222,19 @@ class Api {
     String? room,
     String? reason,
     String? driveLink,
-  }) async =>
-      Makeup.fromJson(await _post('/makeup', {
-        'original_instance_id': originalInstanceId,
-        'mode': mode,
-        'date': date,
-        'time_slot': timeSlot,
-        'start_time': startTime,
-        'room': room,
-        'reason': reason,
-        'drive_link': driveLink,
-      }) as Json);
+  }) async => Makeup.fromJson(
+    await _post('/makeup', {
+          'original_instance_id': originalInstanceId,
+          'mode': mode,
+          'date': date,
+          'time_slot': timeSlot,
+          'start_time': startTime,
+          'room': room,
+          'reason': reason,
+          'drive_link': driveLink,
+        })
+        as Json,
+  );
 
   Future<List<ExtraSection>> extraSections() async =>
       _list(await _get('/extra-classes/sections'), ExtraSection.fromJson);
@@ -228,14 +246,16 @@ class Api {
     required String date,
     required String timeSlot,
     required String room,
-  }) async =>
-      ClassInstance.fromJson(await _post('/extra-classes', {
-        'course_code': courseCode,
-        'section': section,
-        'date': date,
-        'time_slot': timeSlot,
-        'room': room,
-      }) as Json);
+  }) async => ClassInstance.fromJson(
+    await _post('/extra-classes', {
+          'course_code': courseCode,
+          'section': section,
+          'date': date,
+          'time_slot': timeSlot,
+          'room': room,
+        })
+        as Json,
+  );
 
   Future<void> cancelExtraClass(int id) async => _post('/extra-classes/$id/cancel');
 

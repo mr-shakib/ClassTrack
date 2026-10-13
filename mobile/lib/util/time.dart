@@ -1,14 +1,7 @@
 import 'package:intl/intl.dart';
 
 /// The routine lattice: six 90-minute slots. Fixed, so it is not fetched.
-const slots = [
-  '08:30-10:00',
-  '10:00-11:30',
-  '11:30-01:00',
-  '01:00-02:30',
-  '02:30-04:00',
-  '04:00-05:30',
-];
+const slots = ['08:30-10:00', '10:00-11:30', '11:30-01:00', '01:00-02:30', '02:30-04:00', '04:00-05:30'];
 
 /// "08:30-10:00" → "08:30–10:00", with a proper dash.
 String slotLabel(String slot) => slot.replaceAll('-', '–');
@@ -50,8 +43,7 @@ DateTime parseServerTime(String s) {
 }
 
 /// A server timestamp on Dhaka's clock: "16:05".
-String dhakaHhmm(String serverTime) =>
-    DateFormat('HH:mm').format(parseServerTime(serverTime).add(_dhaka));
+String dhakaHhmm(String serverTime) => DateFormat('HH:mm').format(parseServerTime(serverTime).add(_dhaka));
 
 /// "Just now", "12 min ago", "3 h ago", "Yesterday", "4 Oct".
 String relativeTime(String serverTime) {
@@ -71,6 +63,65 @@ String endsLabel(String start) {
   final end = parts[0] * 60 + parts[1] + 90;
   String two(int n) => n.toString().padLeft(2, '0');
   return '$start–${two((end ~/ 60) % 24)}:${two(end % 60)}';
+}
+
+/// Minutes since midnight of a routine label's "HH:MM". The routine writes
+/// the afternoon on a 12-hour clock ("01:00" is 13:00); no class starts
+/// before 08:00, so an hour below 8 is afternoon. Online classes use 24-hour
+/// labels ("20:00"), which this leaves alone.
+int labelMinutes(String hhmm) {
+  final parts = hhmm.trim().split(':');
+  var h = int.parse(parts[0]);
+  final m = int.parse(parts[1]);
+  if (h < 8) h += 12;
+  return h * 60 + m;
+}
+
+/// A time label's start and end, in minutes since midnight: one of the six
+/// routine slots, or an online class's own 24-hour period ("07:00-08:30").
+(int, int) slotBounds(String slot) {
+  final parts = slot.split('-');
+  if (!slots.contains(slot)) {
+    int m(String s) => int.parse(s.split(':')[0]) * 60 + int.parse(s.split(':')[1]);
+    return (m(parts.first), m(parts.last));
+  }
+  final start = labelMinutes(parts.first);
+  var end = labelMinutes(parts.last);
+  if (end <= start) end += 12 * 60;
+  return (start, end);
+}
+
+/// "16:00", from minutes since midnight.
+String clock(int minutes) =>
+    '${(minutes ~/ 60 % 24).toString().padLeft(2, '0')}:${(minutes % 60).toString().padLeft(2, '0')}';
+
+/// A slot on the 24-hour clock: "04:00-05:30" → "16:00–17:30".
+String slot24(String slot) {
+  final (start, end) = slotBounds(slot);
+  return '${clock(start)}–${clock(end)}';
+}
+
+/// Minutes since midnight on Dhaka's clock.
+int dhakaMinutesNow() {
+  final now = dhakaNow();
+  return now.hour * 60 + now.minute;
+}
+
+/// "45 min", "1 h 20 min", "3 h".
+String spanLabel(int minutes) {
+  if (minutes < 60) return '$minutes min';
+  final h = minutes ~/ 60, m = minutes % 60;
+  return m == 0 ? '$h h' : '$h h $m min';
+}
+
+/// "Today", "Tomorrow", or "Wednesday, 14 Oct".
+String dayLabel(String iso) {
+  final today = parseDay(todayIso());
+  final day = parseDay(iso);
+  final diff = day.difference(today).inDays;
+  if (diff == 0) return 'Today';
+  if (diff == 1) return 'Tomorrow';
+  return mediumDay(iso);
 }
 
 /// "Good morning" by Dhaka's clock.

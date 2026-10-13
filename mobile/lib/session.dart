@@ -89,12 +89,10 @@ class Session extends ChangeNotifier {
 class SessionScope extends InheritedNotifier<Session> {
   const SessionScope({super.key, required Session session, required super.child}) : super(notifier: session);
 
-  static Session of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<SessionScope>()!.notifier!;
+  static Session of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<SessionScope>()!.notifier!;
 
   /// Without listening: for callbacks.
-  static Session read(BuildContext context) =>
-      context.getInheritedWidgetOfExactType<SessionScope>()!.notifier!;
+  static Session read(BuildContext context) => context.getInheritedWidgetOfExactType<SessionScope>()!.notifier!;
 }
 
 extension SessionOf on BuildContext {

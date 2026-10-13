@@ -14,6 +14,15 @@ void main() {
     expect(endsLabel('22:30'), '22:30–00:00');
   });
 
+  test('routine slots read the afternoon on a 12-hour clock; online times are 24-hour', () {
+    expect(slotBounds('08:30-10:00'), (510, 600));
+    expect(slotBounds('11:30-01:00'), (690, 780));
+    expect(slotBounds('04:00-05:30'), (960, 1050));
+    expect(slot24('01:00-02:30'), '13:00–14:30');
+    expect(slotBounds('07:00-08:30'), (420, 510));
+    expect(slotBounds('20:00-21:30'), (1200, 1290));
+  });
+
   test('avatar initials prefer the teacher initial, then skip titles', () {
     expect(Avatar.initialsOf('Dr. Sheak Rashed Haider Noori', 'SRH'), 'SRH');
     expect(Avatar.initialsOf('Dr. Sheak Rashed Haider Noori', null), 'SN');

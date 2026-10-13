@@ -22,7 +22,10 @@ class FieldLabel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(text, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.ink)),
+          Text(
+            text,
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: p.ink),
+          ),
           if (hint != null)
             Padding(
               padding: const EdgeInsets.only(top: 2),
@@ -112,41 +115,47 @@ class SlotGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
-    return LayoutBuilder(builder: (context, box) {
-      final w = (box.maxWidth - 16) / 3;
-      return Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (final s in slots)
-            SizedBox(
-              width: w,
-              child: _Tile(
-                selected: selected == s,
-                onTap: () => onPick(s),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(slotStart(s),
+    return LayoutBuilder(
+      builder: (context, box) {
+        final w = (box.maxWidth - 16) / 3;
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final s in slots)
+              SizedBox(
+                width: w,
+                child: _Tile(
+                  selected: selected == s,
+                  onTap: () => onPick(s),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        slotStart(s),
                         style: TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w800,
                           color: selected == s ? Colors.white : p.ink,
                           fontFeatures: tabular,
-                        )),
-                    Text('to ${s.split('-').last}',
+                        ),
+                      ),
+                      Text(
+                        'to ${s.split('-').last}',
                         style: TextStyle(
                           fontSize: 12.5,
                           color: selected == s ? Colors.white70 : p.inkSoft,
                           fontFeatures: tabular,
-                        )),
-                  ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-        ],
-      );
-    });
+          ],
+        );
+      },
+    );
   }
 }
 
@@ -205,12 +214,14 @@ class ChoicePair<T> extends StatelessWidget {
                 children: [
                   Icon(options[i].$3, color: value == options[i].$1 ? Colors.white : p.inkSoft),
                   const SizedBox(width: 8),
-                  Text(options[i].$2,
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: value == options[i].$1 ? Colors.white : p.ink,
-                      )),
+                  Text(
+                    options[i].$2,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: value == options[i].$1 ? Colors.white : p.ink,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -300,13 +311,19 @@ class _RoomPickerState extends State<RoomPicker> {
     if (l.error != null) {
       body = Notice.error(l.error!);
     } else if (!widget.hasCell) {
-      body = const Notice('Pick a date and time to see which rooms are empty.', tone: Tone.neutral, icon: Icons.info_outline_rounded);
+      body = const Notice(
+        'Pick a date and time to see which rooms are empty.',
+        tone: Tone.neutral,
+        icon: Icons.info_outline_rounded,
+      );
     } else if (l.loading) {
-      body = Row(children: [
-        const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.5)),
-        const SizedBox(width: 10),
-        Text('Finding empty rooms…', style: TextStyle(color: p.inkSoft, fontSize: 15)),
-      ]);
+      body = Row(
+        children: [
+          const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.5)),
+          const SizedBox(width: 10),
+          Text('Finding empty rooms…', style: TextStyle(color: p.inkSoft, fontSize: 15)),
+        ],
+      );
     } else if (shown.isEmpty) {
       body = Notice(
         'No empty ${narrowed ? '$typeLabel ' : ''}rooms at this time. Try another time'
@@ -318,51 +335,56 @@ class _RoomPickerState extends State<RoomPicker> {
       body = Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          LayoutBuilder(builder: (context, box) {
-            final cols = box.maxWidth > 520 ? 4 : 2;
-            final w = (box.maxWidth - 8 * (cols - 1)) / cols;
-            return Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final r in visible)
-                  SizedBox(
-                    width: w,
-                    child: _Tile(
-                      selected: widget.room == r.room,
-                      onTap: () => widget.onPick(r.room),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(r.room,
+          LayoutBuilder(
+            builder: (context, box) {
+              final cols = box.maxWidth > 520 ? 4 : 2;
+              final w = (box.maxWidth - 8 * (cols - 1)) / cols;
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final r in visible)
+                    SizedBox(
+                      width: w,
+                      child: _Tile(
+                        selected: widget.room == r.room,
+                        onTap: () => widget.onPick(r.room),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    r.room,
                                     style: TextStyle(
                                       fontSize: 17,
                                       fontWeight: FontWeight.w800,
                                       color: widget.room == r.room ? Colors.white : p.ink,
-                                    )),
-                                Text(
-                                  narrowed ? r.zone : '${r.zone} · ${r.roomType}',
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 12.5,
-                                    color: widget.room == r.room ? Colors.white70 : p.inkSoft,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                  Text(
+                                    narrowed ? r.zone : '${r.zone} · ${r.roomType}',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      color: widget.room == r.room ? Colors.white70 : p.inkSoft,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          if (widget.room == r.room) const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-                        ],
+                            if (widget.room == r.room)
+                              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-              ],
-            );
-          }),
+                ],
+              );
+            },
+          ),
           if (shown.length > _first && !_all)
             Padding(
               padding: const EdgeInsets.only(top: 6),
@@ -410,11 +432,13 @@ class ConflictNotes extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = context.palette;
     if (checking) {
-      return Row(children: [
-        const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-        const SizedBox(width: 10),
-        Text('Checking availability…', style: TextStyle(color: p.inkSoft, fontSize: 15)),
-      ]);
+      return Row(
+        children: [
+          const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+          const SizedBox(width: 10),
+          Text('Checking availability…', style: TextStyle(color: p.inkSoft, fontSize: 15)),
+        ],
+      );
     }
     final r = report;
     if (r == null) return const SizedBox.shrink();
@@ -432,21 +456,26 @@ class ConflictNotes extends StatelessWidget {
           const Notice('This time is free.', tone: Tone.ok, icon: Icons.check_circle_outline_rounded),
         if (r.warnings.isNotEmpty) ...[
           const SizedBox(height: 10),
-          Notice(r.warnings.join('\n'), title: 'Check before you book', tone: Tone.warn, icon: Icons.warning_amber_rounded),
+          Notice(
+            r.warnings.join('\n'),
+            title: 'Check before you book',
+            tone: Tone.warn,
+            icon: Icons.warning_amber_rounded,
+          ),
         ],
       ],
     );
   }
 
   static String _typeLabel(String type) => switch (type) {
-        'TEACHER' => 'Teacher',
-        'ROOM' => 'Room',
-        'SECTION' => 'Section',
-        'HOLIDAY' => 'Holiday',
-        'EXAM' => 'Exams',
-        'SLOT' => 'Time',
-        _ => type,
-      };
+    'TEACHER' => 'Teacher',
+    'ROOM' => 'Room',
+    'SECTION' => 'Section',
+    'HOLIDAY' => 'Holiday',
+    'EXAM' => 'Exams',
+    'SLOT' => 'Time',
+    _ => type,
+  };
 }
 
 /// Runs `action` once input has paused for a moment.

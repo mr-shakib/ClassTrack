@@ -52,12 +52,22 @@ class SectionHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text.rich(
-                  TextSpan(children: [
-                    TextSpan(text: title),
-                    if (count != null)
-                      TextSpan(text: '  $count', style: TextStyle(color: p.inkFaint, fontWeight: FontWeight.w700)),
-                  ]),
-                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: color ?? p.ink, letterSpacing: -0.3),
+                  TextSpan(
+                    children: [
+                      TextSpan(text: title),
+                      if (count != null)
+                        TextSpan(
+                          text: '  $count',
+                          style: TextStyle(color: p.inkFaint, fontWeight: FontWeight.w700),
+                        ),
+                    ],
+                  ),
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    color: color ?? p.ink,
+                    letterSpacing: -0.3,
+                  ),
                 ),
                 if (subtitle != null)
                   Padding(
@@ -143,7 +153,10 @@ class Notice extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (icon != null) ...[
-            Padding(padding: const EdgeInsets.only(top: 1), child: Icon(icon, color: fg, size: 20)),
+            Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: Icon(icon, color: fg, size: 20),
+            ),
             const SizedBox(width: 10),
           ],
           Expanded(
@@ -153,9 +166,15 @@ class Notice extends StatelessWidget {
                 if (title != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 2),
-                    child: Text(title!, style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 15.5)),
+                    child: Text(
+                      title!,
+                      style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 15.5),
+                    ),
                   ),
-                Text(message, style: TextStyle(color: fg, fontWeight: FontWeight.w600, fontSize: 15, height: 1.35)),
+                Text(
+                  message,
+                  style: TextStyle(color: fg, fontWeight: FontWeight.w600, fontSize: 15, height: 1.35),
+                ),
               ],
             ),
           ),
@@ -191,12 +210,18 @@ class EmptyState extends StatelessWidget {
             child: Icon(icon, color: p.brand, size: 30),
           ),
           const SizedBox(height: 14),
-          Text(title,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: p.ink)),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: p.ink),
+          ),
           if (body != null) ...[
             const SizedBox(height: 6),
-            Text(body!, textAlign: TextAlign.center, style: TextStyle(fontSize: 15, color: p.inkSoft, height: 1.4)),
+            Text(
+              body!,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, color: p.inkSoft, height: 1.4),
+            ),
           ],
           if (action != null) ...[const SizedBox(height: 16), action!],
         ],
@@ -254,11 +279,8 @@ class ButtonSpinner extends StatelessWidget {
   final Color color;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-        width: 20,
-        height: 20,
-        child: CircularProgressIndicator(strokeWidth: 2.5, color: color),
-      );
+  Widget build(BuildContext context) =>
+      SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: color));
 }
 
 /// A thin, rounded progress bar.
@@ -367,9 +389,9 @@ class DashedBorder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => CustomPaint(
-        foregroundPainter: _DashPainter(color: color, radius: radius, width: width),
-        child: child,
-      );
+    foregroundPainter: _DashPainter(color: color, radius: radius, width: width),
+    child: child,
+  );
 }
 
 class _DashPainter extends CustomPainter {
