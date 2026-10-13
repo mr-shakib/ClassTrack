@@ -29,6 +29,8 @@ class NotificationKind(str, enum.Enum):
     MAKEUP_REMINDER = "MAKEUP_REMINDER"
     ONLINE_REQUEST = "ONLINE_REQUEST"
     ONLINE_DECISION = "ONLINE_DECISION"
+    #: No longer written: teachers once disputed a missed record, and rows
+    #: from then still read back through this kind.
     DISPUTE_RAISED = "DISPUTE_RAISED"
     #: A teacher booked an empty room for an extra class. Kept within 16
     #: characters, the column width the existing kinds gave the table.

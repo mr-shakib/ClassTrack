@@ -19,7 +19,6 @@ from classtrack.models import (
     MakeupClass,
     MakeupStatus,
     Teacher,
-    TeacherResponse,
     User,
 )
 from classtrack.routine.lattice import SLOTS, slot_bounds
@@ -294,9 +293,6 @@ async def dashboard(session: AsyncSession) -> dict:
         "not_checked_today": sum(1 for i in todays if i.status is ClassStatus.NOT_CHECKED),
         "pending_online": pending_online or 0,
         "pending_makeup": pending_makeup or 0,
-        "disputes": sum(
-            1 for i in todays if i.teacher_response is TeacherResponse.DISPUTED
-        ),
     }
 
     return {

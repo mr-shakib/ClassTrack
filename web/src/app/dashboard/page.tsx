@@ -92,7 +92,7 @@ export default function DashboardPage() {
           purpose -- they are different problems with different owners. */}
       <Card className="p-4">
         <h2 className="mb-3 text-sm font-semibold">Needs attention today</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Attention
             label="Missed"
             value={a?.missed_today ?? 0}
@@ -118,7 +118,6 @@ export default function DashboardPage() {
             value={a?.pending_makeup ?? 0}
             tone="text-info"
           />
-          <Attention label="Disputes" value={a?.disputes ?? 0} tone="text-bad" />
         </div>
       </Card>
 

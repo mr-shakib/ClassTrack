@@ -69,7 +69,7 @@ request (the session token carries only who you are).
 | `accounts.manage` | Create accounts, give and take roles, deactivate | admins |
 | `roles.manage` | Create and edit roles | admins |
 | `audit.view` | Audit log | CO, admins |
-| `alerts.receive` | Notifications of reschedules, booked rooms, disputes | admins |
+| `alerts.receive` | Notifications of reschedules and booked rooms | admins |
 
 "Admins" are Super admin, Head of Department and Associate Head; CO is the Coordination
 Officer. A role's **kind** says what the holder is: `TEACHER` (only on accounts with a
@@ -207,7 +207,6 @@ and `reason` is optional.
 |---|---|---|---|
 | `GET` | `/instances` | all (scoped) | Filter by date, teacher, room, status, section |
 | `GET` | `/instances/{id}` | all (scoped) | Detail + check + makeup chain + audit |
-| `POST` | `/instances/{id}/respond` | T | Confirm or dispute a missed class (BR-08) |
 | `POST` | `/instances/{id}/cancel` | MGR | Cancel with reason |
 
 `TEACHER` callers are force-scoped to their own `teacher_initial` — the filter is applied
@@ -217,13 +216,6 @@ Every instance carries `rescheduled_from` (on a makeup: the missed class it reco
 `rescheduled_to` (on a missed class: the latest non-rejected request), each
 `{ date, time_slot, room, instance_id, mode, status }` or `null`. Room rows on the checking
 screen and dashboard rows carry `rescheduled_from` too, so a makeup can be marked apart.
-
-```jsonc
-// POST /instances/1042/respond
-{ "response": "CONFIRMED", "note": null }   // CONFIRMED | DISPUTED
-```
-A `DISPUTED` response notifies HoD and flags the record for review. It does **not** change
-the stored status — the original monitoring record survives (source SRS §9.1).
 
 ## 4. Live dashboard
 
@@ -270,7 +262,7 @@ Roles: MGR. Frontend polls every 30s.
       "checked_by": "Staff Two", "checked_at": "10:12" }
   ],
   "attention": { "missed_today": 1, "not_checked_today": 2,
-                 "pending_online": 1, "pending_makeup": 3, "disputes": 0 }
+                 "pending_online": 1, "pending_makeup": 3 }
 }
 ```
 

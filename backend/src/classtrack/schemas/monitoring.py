@@ -11,7 +11,6 @@ from classtrack.models import (
     CheckOutcome,
     ClassStatus,
     DerivedStatus,
-    TeacherResponse,
 )
 from classtrack.schemas.common import ORMModel
 
@@ -150,14 +149,7 @@ class InstanceOut(ORMModel):
     status: StatusOut | None = None
     rescheduled_from: SlotRef | None = None
     rescheduled_to: SlotRef | None = None
-    teacher_response: TeacherResponse | None = None
-    response_note: str | None = None
     check: CheckOut | None = None
-
-
-class RespondRequest(BaseModel):
-    response: TeacherResponse
-    note: str | None = Field(default=None, max_length=2000)
 
 
 class CancelRequest(BaseModel):
@@ -179,7 +171,6 @@ class AttentionCounts(BaseModel):
     not_checked_today: int = 0
     pending_online: int = 0
     pending_makeup: int = 0
-    disputes: int = 0
 
 
 class DashboardRow(BaseModel):

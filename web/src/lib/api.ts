@@ -36,7 +36,6 @@ import type {
   TeacherAccount,
   TeacherDetails,
   TeacherReport,
-  TeacherResponseValue,
   UnreportedReport,
   User,
   Zone,
@@ -159,8 +158,6 @@ export const api = {
     limit?: number;
   }) => get<ClassInstance[]>(`/instances${qs(params)}`),
   instance: (id: number) => get<ClassInstance>(`/instances/${id}`),
-  respond: (id: number, response: TeacherResponseValue, note?: string) =>
-    post<ClassInstance>(`/instances/${id}/respond`, { response, note }),
   cancelInstance: (id: number, reason: string) =>
     post<ClassInstance>(`/instances/${id}/cancel`, { reason }),
 

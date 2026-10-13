@@ -413,24 +413,6 @@ async def notify_makeup_due(
     )
 
 
-async def notify_dispute(
-    session: AsyncSession, instance: ClassInstance, note: str | None
-) -> None:
-    """Tell the HoD a teacher disputed a monitoring record."""
-    for admin in await _admins(session):
-        await _dispatch(
-            session,
-            user_id=admin.id,
-            kind=NotificationKind.DISPUTE_RAISED,
-            title="Monitoring record disputed",
-            body=(
-                f"{instance.teacher_initial} disputed the record for {_describe(instance)}."
-                + (f" Reason: {note}" if note else "")
-            ),
-            link="/dashboard",
-        )
-
-
 async def mark_read(session: AsyncSession, user_id: int, notification_id: int) -> None:
     await session.execute(
         update(Notification)

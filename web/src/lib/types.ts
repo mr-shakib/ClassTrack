@@ -56,7 +56,6 @@ export type MakeupStatus =
   | "APPROVED"
   | "REJECTED"
   | "COMPLETED";
-export type TeacherResponseValue = "CONFIRMED" | "DISPUTED";
 
 export interface User {
   id: number;
@@ -253,8 +252,6 @@ export interface ClassInstance {
   status: ClassStatus | null;
   rescheduled_from: SlotRef | null;
   rescheduled_to: SlotRef | null;
-  teacher_response: TeacherResponseValue | null;
-  response_note: string | null;
   check: CheckRecord | null;
 }
 
@@ -273,7 +270,6 @@ export interface AttentionCounts {
   not_checked_today: number;
   pending_online: number;
   pending_makeup: number;
-  disputes: number;
 }
 
 export interface DashboardRow {

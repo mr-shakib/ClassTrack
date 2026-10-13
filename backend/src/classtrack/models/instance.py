@@ -132,8 +132,8 @@ class ClassInstance(Base, TimestampMixin):
         ForeignKey("makeup_class.id", ondelete="SET NULL")
     )
 
-    #: Teacher's answer to a missed-class record (BR-08). Recording a dispute
-    #: does not change ``status``: the original monitoring record must survive.
+    #: Teacher's answer to a missed-class record (BR-08). No longer written:
+    #: teachers can no longer confirm or dispute, but answers from then are kept.
     teacher_response: Mapped[TeacherResponse | None] = mapped_column(
         Enum(TeacherResponse, native_enum=False)
     )

@@ -10,16 +10,8 @@ import {
 } from "@/components/MakeupTracker";
 import { ExtraTag, RescheduledTag } from "@/components/Rescheduled";
 import StatusBadge from "@/components/StatusBadge";
-import {
-  Button,
-  Card,
-  EmptyState,
-  ErrorNote,
-  Spinner,
-  SummaryCard,
-  bigInputClass,
-} from "@/components/ui";
-import { ApiError, api, todayISO } from "@/lib/api";
+import { Button, Card, EmptyState, ErrorNote, Spinner, SummaryCard } from "@/components/ui";
+import { api, todayISO } from "@/lib/api";
 import { mayBookExtra, mayTeach, useRequireAccess } from "@/lib/auth";
 import type { ClassInstance, Makeup, TeacherReport } from "@/lib/types";
 
@@ -154,12 +146,12 @@ export default function TeacherPage() {
             <p className="mt-1 text-base text-ink-soft">
               Staff reported these classes as not held. Pick a new time and an empty
               room — it is booked straight away, with no approval, and checked like any
-              other class. Dispute the record if it is wrong.
+              other class.
             </p>
           </div>
           <ul className="divide-y-2 divide-line">
             {needsAction.map((inst) => (
-              <MissedRow key={inst.id} instance={inst} onDone={load} />
+              <MissedRow key={inst.id} instance={inst} />
             ))}
           </ul>
         </section>
@@ -244,32 +236,8 @@ export default function TeacherPage() {
   );
 }
 
-function MissedRow({
-  instance,
-  onDone,
-}: {
-  instance: ClassInstance;
-  onDone: () => void;
-}) {
-  const [mode, setMode] = useState<"idle" | "dispute">("idle");
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const act = async (response: "CONFIRMED" | "DISPUTED") => {
-    setBusy(true);
-    setError(null);
-    try {
-      await api.respond(instance.id, response, note || undefined);
-      onDone();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not save your response.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const responded = instance.teacher_response != null;
+function MissedRow({ instance }: { instance: ClassInstance }) {
+  // Not settled yet: staff may still record a late arrival.
   const reported = instance.status !== "MISSED";
 
   return (
@@ -280,64 +248,19 @@ function MissedRow({
         {formatDay(instance.date)} · {instance.time_slot} · {instance.room}
       </p>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        {reported ? (
-          // Confirm and dispute answer a settled MISSED record; this one is
-          // not settled yet, and staff may still record a late arrival.
+      {reported ? (
+        <div className="mt-3">
           <span className="rounded-lg bg-warn-soft px-3 py-2 text-base font-semibold text-warn">
             Reported absent · not final yet
           </span>
-        ) : responded ? (
-          <span className="text-base font-medium text-ink-soft">
-            You marked this {instance.teacher_response?.toLowerCase()}
-          </span>
-        ) : (
-          <>
-            <Button variant="secondary" size="lg" onClick={() => act("CONFIRMED")} disabled={busy}>
-              Confirm
-            </Button>
-            <Button variant="secondary" size="lg" onClick={() => setMode("dispute")} disabled={busy}>
-              Dispute
-            </Button>
-          </>
-        )}
-      </div>
+        </div>
+      ) : null}
 
-      {/* Offered after a response too: the class is still owed either way. */}
       <Link href={`/teacher/makeup?instance=${instance.id}`} className="mt-3 block">
         <Button size="xl" className="w-full">
           Request reschedule
         </Button>
       </Link>
-
-      {mode === "dispute" && !responded ? (
-        <div className="mt-3 space-y-3 rounded-xl bg-canvas p-3 sm:p-4">
-          <input
-            className={bigInputClass}
-            placeholder="Why should this record be reviewed?"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-          <div className="flex flex-wrap gap-2">
-            <Button size="lg" onClick={() => act("DISPUTED")} disabled={busy || !note.trim()}>
-              Send to HoD
-            </Button>
-            <Button variant="ghost" size="lg" onClick={() => setMode("idle")}>
-              Cancel
-            </Button>
-          </div>
-          <p className="text-sm text-ink-soft">
-            The original monitoring record is kept either way — a dispute flags it for
-            review, it does not erase it.
-          </p>
-        </div>
-      ) : null}
-
-      {error ? (
-        <p className="mt-3 rounded-xl bg-bad-soft px-4 py-3 text-base font-semibold text-bad">
-          {error}
-        </p>
-      ) : null}
     </li>
   );
 }

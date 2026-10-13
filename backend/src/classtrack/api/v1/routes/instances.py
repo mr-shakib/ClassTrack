@@ -1,4 +1,4 @@
-"""Class instance queries, and the teacher's response to a missed record."""
+"""Class instance queries."""
 
 from __future__ import annotations
 
@@ -9,24 +9,21 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from classtrack.api.deps import CancelUser, CurrentUser, SessionDep, scope_teacher
-from classtrack.core.errors import ForbiddenError, NotFoundError, ValidationError
+from classtrack.core.errors import ForbiddenError, NotFoundError
 from classtrack.db.base import utcnow
 from classtrack.models import (
     CheckOutcome,
     CheckRecord,
     ClassInstance,
     ClassStatus,
-    TeacherResponse,
 )
 from classtrack.schemas.monitoring import (
     CancelRequest,
     InstanceOut,
-    RespondRequest,
     SlotRef,
 )
 from classtrack.services import (
     audit_service,
-    notification_service,
     reschedule_links,
     status_engine,
 )
@@ -111,61 +108,6 @@ async def get_instance(
         raise NotFoundError(f"No class instance with id {instance_id}")
     if not user.sees_every_teacher and inst.teacher_initial != user.teacher_initial:
         raise ForbiddenError("You may only view your own records.")
-    return _serialise(inst)
-
-
-@router.post(
-    "/{instance_id}/respond",
-    response_model=InstanceOut,
-    summary="Confirm or dispute a missed class",
-)
-async def respond(
-    instance_id: int,
-    payload: RespondRequest,
-    session: SessionDep,
-    user: CurrentUser,
-) -> InstanceOut:
-    """BR-08.
-
-    A dispute deliberately does **not** change the stored status: the original
-    monitoring record has to survive for the audit trail to mean anything. It
-    flags the record for HoD review instead.
-    """
-    inst = await session.scalar(
-        select(ClassInstance)
-        .where(ClassInstance.id == instance_id)
-        .options(selectinload(ClassInstance.check))
-    )
-    if inst is None:
-        raise NotFoundError(f"No class instance with id {instance_id}")
-
-    if not user.sees_every_teacher and inst.teacher_initial != user.teacher_initial:
-        raise ForbiddenError("You may only respond to your own records.")
-    if inst.status is not ClassStatus.MISSED:
-        raise ValidationError(
-            "Only a missed class can be confirmed or disputed.",
-            detail={"status": inst.status.value if inst.status else None},
-        )
-
-    before = {"teacher_response": inst.teacher_response.value if inst.teacher_response else None}
-    inst.teacher_response = payload.response
-    inst.response_note = payload.note
-    inst.responded_at = utcnow()
-
-    audit_service.record(
-        session,
-        actor_id=user.id,
-        entity_type="class_instance",
-        entity_id=inst.id,
-        action="teacher_responded",
-        before=before,
-        after={"teacher_response": payload.response.value},
-        reason=payload.note,
-    )
-    if payload.response is TeacherResponse.DISPUTED:
-        await notification_service.notify_dispute(session, inst, payload.note)
-
-    await session.commit()
     return _serialise(inst)
 
 

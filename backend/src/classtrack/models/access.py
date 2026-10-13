@@ -180,7 +180,7 @@ PERMISSION_INFO: tuple[PermissionInfo, ...] = (
         Permission.RECEIVE_ALERTS,
         "Oversight",
         "Receive department alerts",
-        "Be notified of reschedule requests, booked rooms and disputed records.",
+        "Be notified of reschedule requests and booked rooms.",
     ),
 )
 
