@@ -6,7 +6,7 @@ Monitors whether scheduled classes are actually conducted according to the appro
 and manages the follow-up when they are not: late arrivals, missed classes, staff checking
 failures, makeup scheduling, and online-class approval.
 
-**Stack:** FastAPI + SQLite · Next.js 16 + TypeScript + Tailwind · Docker + Caddy
+**Stack:** FastAPI + SQLite · Next.js 16 + TypeScript + Tailwind · Flutter (mobile) · Docker + Caddy
 **Reuses:** [`open-routine`](../../Personal/projects/open-routine) routine PDF ingestion (vendored, see [VENDORED.md](backend/src/classtrack/routine/VENDORED.md))
 
 Status: **v1 complete** — all ten acceptance criteria verified, 25 tests passing.
@@ -75,6 +75,16 @@ Sign in with any of these — password `classtrack`:
 | `committee@diu.edu` | Committee — checks and corrects classes | `/staff` |
 | `staff1@diu.edu` | Office staff | `/staff` |
 | `teacher@diu.edu` | Teacher | `/teacher` |
+
+## Mobile app
+
+Staff checking and the teacher's screens are also a Flutter app for Android and iOS, in
+[`mobile/`](mobile/README.md). It talks to the same API and needs no backend change.
+
+```bash
+cd mobile
+flutter run --dart-define=API_BASE=http://10.0.2.2:8000/api/v1   # Android emulator → local API
+```
 
 ## Load a real routine
 
