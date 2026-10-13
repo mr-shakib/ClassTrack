@@ -337,21 +337,6 @@ class CourseTally {
   final bool belowMinimum;
 }
 
-/// One class in a report: what happened to it.
-class ReportClass {
-  ReportClass.fromJson(Json j)
-    : day = j['day'] as String? ?? '',
-      timeSlot = j['time_slot'] as String? ?? '',
-      room = j['room'] as String? ?? '',
-      courseCode = j['course_code'] as String? ?? '',
-      section = j['section'] as String? ?? '',
-      isMakeup = j['is_makeup'] as bool? ?? false,
-      isExtra = j['is_extra'] as bool? ?? false;
-
-  final String day, timeSlot, room, courseCode, section;
-  final bool isMakeup, isExtra;
-}
-
 class TeacherReport {
   TeacherReport.fromJson(Json j)
     : label = j['label'] as String?,
@@ -369,8 +354,7 @@ class TeacherReport {
       rescheduled = _int(j['rescheduled']),
       avgLateMinutes = _double(j['avg_late_minutes']),
       conductRate = _double(j['conduct_rate']),
-      courses = _list(j['courses'], CourseTally.fromJson),
-      classes = _list(j['classes'], ReportClass.fromJson);
+      courses = _list(j['courses'], CourseTally.fromJson);
 
   final String? label;
   final String from, to;
@@ -381,7 +365,6 @@ class TeacherReport {
   /// Held ÷ (held + missed), as a percentage. Not-checked classes are left out.
   final double conductRate;
   final List<CourseTally> courses;
-  final List<ReportClass> classes;
 }
 
 class AppNotification {

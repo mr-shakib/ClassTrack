@@ -5,18 +5,25 @@ import 'api/client.dart';
 import 'screens/home_shell.dart';
 import 'screens/login_screen.dart';
 import 'session.dart';
+import 'settings.dart';
 import 'theme.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  final settings = AppSettings();
+  await settings.load();
   final session = Session(Api())..restore();
-  runApp(ClassTrackApp(session: session));
+  runApp(ClassTrackApp(session: session, settings: settings));
 }
 
+final _light = buildTheme(Brightness.light);
+final _dark = buildTheme(Brightness.dark);
+
 class ClassTrackApp extends StatefulWidget {
-  const ClassTrackApp({super.key, required this.session});
+  const ClassTrackApp({super.key, required this.session, required this.settings});
   final Session session;
+  final AppSettings settings;
 
   @override
   State<ClassTrackApp> createState() => _ClassTrackAppState();
@@ -49,25 +56,34 @@ class _ClassTrackAppState extends State<ClassTrackApp> {
 
   @override
   Widget build(BuildContext context) {
-    return SessionScope(
-      session: widget.session,
-      child: MaterialApp(
-        title: 'ClassTrack',
-        debugShowCheckedModeBanner: false,
-        navigatorKey: _navigator,
-        theme: buildTheme(Brightness.light),
-        darkTheme: buildTheme(Brightness.dark),
-        builder: (context, child) {
-          final dark = Theme.of(context).brightness == Brightness.dark;
-          return AnnotatedRegion<SystemUiOverlayStyle>(
-            value: (dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark).copyWith(
-              statusBarColor: Colors.transparent,
-              systemNavigationBarColor: Colors.transparent,
-            ),
-            child: child!,
-          );
-        },
-        home: const _Gate(),
+    return SettingsScope(
+      settings: widget.settings,
+      child: SessionScope(
+        session: widget.session,
+        child: ListenableBuilder(
+          listenable: widget.settings,
+          builder: (context, _) => MaterialApp(
+            title: 'ClassTrack',
+            debugShowCheckedModeBanner: false,
+            navigatorKey: _navigator,
+            theme: _light,
+            darkTheme: _dark,
+            themeMode: widget.settings.themeMode,
+            // A short cross-fade when the theme changes, rather than a snap.
+            themeAnimationDuration: const Duration(milliseconds: 220),
+            builder: (context, child) {
+              final dark = Theme.of(context).brightness == Brightness.dark;
+              return AnnotatedRegion<SystemUiOverlayStyle>(
+                value: (dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark).copyWith(
+                  statusBarColor: Colors.transparent,
+                  systemNavigationBarColor: Colors.transparent,
+                ),
+                child: child!,
+              );
+            },
+            home: const _Gate(),
+          ),
+        ),
       ),
     );
   }

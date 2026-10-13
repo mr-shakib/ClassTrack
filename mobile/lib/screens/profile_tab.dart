@@ -1,19 +1,19 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../api/client.dart';
 import '../api/models.dart';
 import '../session.dart';
+import '../settings.dart';
 import '../teacher/teacher_data.dart';
 import '../theme.dart';
-import '../util/time.dart';
+import '../widgets/appearance_sheet.dart';
 import '../widgets/common.dart';
 
-/// Who is signed in and how their work is going: for a teacher the semester,
-/// their courses and routine; for staff their floors. Then their details, the
-/// absence-email address, the password, and the way out.
+/// Who is signed in, as a stack of cards: who they are, how the semester is
+/// going and their courses (a teacher) or their floors (staff), their details,
+/// and their settings.
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key, this.teacher});
 
@@ -28,27 +28,13 @@ class _ProfileTabState extends State<ProfileTab> {
   Profile? _profile;
   String? _error;
 
-  /// Past the brand band: the status bar needs a backing of its own.
-  final _scroll = ScrollController();
-  bool _scrolled = false;
-
   /// Floor staff: their assigned floors, as the checking screen knows them.
   List<String>? _floors;
 
   @override
   void initState() {
     super.initState();
-    _scroll.addListener(() {
-      final scrolled = _scroll.offset > 60;
-      if (scrolled != _scrolled) setState(() => _scrolled = scrolled);
-    });
     _load();
-  }
-
-  @override
-  void dispose() {
-    _scroll.dispose();
-    super.dispose();
   }
 
   Future<void> _load({bool withTeacher = false}) async {
@@ -113,285 +99,287 @@ class _ProfileTabState extends State<ProfileTab> {
     final user = SessionScope.of(context).user!;
     final profile = _profile;
     final teacher = widget.teacher;
+    final mode = SettingsScope.of(context).themeMode;
 
-    // The brand band runs under the status bar: light icons on it.
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light.copyWith(statusBarColor: Colors.transparent),
-      child: Scaffold(
-        body: Stack(
-          children: [
-            RefreshIndicator(
-              onRefresh: () => _load(withTeacher: true),
-              child: ListView(
-                controller: _scroll,
-                padding: EdgeInsets.zero,
+    return Scaffold(
+      body: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          onRefresh: () => _load(withTeacher: true),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+            children: [
+              Text('Profile', style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 14),
+              if (_error != null && profile == null) ...[Notice.error(_error!), const SizedBox(height: 12)],
+              _IdentityCard(user: user, profile: profile),
+              if (teacher != null)
+                ListenableBuilder(
+                  listenable: teacher,
+                  builder: (context, _) => _TeacherCards(data: teacher),
+                ),
+              if (user.isStaff && user.mayCheck) ...[const _Label('Your floors'), _FloorsCard(floors: _floors)],
+              const _Label('Details'),
+              _Card(
                 children: [
-                  _Hero(user: user, profile: profile),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 22, 16, 32),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (_error != null && profile == null) ...[Notice.error(_error!), const SizedBox(height: 16)],
-                        if (teacher != null)
-                          ListenableBuilder(
-                            listenable: teacher,
-                            builder: (context, _) => _TeacherSections(data: teacher),
-                          ),
-                        if (user.isStaff && user.mayCheck) ...[
-                          const _GroupLabel('Your floors'),
-                          _FloorsCard(floors: _floors),
-                          const SizedBox(height: 22),
-                        ],
-                        const _GroupLabel('Details'),
-                        _DetailsCard(user: user, profile: profile, onEditEmail: _editEmail),
-                        const SizedBox(height: 22),
-                        const _GroupLabel('Account'),
-                        Panel(
-                          padding: EdgeInsets.zero,
-                          child: Column(
-                            children: [
-                              _LinkRow(
-                                icon: Icons.lock_outline_rounded,
-                                title: 'Change password',
-                                subtitle: 'Replace a default password with one only you know',
-                                onTap: () => Navigator.of(
-                                  context,
-                                ).push(MaterialPageRoute(builder: (_) => const ChangePasswordScreen())),
-                              ),
-                              Divider(indent: 62, color: p.line),
-                              _LinkRow(
-                                icon: Icons.language_rounded,
-                                title: 'Open ClassTrack on the web',
-                                subtitle: 'Reports and everything else, on ${Uri.parse(siteUrl).host}',
-                                external: true,
-                                onTap: () => openLink(context, siteUrl),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 22),
-                        OutlinedButton.icon(
-                          onPressed: _signOut,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: p.bad,
-                            side: BorderSide(color: p.bad.withValues(alpha: 0.35), width: 1.5),
-                            minimumSize: const Size.fromHeight(54),
-                          ),
-                          icon: const Icon(Icons.logout_rounded),
-                          label: const Text('Sign out'),
-                        ),
-                        const SizedBox(height: 26),
-                        Center(
-                          child: InkWell(
-                            onTap: () => openLink(context, 'https://shakibhowlader.online'),
-                            borderRadius: BorderRadius.circular(8),
-                            child: Padding(
-                              padding: const EdgeInsets.all(8),
-                              child: Text.rich(
-                                TextSpan(
-                                  children: [
-                                    const TextSpan(text: 'ClassTrack 1.0  ·  Developed by '),
-                                    TextSpan(
-                                      text: 'Shakib Howlader',
-                                      style: TextStyle(color: p.inkSoft, fontWeight: FontWeight.w600),
-                                    ),
-                                  ],
-                                ),
-                                style: TextStyle(fontSize: 13, color: p.inkFaint),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                  if (profile?.officeRoom != null)
+                    _Row(icon: Icons.door_front_door_outlined, label: 'Office', value: profile!.officeRoom!),
+                  if (user.isTeacher)
+                    _Row(
+                      icon: Icons.mail_outline_rounded,
+                      label: 'Absence emails',
+                      value: profile == null ? '…' : (profile.contactEmail ?? 'Not set'),
+                      warn: profile != null && profile.contactEmail == null,
+                      trailing: profile == null
+                          ? null
+                          : _EditButton(add: profile.contactEmail == null, onTap: _editEmail),
+                      onTap: profile == null ? null : _editEmail,
                     ),
+                  _Row(
+                    icon: Icons.login_rounded,
+                    label: 'Signs in with',
+                    value: profile?.signIn ?? user.teacherInitial ?? user.email,
                   ),
                 ],
               ),
-            ),
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              height: MediaQuery.of(context).padding.top,
-              child: IgnorePointer(
-                child: AnimatedOpacity(
-                  opacity: _scrolled ? 1 : 0,
-                  duration: const Duration(milliseconds: 150),
-                  child: ColoredBox(color: p.brandSolid),
+              const _Label('Settings'),
+              _Card(
+                children: [
+                  _Row(
+                    icon: appearanceIcon(mode),
+                    label: 'Appearance',
+                    trailing: _Value(appearanceLabel(mode)),
+                    onTap: () => showAppearanceSheet(context),
+                  ),
+                  _Row(
+                    icon: Icons.lock_outline_rounded,
+                    label: 'Change password',
+                    trailing: Icon(Icons.chevron_right_rounded, color: p.inkFaint),
+                    onTap: () =>
+                        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ChangePasswordScreen())),
+                  ),
+                  _Row(
+                    icon: Icons.language_rounded,
+                    label: 'Open the website',
+                    trailing: Icon(Icons.open_in_new_rounded, color: p.inkFaint, size: 20),
+                    onTap: () => openLink(context, siteUrl),
+                  ),
+                  _Row(icon: Icons.logout_rounded, label: 'Sign out', danger: true, onTap: _signOut),
+                ],
+              ),
+              const SizedBox(height: 22),
+              Center(
+                child: InkWell(
+                  onTap: () => openLink(context, 'https://shakibhowlader.online'),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          const TextSpan(text: 'ClassTrack 1.0  ·  '),
+                          TextSpan(
+                            text: 'Shakib Howlader',
+                            style: TextStyle(color: p.inkSoft, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                      style: TextStyle(fontSize: 12.5, color: p.inkFaint),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _GroupLabel extends StatelessWidget {
-  const _GroupLabel(this.text);
+/// A small heading over a card.
+class _Label extends StatelessWidget {
+  const _Label(this.text);
   final String text;
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(left: 4, bottom: 8),
+    padding: const EdgeInsets.fromLTRB(4, 22, 4, 10),
     child: Text(
-      text.toUpperCase(),
-      style: TextStyle(
-        fontSize: 12.5,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 0.8,
-        color: context.palette.inkFaint,
-      ),
+      text,
+      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: context.palette.ink, letterSpacing: -0.2),
     ),
   );
 }
 
-// --- the person ---------------------------------------------------------------------
+// --- who they are -------------------------------------------------------------------
 
-class _Hero extends StatelessWidget {
-  const _Hero({required this.user, required this.profile});
+/// The person, on the hero gradient: like the card on a lanyard.
+class _IdentityCard extends StatelessWidget {
+  const _IdentityCard({required this.user, required this.profile});
   final User user;
   final Profile? profile;
 
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
-    final top = MediaQuery.of(context).padding.top;
-    final designation = profile?.designation;
     final chips = <(IconData, String)>[
       if (user.teacherInitial != null) (Icons.badge_outlined, user.teacherInitial!),
       if (profile?.department != null) (Icons.apartment_rounded, profile!.department!.toUpperCase()),
       for (final r in user.roles) (Icons.verified_user_outlined, r.name),
     ];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              width: double.infinity,
-              height: 112 + top,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [p.brandSolid, Color.lerp(p.brandSolid, p.infoSolid, 0.7)!],
-                ),
-              ),
-              padding: EdgeInsets.fromLTRB(20, top + 14, 20, 0),
-              child: const Text(
-                'Profile',
-                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),
-              ),
-            ),
-            Positioned(
-              left: 20,
-              bottom: -46,
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(color: p.canvas, shape: BoxShape.circle),
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: p.hero(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.9), shape: BoxShape.circle),
                 child: Avatar(
                   name: user.fullName,
                   initial: user.teacherInitial,
                   photo: profile?.photoUrl ?? user.photoUrl,
-                  size: 92,
+                  size: 66,
                 ),
               ),
-            ),
-          ],
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 58, 20, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                user.fullName,
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  color: p.ink,
-                  letterSpacing: -0.5,
-                  height: 1.2,
-                ),
-              ),
-              if (designation != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 3),
-                  child: Text(designation, style: TextStyle(fontSize: 15.5, color: p.inkSoft)),
-                ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final (icon, label) in chips)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: p.surface,
-                        borderRadius: BorderRadius.circular(99),
-                        border: Border.all(color: p.line, width: 1.2),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(icon, size: 15, color: p.brand),
-                          const SizedBox(width: 6),
-                          Text(
-                            label,
-                            style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: p.ink),
-                          ),
-                        ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.fullName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                        height: 1.2,
+                        letterSpacing: -0.3,
                       ),
                     ),
-                ],
+                    if (profile?.designation != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        profile!.designation!,
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 14),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ],
           ),
-        ),
-      ],
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final (icon, label) in chips)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon, size: 14, color: Colors.white),
+                      const SizedBox(width: 6),
+                      Text(
+                        label,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
 
 // --- a teacher's semester -----------------------------------------------------------
 
-class _TeacherSections extends StatelessWidget {
-  const _TeacherSections({required this.data});
+class _TeacherCards extends StatelessWidget {
+  const _TeacherCards({required this.data});
   final TeacherData data;
 
   @override
   Widget build(BuildContext context) {
-    final report = data.report;
-    final routine = data.routine;
+    final r = data.report;
+    if (r == null) return const SizedBox.shrink();
+    final p = context.palette;
+    final (term, _) = _splitLabel(r.label);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (report != null) ...[
-          const _GroupLabel('This semester'),
-          _SemesterCard(report: report),
-          const SizedBox(height: 22),
-          if (report.courses.isNotEmpty) ...[
-            const _GroupLabel('Your courses'),
-            _CoursesCard(report: report),
-            const SizedBox(height: 22),
+        _Label(term),
+        _SemesterCard(report: r),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            _StatTile(
+              icon: Icons.check_circle_outline_rounded,
+              value: r.conducted,
+              label: 'Conducted',
+              color: p.ok,
+              tint: p.okSoft,
+            ),
+            const SizedBox(width: 10),
+            _StatTile(icon: Icons.schedule_rounded, value: r.late, label: 'Late', color: p.warn, tint: p.warnSoft),
           ],
-        ],
-        if (routine.isNotEmpty) ...[
-          const _GroupLabel('Weekly routine'),
-          _RoutineCard(routine: routine),
-          const SizedBox(height: 22),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            _StatTile(icon: Icons.event_busy_rounded, value: r.missed, label: 'Missed', color: p.bad, tint: p.badSoft),
+            const SizedBox(width: 10),
+            _StatTile(
+              icon: Icons.visibility_off_outlined,
+              value: r.notChecked,
+              label: 'Not checked',
+              color: p.gap,
+              tint: p.gapSoft,
+            ),
+          ],
+        ),
+        if (r.courses.isNotEmpty) ...[
+          const _Label('Courses'),
+          SizedBox(
+            height: 142,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              clipBehavior: Clip.none,
+              itemCount: r.courses.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              itemBuilder: (context, i) => _CourseCard(course: r.courses[i], min: r.minConducted),
+            ),
+          ),
         ],
       ],
     );
   }
 }
 
+/// "Fall 2026 · Full semester" → ("Fall 2026", "Full semester").
+(String, String?) _splitLabel(String? label) {
+  if (label == null) return ('This semester', null);
+  final parts = label.split(' · ');
+  return (parts.first, parts.length > 1 ? parts.sublist(1).join(' · ') : null);
+}
+
+/// How much of what was checked was held, and the makeups.
 class _SemesterCard extends StatelessWidget {
   const _SemesterCard({required this.report});
   final TeacherReport report;
@@ -402,130 +390,215 @@ class _SemesterCard extends StatelessWidget {
     final r = report;
     final decided = r.conducted + r.missed > 0;
     final rate = r.conductRate.clamp(0, 100) / 100;
-    final ringColor = !decided
-        ? p.inkFaint
-        : (rate >= 0.9
-              ? p.okSolid
-              : rate >= 0.75
-              ? p.warnSolid
-              : p.badSolid);
-
-    Widget stat(String label, String value, Color color, [String? hint]) => Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              value,
-              style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800, color: color, fontFeatures: tabular),
-            ),
-            Text(
-              label,
-              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: p.inkSoft),
-            ),
-            Text(hint ?? '', style: TextStyle(fontSize: 11.5, color: p.inkFaint)),
-          ],
-        ),
-      ),
-    );
+    final ringColor = !decided ? p.inkFaint : (rate >= 0.9 ? p.okSolid : (rate >= 0.75 ? p.warnSolid : p.badSolid));
+    final (_, span) = _splitLabel(r.label);
 
     return Panel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.all(18),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  r.label ?? 'This semester',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: p.ink),
-                ),
-              ),
-              Text('${shortDay(r.from)} – ${shortDay(r.to)}', style: TextStyle(fontSize: 12.5, color: p.inkFaint)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              SizedBox(
-                width: 104,
-                height: 104,
-                child: CustomPaint(
-                  painter: _Ring(value: decided ? rate.toDouble() : 0, color: ringColor, track: p.line),
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          decided ? '${r.conductRate.round()}%' : '—',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                            color: p.ink,
-                            fontFeatures: tabular,
-                          ),
-                        ),
-                        Text(
-                          'held',
-                          style: TextStyle(fontSize: 12, color: p.inkSoft, fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 18),
-              Expanded(
+          SizedBox(
+            width: 96,
+            height: 96,
+            child: CustomPaint(
+              painter: _Ring(value: decided ? rate.toDouble() : 0, color: ringColor, track: p.line),
+              child: Center(
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      children: [
-                        stat('Conducted', '${r.conducted}', p.ok, 'of ${r.totalScheduled}'),
-                        stat('Late', '${r.late}', p.warn, r.late > 0 ? 'avg ${r.avgLateMinutes.round()} min' : null),
-                      ],
+                    Text(
+                      decided ? '${r.conductRate.round()}%' : '—',
+                      style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800, color: p.ink, fontFeatures: tabular),
                     ),
-                    Row(
-                      children: [stat('Missed', '${r.missed}', p.bad), stat('Not checked', '${r.notChecked}', p.gap)],
+                    Text(
+                      'held',
+                      style: TextStyle(fontSize: 12, color: p.inkSoft, fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
               ),
-            ],
+            ),
           ),
-          const SizedBox(height: 10),
-          Text(
-            'Held is the share of checked classes that took place, late included. '
-            'A class nobody checked is not counted against you.',
-            style: TextStyle(fontSize: 12.5, color: p.inkFaint, height: 1.4),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(color: p.infoSoft, borderRadius: BorderRadius.circular(12)),
-            child: Row(
+          const SizedBox(width: 18),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.sync_rounded, size: 18, color: p.info),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text.rich(
-                    TextSpan(
-                      children: [
-                        const TextSpan(text: 'Makeups  '),
-                        TextSpan(
-                          text: '${r.makeupCompleted} done',
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        TextSpan(text: '  ·  ${r.makeupPending} pending'),
-                      ],
-                    ),
-                    style: TextStyle(fontSize: 14.5, color: p.info, fontWeight: FontWeight.w600),
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '${r.conducted}',
+                        style: TextStyle(color: p.ink),
+                      ),
+                      TextSpan(
+                        text: ' / ${r.totalScheduled}',
+                        style: TextStyle(color: p.inkFaint),
+                      ),
+                    ],
                   ),
+                  style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800, fontFeatures: tabular),
+                ),
+                Text(
+                  'classes held${span != null ? ' · ${span.toLowerCase()}' : ''}',
+                  style: TextStyle(fontSize: 13, color: p.inkSoft, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    Pill(
+                      '${r.makeupCompleted} made up',
+                      color: p.info,
+                      background: p.infoSoft,
+                      icon: Icons.sync_rounded,
+                    ),
+                    if (r.makeupPending > 0) Pill('${r.makeupPending} pending', color: p.warn, background: p.warnSoft),
+                  ],
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// One figure, with its icon and colour.
+class _StatTile extends StatelessWidget {
+  const _StatTile({
+    required this.icon,
+    required this.value,
+    required this.label,
+    required this.color,
+    required this.tint,
+  });
+
+  final IconData icon;
+  final int value;
+  final String label;
+  final Color color, tint;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return Expanded(
+      child: Panel(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(12)),
+              child: Icon(icon, color: color, size: 21),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$value',
+                    style: TextStyle(
+                      fontSize: 22,
+                      height: 1.1,
+                      fontWeight: FontWeight.w800,
+                      color: value == 0 ? p.inkFaint : p.ink,
+                      fontFeatures: tabular,
+                    ),
+                  ),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12.5, color: p.inkSoft, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One course-section: classes held so far against the minimum.
+class _CourseCard extends StatelessWidget {
+  const _CourseCard({required this.course, required this.min});
+  final CourseTally course;
+  final int min;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final c = course;
+    final met = min > 0 && c.held >= min;
+    final progress = min == 0 ? 0.0 : (c.held / min).clamp(0, 1).toDouble();
+
+    return SizedBox(
+      width: 168,
+      child: Panel(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    c.courseCode.split('(').first,
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: p.ink, letterSpacing: -0.3),
+                  ),
+                ),
+                if (met) Icon(Icons.verified_rounded, color: p.ok, size: 20),
+              ],
+            ),
+            Text('Section ${c.section}', style: TextStyle(fontSize: 13, color: p.inkSoft)),
+            const Spacer(),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '${c.held}',
+                  style: TextStyle(
+                    fontSize: 24,
+                    height: 1,
+                    fontWeight: FontWeight.w800,
+                    color: met ? p.ok : p.ink,
+                    fontFeatures: tabular,
+                  ),
+                ),
+                Text(
+                  ' / $min',
+                  style: TextStyle(fontSize: 14, color: p.inkFaint, fontWeight: FontWeight.w700, fontFeatures: tabular),
+                ),
+                const Spacer(),
+                if (c.missed > 0)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(color: p.bad, shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${c.missed}',
+                        style: TextStyle(fontSize: 13, color: p.bad, fontWeight: FontWeight.w800),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ProgressBar(value: progress, color: met ? p.okSolid : p.brandSolid, track: p.line, height: 6),
+          ],
+        ),
       ),
     );
   }
@@ -559,163 +632,6 @@ class _Ring extends CustomPainter {
   bool shouldRepaint(_Ring old) => old.value != value || old.color != color || old.track != track;
 }
 
-/// Each course-section's classes held so far, against the minimum.
-class _CoursesCard extends StatelessWidget {
-  const _CoursesCard({required this.report});
-  final TeacherReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.palette;
-    final min = report.minConducted;
-    return Panel(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Column(
-        children: [
-          for (var i = 0; i < report.courses.length; i++) ...[
-            if (i > 0) Divider(indent: 16, endIndent: 16, color: p.line),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              child: Builder(
-                builder: (context) {
-                  final c = report.courses[i];
-                  final met = min > 0 && c.held >= min;
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${c.courseCode} · ${c.section}',
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: p.ink),
-                            ),
-                          ),
-                          Text.rich(
-                            TextSpan(
-                              children: [
-                                TextSpan(
-                                  text: '${c.held}',
-                                  style: TextStyle(color: met ? p.ok : p.ink),
-                                ),
-                                TextSpan(
-                                  text: ' / $min held',
-                                  style: TextStyle(color: p.inkSoft, fontWeight: FontWeight.w600),
-                                ),
-                              ],
-                            ),
-                            style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, fontFeatures: tabular),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      ProgressBar(
-                        value: min == 0 ? 0 : c.held / min,
-                        color: met ? p.okSolid : p.brandSolid,
-                        track: p.line,
-                        height: 7,
-                      ),
-                      if (c.missed > 0 || met)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Text(
-                            met ? 'Minimum reached' : '${c.missed} missed',
-                            style: TextStyle(fontSize: 13, color: met ? p.ok : p.bad, fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// The week's classes, day by day.
-class _RoutineCard extends StatelessWidget {
-  const _RoutineCard({required this.routine});
-  final List<RoutineEntry> routine;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.palette;
-    final byDay = <String, List<RoutineEntry>>{};
-    for (final e in routine) {
-      byDay.putIfAbsent(e.day, () => []).add(e);
-    }
-    final days = byDay.entries.toList();
-    return Panel(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Column(
-        children: [
-          for (var i = 0; i < days.length; i++) ...[
-            if (i > 0) Divider(indent: 16, endIndent: 16, color: p.line),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 48,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 3),
-                      child: Text(
-                        days[i].key.substring(0, 3).toUpperCase(),
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: p.brand, letterSpacing: 0.6),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        for (final e in days[i].value)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 3),
-                            child: Row(
-                              children: [
-                                SizedBox(
-                                  width: 50,
-                                  child: Text(
-                                    clock(slotBounds(e.timeSlot).$1),
-                                    style: TextStyle(
-                                      fontSize: 14.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: p.ink,
-                                      fontFeatures: tabular,
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Text(
-                                    '${e.courseCode} · ${e.section}',
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(fontSize: 14.5, color: p.ink),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(e.room, style: TextStyle(fontSize: 13.5, color: p.inkSoft)),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 // --- floor staff ----------------------------------------------------------------------
 
 /// "KT-3" → "KT · Floor 3", as the checking screen labels floors.
@@ -739,143 +655,113 @@ class _FloorsCard extends StatelessWidget {
       child: f == null
           ? Text('Loading…', style: TextStyle(color: p.inkSoft))
           : f.isEmpty
-          ? Text(
-              'No floors assigned. You can check classes on any floor.',
-              style: TextStyle(fontSize: 15, color: p.inkSoft, height: 1.4),
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          ? Row(
               children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final key in f)
-                      Pill(
-                        _floorLabel(key),
-                        color: p.brand,
-                        background: p.brandSoft,
-                        icon: Icons.layers_rounded,
-                        large: true,
-                      ),
-                  ],
+                Icon(Icons.layers_outlined, color: p.inkFaint),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text('None assigned — any floor is yours to check.', style: TextStyle(color: p.inkSoft)),
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  'They come first on the checking screen. You can still check any floor.',
-                  style: TextStyle(fontSize: 13.5, color: p.inkSoft, height: 1.4),
-                ),
+              ],
+            )
+          : Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final key in f)
+                  Pill(
+                    _floorLabel(key),
+                    color: p.brand,
+                    background: p.brandSoft,
+                    icon: Icons.layers_rounded,
+                    large: true,
+                  ),
               ],
             ),
     );
   }
 }
 
-// --- details --------------------------------------------------------------------------
+// --- rows in a card -------------------------------------------------------------------
 
-class _DetailsCard extends StatelessWidget {
-  const _DetailsCard({required this.user, required this.profile, required this.onEditEmail});
-  final User user;
-  final Profile? profile;
-  final VoidCallback onEditEmail;
+/// A card of rows, divided by hairlines.
+class _Card extends StatelessWidget {
+  const _Card({required this.children});
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
-    final pr = profile;
-    final rows = <Widget>[
-      _DetailRow(
-        icon: Icons.login_rounded,
-        label: 'Signs in with',
-        value: pr?.signIn ?? user.teacherInitial ?? user.email,
-      ),
-      if (user.email.isNotEmpty && user.email != pr?.signIn)
-        _DetailRow(icon: Icons.alternate_email_rounded, label: 'Account email', value: user.email),
-      if (pr?.officeRoom != null)
-        _DetailRow(icon: Icons.door_front_door_outlined, label: 'Office', value: pr!.officeRoom!),
-      if (user.isTeacher)
-        _DetailRow(
-          icon: Icons.mail_outline_rounded,
-          label: 'Absence emails go to',
-          value: pr == null ? '…' : (pr.contactEmail ?? 'No address on file'),
-          warn: pr != null && pr.contactEmail == null,
-          action: pr == null ? null : (pr.contactEmail == null ? 'Add' : 'Change'),
-          onTap: pr == null ? null : onEditEmail,
-        ),
-    ];
     return Panel(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Column(
         children: [
-          for (var i = 0; i < rows.length; i++) ...[if (i > 0) Divider(indent: 62, color: p.line), rows[i]],
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-            child: Text(
-              user.teacherInitial != null
-                  ? 'Your name, designation and office come from the faculty list. Ask the department office to correct them.'
-                  : 'Your name and role are set by an administrator.',
-              style: TextStyle(fontSize: 12.5, color: p.inkFaint, height: 1.4),
-            ),
-          ),
+          for (var i = 0; i < children.length; i++) ...[if (i > 0) Divider(indent: 64, color: p.line), children[i]],
         ],
       ),
     );
   }
 }
 
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({
+/// An icon, a label, and a value under it or a control beside it.
+class _Row extends StatelessWidget {
+  const _Row({
     required this.icon,
     required this.label,
-    required this.value,
-    this.warn = false,
-    this.action,
+    this.value,
+    this.trailing,
     this.onTap,
+    this.warn = false,
+    this.danger = false,
   });
 
   final IconData icon;
-  final String label, value;
-  final bool warn;
-  final String? action;
+  final String label;
+  final String? value;
+  final Widget? trailing;
   final VoidCallback? onTap;
+  final bool warn, danger;
 
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
+    final (fg, tint) = danger ? (p.bad, p.badSoft) : (p.brand, p.brandSoft);
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
             Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(color: p.brandSoft, borderRadius: BorderRadius.circular(10)),
-              child: Icon(icon, color: p.brand, size: 18),
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(color: tint, borderRadius: BorderRadius.circular(11)),
+              child: Icon(icon, color: fg, size: 19),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: p.inkFaint),
-                  ),
-                  const SizedBox(height: 1),
-                  Text(
-                    value,
-                    style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: warn ? p.warn : p.ink),
-                  ),
-                ],
-              ),
+              child: value == null
+                  ? Text(
+                      label,
+                      style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: danger ? p.bad : p.ink),
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          label,
+                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: p.inkFaint),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          value!,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: warn ? p.warn : p.ink),
+                        ),
+                      ],
+                    ),
             ),
-            if (action != null)
-              Text(
-                action!,
-                style: TextStyle(color: p.brand, fontWeight: FontWeight.w700, fontSize: 15),
-              ),
+            ?trailing,
           ],
         ),
       ),
@@ -883,56 +769,44 @@ class _DetailRow extends StatelessWidget {
   }
 }
 
-class _LinkRow extends StatelessWidget {
-  const _LinkRow({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    this.external = false,
-  });
-
-  final IconData icon;
-  final String title, subtitle;
-  final VoidCallback onTap;
-  final bool external;
+/// The current choice, then a chevron.
+class _Value extends StatelessWidget {
+  const _Value(this.text);
+  final String text;
 
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(color: p.brandSoft, borderRadius: BorderRadius.circular(10)),
-              child: Icon(icon, color: p.brand, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: p.ink),
-                  ),
-                  Text(subtitle, style: TextStyle(fontSize: 13.5, color: p.inkSoft)),
-                ],
-              ),
-            ),
-            Icon(
-              external ? Icons.open_in_new_rounded : Icons.chevron_right_rounded,
-              color: p.inkFaint,
-              size: external ? 20 : 24,
-            ),
-          ],
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          text,
+          style: TextStyle(fontSize: 14.5, color: p.inkSoft, fontWeight: FontWeight.w600),
         ),
+        Icon(Icons.chevron_right_rounded, color: p.inkFaint),
+      ],
+    );
+  }
+}
+
+/// Add or change, as a small round button.
+class _EditButton extends StatelessWidget {
+  const _EditButton({required this.add, required this.onTap});
+  final bool add;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return IconButton(
+      onPressed: onTap,
+      tooltip: add ? 'Add' : 'Change',
+      style: IconButton.styleFrom(
+        backgroundColor: p.subtle,
+        side: BorderSide(color: p.line),
       ),
+      icon: Icon(add ? Icons.add_rounded : Icons.edit_outlined, size: 19, color: p.brand),
     );
   }
 }
@@ -1109,7 +983,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           ),
           const SizedBox(height: 6),
           Panel(
-            color: p.canvas,
+            color: p.subtle,
             padding: const EdgeInsets.all(14),
             child: Column(
               children: [

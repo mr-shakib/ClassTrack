@@ -239,7 +239,10 @@ class _NeedsReschedule extends StatelessWidget {
       decoration: BoxDecoration(
         color: p.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: p.bad.withValues(alpha: 0.35), width: 2),
+        border: Border.all(
+          color: p.bad.withValues(alpha: p.isDark ? 0.22 : 0.35),
+          width: p.isDark ? 1.5 : 2,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

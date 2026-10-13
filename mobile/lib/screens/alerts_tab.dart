@@ -143,7 +143,10 @@ class _NotificationTile extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: n.unread ? p.brand.withValues(alpha: 0.35) : p.line, width: 1.2),
+            border: Border.all(
+              color: n.unread ? p.brand.withValues(alpha: p.isDark ? 0.25 : 0.35) : p.line,
+              width: 1.2,
+            ),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,

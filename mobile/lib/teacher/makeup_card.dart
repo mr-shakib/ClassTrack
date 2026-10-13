@@ -70,7 +70,7 @@ class _MakeupCardState extends State<MakeupCard> {
         : steps.length - (ended ? 1 : 2);
 
     final (footerBg, footerBorder) = pending
-        ? (p.canvas, p.line)
+        ? (p.subtle, p.line)
         : ended
         ? (p.warnSoft, p.warn.withValues(alpha: 0.25))
         : (p.okSoft, p.ok.withValues(alpha: 0.2));
@@ -252,7 +252,7 @@ class MakeupTimes extends StatelessWidget {
       children: [
         Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: p.canvas, borderRadius: BorderRadius.circular(14)),
+          decoration: BoxDecoration(color: p.subtle, borderRadius: BorderRadius.circular(14)),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -329,7 +329,7 @@ class _Steps extends StatelessWidget {
                       height: 34,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: i < step ? p.okSolid : (i == step ? p.warnSolid : p.canvas),
+                        color: i < step ? p.okSolid : (i == step ? p.warnSolid : p.subtle),
                         border: i > step ? Border.all(color: p.line, width: 2) : null,
                         boxShadow: i == step
                             ? [BoxShadow(color: p.warnSolid.withValues(alpha: 0.3), blurRadius: 0, spreadRadius: 4)]

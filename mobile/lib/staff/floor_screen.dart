@@ -169,23 +169,29 @@ class _FloorDone extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
+    // Solid green on white; a green tint on charcoal, where a solid block glares.
+    final fg = p.isDark ? p.ok : Colors.white;
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
-      decoration: BoxDecoration(color: p.okSolid, borderRadius: BorderRadius.circular(22)),
+      decoration: BoxDecoration(
+        color: p.isDark ? p.okSoft : p.okSolid,
+        borderRadius: BorderRadius.circular(22),
+        border: p.isDark ? Border.all(color: p.ok.withValues(alpha: 0.25)) : null,
+      ),
       child: Column(
         children: [
-          const Icon(Icons.task_alt_rounded, color: Colors.white, size: 44),
+          Icon(Icons.task_alt_rounded, color: fg, size: 44),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'This floor is done',
-            style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800),
+            style: TextStyle(color: fg, fontSize: 22, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 14),
           FilledButton(
             onPressed: onNext,
             style: FilledButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: p.okSolid,
+              backgroundColor: p.isDark ? p.okSolid : Colors.white,
+              foregroundColor: p.isDark ? Colors.white : p.okSolid,
               minimumSize: const Size(220, 52),
             ),
             child: const Text('Pick the next floor'),

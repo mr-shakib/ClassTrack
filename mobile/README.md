@@ -11,10 +11,10 @@ Admin work (dashboards, reports, approvals, routines) stays on the website.
 | Who | Tab | Mirrors on the web |
 |---|---|---|
 | Office staff, committee, admins who check | **Checking**: pick a floor, then one tap per room (running / late / absent); *Find by teacher* to correct a past record | `/staff` |
-| Teachers | **Home**: the class on now (or next), what is waiting on them, today as a timeline, the next seven days | — |
+| Teachers | **Home**: the class on now (or next), what is waiting on them, today as a timeline, and the week as a timetable (days across, slots down, any week back or forward; tap a class for its details) | — |
 | Teachers | **Reschedule**: *Reschedule required*, makeups under way with mark-done and Drive link, extra classes, past reschedules | `/teacher`, `/teacher/makeup`, `/teacher/extra` |
 | Everyone | **Alerts**: tapping one opens what it is about | the bell |
-| Everyone | **Profile**: for a teacher the semester's figures, courses against the minimum and the weekly routine; for staff their floors; then details, absence email, password, sign out | `/profile` |
+| Everyone | **Profile**, as cards: who they are; for a teacher the semester (share held, conducted, late, missed, not checked) and each course against the minimum; for staff their floors; then details and settings (appearance, password, sign out) | `/profile` |
 
 A teacher who also checks classes gets Home, Reschedule and Checking. An account with neither is pointed to the website.
 
@@ -65,7 +65,8 @@ the user in the background. A 401 signs out with a notice on the sign-in screen.
 | `lib/staff/` | Checking: floors, a floor's rooms, the room card, find by teacher |
 | `lib/teacher/` | Home, Reschedule, the reschedule and extra-class screens, and `teacher_data.dart`, which loads what all three teacher tabs show |
 | `lib/screens/` | Sign-in, the tab shell, alerts, profile |
-| `lib/theme.dart` | The palette from `web/src/app/globals.css`, light, and a charcoal dark |
+| `lib/theme.dart` | The palette from `web/src/app/globals.css`, and a layered charcoal dark built from the same tokens |
+| `lib/settings.dart` | The appearance choice: light by default, dark, or match the phone; kept through sign-out |
 | `lib/util/time.dart` | The six slots, and dates on Dhaka's clock |
 
 ## Rules kept from the web app

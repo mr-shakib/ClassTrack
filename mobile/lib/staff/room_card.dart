@@ -425,15 +425,20 @@ class _RoomCardState extends State<RoomCard> {
     final p = context.palette;
     final check = row.check!;
     final saving = check.checkedAt.isEmpty;
-    final (text, color, icon) = switch (check.outcome) {
-      'RUNNING' => ('Class is running', p.okSolid, Icons.check_circle_rounded),
+    final (text, solid, tone, tint, icon) = switch (check.outcome) {
+      'RUNNING' => ('Class is running', p.okSolid, p.ok, p.okSoft, Icons.check_circle_rounded),
       'LATE' => (
         'Teacher was late${check.lateMinutes != null ? ' — ${check.lateMinutes} min' : ''}',
         p.warnSolid,
+        p.warn,
+        p.warnSoft,
         Icons.schedule_rounded,
       ),
-      _ => ('Teacher not found', p.badSolid, Icons.person_off_rounded),
+      _ => ('Teacher not found', p.badSolid, p.bad, p.badSoft, Icons.person_off_rounded),
     };
+    // A solid band on white; on charcoal a tint, so a floor of results does not glare.
+    final band = p.isDark ? tint : solid;
+    final onBand = p.isDark ? tone : Colors.white;
     final mayChange = !widget.locked || widget.canOverride;
 
     return Column(
@@ -450,16 +455,19 @@ class _RoomCardState extends State<RoomCard> {
           ),
         ),
         Container(
-          color: color,
+          decoration: BoxDecoration(
+            color: band,
+            border: p.isDark ? Border.symmetric(horizontal: BorderSide(color: tone.withValues(alpha: 0.18))) : null,
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
           child: Row(
             children: [
-              Icon(icon, color: Colors.white, size: 24),
+              Icon(icon, color: onBand, size: 24),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   text,
-                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
+                  style: TextStyle(color: onBand, fontSize: 18, fontWeight: FontWeight.w800),
                 ),
               ),
             ],

@@ -22,9 +22,12 @@ class UpcomingClass {
       status = i.status,
       check = i.check,
       rescheduledFrom = i.rescheduledFrom,
+      rescheduledTo = i.rescheduledTo,
       bounds = slotBounds(i.timeSlot);
 
-  static bool _online(ClassInstance i) => i.room == 'ONLINE' || (i.status ?? '').startsWith('ONLINE');
+  /// Only a makeup is held online. The missed class it recovers carries an
+  /// ONLINE_* status too, while the request is decided, but keeps its room.
+  static bool _online(ClassInstance i) => i.isMakeup && (i.room == 'ONLINE' || (i.status ?? '').startsWith('ONLINE'));
 
   final String date, timeSlot, courseCode, section;
 
@@ -35,6 +38,9 @@ class UpcomingClass {
   final CheckRecord? check;
   final SlotRef? rescheduledFrom;
 
+  /// On a missed class: where it went.
+  final SlotRef? rescheduledTo;
+
   /// Minutes since midnight.
   final (int, int) bounds;
   int get start => bounds.$1;
@@ -43,24 +49,16 @@ class UpcomingClass {
   String get times => '${clock(start)}–${clock(end)}';
 }
 
-/// One weekly class of the routine.
-class RoutineEntry {
-  RoutineEntry(this.day, this.timeSlot, this.courseCode, this.section, this.room);
-  final String day, timeSlot, courseCode, section, room;
-}
-
-const weekdays = ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-
 /// Everything the teacher's tabs show, loaded together and shared: Home reads
 /// the coming classes, Reschedule the missed ones and makeups, Profile the
-/// semester's figures and the routine.
+/// semester's figures.
 class TeacherData extends ChangeNotifier {
   TeacherData(this.api, this.initial);
 
   final Api api;
   final String initial;
 
-  /// How far ahead Home looks, and the routine is read from.
+  /// How far ahead Home looks.
   static const horizonDays = 21;
 
   List<UpcomingClass> upcoming = [];
@@ -126,30 +124,6 @@ class TeacherData extends ChangeNotifier {
 
   /// What needs the teacher on the Reschedule tab: its badge.
   int get actionCount => needsAction.length + toMarkDone.length;
-
-  /// The weekly routine, read off the coming weeks; from the semester so far
-  /// when nothing is coming, as in the exams.
-  List<RoutineEntry> get routine {
-    final seen = <String>{};
-    final entries = <RoutineEntry>[];
-    void add(String day, String slot, String course, String section, String room) {
-      if (seen.add('$day|$slot|$course|$section')) entries.add(RoutineEntry(day, slot, course, section, room));
-    }
-
-    for (final c in upcoming.where((c) => !c.isMakeup && !c.isExtra)) {
-      add(weekdays[(parseDay(c.date).weekday + 1) % 7], c.timeSlot, c.courseCode, c.section, c.room ?? '');
-    }
-    if (entries.isEmpty) {
-      for (final c in report?.classes ?? const <ReportClass>[]) {
-        if (!c.isMakeup && !c.isExtra) add(c.day, c.timeSlot, c.courseCode, c.section, c.room);
-      }
-    }
-    entries.sort((a, b) {
-      final d = weekdays.indexOf(a.day).compareTo(weekdays.indexOf(b.day));
-      return d != 0 ? d : slotBounds(a.timeSlot).$1.compareTo(slotBounds(b.timeSlot).$1);
-    });
-    return entries;
-  }
 
   void startPolling() {
     _timer?.cancel();

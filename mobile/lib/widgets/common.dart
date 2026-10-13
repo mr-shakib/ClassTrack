@@ -139,7 +139,7 @@ class Notice extends StatelessWidget {
       Tone.bad => (p.bad, p.badSoft),
       Tone.gap => (p.gap, p.gapSoft),
       Tone.info => (p.info, p.infoSoft),
-      Tone.neutral => (p.inkSoft, p.canvas),
+      Tone.neutral => (p.inkSoft, p.subtle),
     };
     return Container(
       width: double.infinity,

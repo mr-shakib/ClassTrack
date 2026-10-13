@@ -12,7 +12,7 @@ import 'common.dart';
 (String, Color, Color) statusStyle(BuildContext context, String? status, {int? lateMinutes}) {
   final p = context.palette;
   return switch (status) {
-    'UPCOMING' => ('Upcoming', p.inkSoft, p.canvas),
+    'UPCOMING' => ('Upcoming', p.inkSoft, p.subtle),
     'ONGOING' => ('Ongoing', p.brand, p.brandSoft),
     'RUNNING' => ('Running', p.ok, p.okSoft),
     'LATE' => (lateMinutes != null ? 'Late · $lateMinutes min' : 'Late', p.warn, p.warnSoft),
@@ -24,8 +24,8 @@ import 'common.dart';
     'ONLINE_PENDING' => ('Online pending', p.warn, p.warnSoft),
     'ONLINE_APPROVED' => ('Online approved', p.info, p.infoSoft),
     'ONLINE_REJECTED' => ('Online rejected', p.bad, p.badSoft),
-    'CANCELLED' => ('Cancelled', p.inkFaint, p.canvas),
-    _ => ('—', p.inkFaint, p.canvas),
+    'CANCELLED' => ('Cancelled', p.inkFaint, p.subtle),
+    _ => ('—', p.inkFaint, p.subtle),
   };
 }
 

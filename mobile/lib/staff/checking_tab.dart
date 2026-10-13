@@ -257,10 +257,10 @@ class _ModeSwitch extends StatelessWidget {
             duration: const Duration(milliseconds: 180),
             height: 46,
             decoration: BoxDecoration(
-              // On charcoal the surface is too close to the track to read as picked.
-              color: on ? (dark ? p.line : p.surface) : Colors.transparent,
+              color: on ? (dark ? p.raised : p.surface) : Colors.transparent,
+              border: dark && on ? Border.all(color: p.line) : null,
               borderRadius: BorderRadius.circular(11),
-              boxShadow: on
+              boxShadow: on && !dark
                   ? [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 6, offset: const Offset(0, 1))]
                   : null,
             ),
@@ -284,6 +284,7 @@ class _ModeSwitch extends StatelessWidget {
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: dark ? p.surface : p.line.withValues(alpha: 0.6),
+        border: dark ? Border.all(color: p.line) : null,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -316,14 +317,7 @@ class _SlotHero extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [p.brandSolid, Color.lerp(p.brandSolid, p.infoSolid, 0.55)!],
-        ),
-      ),
+      decoration: p.hero(radius: 22),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

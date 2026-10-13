@@ -9,6 +9,7 @@ import '../util/time.dart';
 import '../widgets/common.dart';
 import '../widgets/status.dart';
 import 'teacher_data.dart';
+import 'week_calendar.dart';
 
 /// A teacher's day: the class on now or next, anything waiting on them, today
 /// as a timeline, and the week ahead.
@@ -82,12 +83,6 @@ class _HomeTabState extends State<HomeTab> {
     final current = todays.where((c) => c.start <= now && now < c.end).firstOrNull;
     final next = d.upcoming.where((c) => c.date != today || c.start > now).firstOrNull;
 
-    final later = <String, List<UpcomingClass>>{};
-    final weekEnd = isoDate(parseDay(today).add(const Duration(days: 7)));
-    for (final c in d.upcoming.where((c) => c.date != today && c.date.compareTo(weekEnd) < 0)) {
-      later.putIfAbsent(c.date, () => []).add(c);
-    }
-
     return [
       if (d.error != null) ...[Notice.error(d.error!), const SizedBox(height: 14)],
       if (current != null) _NowCard(c: current, now: now) else _NextCard(c: next, now: now),
@@ -146,33 +141,8 @@ class _HomeTabState extends State<HomeTab> {
           ),
         ),
       const SizedBox(height: 26),
-      const SectionHeader('Coming up', subtitle: 'The next seven days'),
-      if (later.isEmpty)
-        const Panel(
-          child: EmptyState(icon: Icons.event_available_outlined, title: 'Nothing in the next seven days'),
-        )
-      else
-        for (final entry in later.entries) ...[
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 8, top: 4),
-            child: Text(
-              dayLabel(entry.key),
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: p.inkSoft, letterSpacing: 0.2),
-            ),
-          ),
-          Panel(
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: [
-                for (var i = 0; i < entry.value.length; i++) ...[
-                  if (i > 0) Divider(indent: 16, endIndent: 16, color: p.line),
-                  _UpcomingRow(c: entry.value[i]),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-        ],
+      const SectionHeader('Week', subtitle: 'Every class, by day and slot. Tap one for its details.'),
+      WeekCalendar(data: d),
     ];
   }
 }
@@ -247,15 +217,6 @@ class _Facts extends StatelessWidget {
   }
 }
 
-BoxDecoration _heroDecoration(Palette p) => BoxDecoration(
-  borderRadius: BorderRadius.circular(24),
-  gradient: LinearGradient(
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-    colors: [p.brandSolid, Color.lerp(p.brandSolid, p.infoSolid, 0.6)!],
-  ),
-);
-
 /// The class on now: how far through it is, and what staff recorded.
 class _NowCard extends StatelessWidget {
   const _NowCard({required this.c, required this.now});
@@ -276,7 +237,7 @@ class _NowCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-      decoration: _heroDecoration(p),
+      decoration: p.hero(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -362,7 +323,7 @@ class _NextCard extends StatelessWidget {
     final wait = c.start - now;
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-      decoration: _heroDecoration(p),
+      decoration: p.hero(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -548,7 +509,7 @@ class _TimelineRow extends StatelessWidget {
     } else if (recorded) {
       trailing = StatusBadge(c.status, lateMinutes: c.check?.lateMinutes);
     } else if (past) {
-      trailing = Pill('Not reported yet', color: p.inkSoft, background: p.canvas);
+      trailing = Pill('Not reported yet', color: p.inkSoft, background: p.subtle);
     } else if (isNext) {
       trailing = Pill('Next', color: p.brand, background: p.brandSoft);
     } else {
@@ -652,65 +613,6 @@ class _TimelineRow extends StatelessWidget {
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-/// A class on a coming day.
-class _UpcomingRow extends StatelessWidget {
-  const _UpcomingRow({required this.c});
-  final UpcomingClass c;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.palette;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 58,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  clock(c.start),
-                  style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: p.ink, fontFeatures: tabular),
-                ),
-                Text(
-                  clock(c.end),
-                  style: TextStyle(fontSize: 12.5, color: p.inkFaint, fontFeatures: tabular),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${c.courseCode} · ${c.section}',
-                  style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: p.ink),
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Icon(c.online ? Icons.videocam_outlined : Icons.meeting_room_outlined, size: 15, color: p.inkSoft),
-                    const SizedBox(width: 5),
-                    Text(c.online ? 'Online' : c.room!, style: TextStyle(fontSize: 14, color: p.inkSoft)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          if (c.online)
-            Pill('Online makeup', color: p.info, background: p.infoSoft)
-          else if (c.isMakeup)
-            Pill('Makeup', color: p.info, background: p.infoSoft, icon: Icons.sync_rounded)
-          else if (c.isExtra)
-            Pill('Extra', color: p.brand, background: p.brandSoft, icon: Icons.add_rounded),
         ],
       ),
     );
