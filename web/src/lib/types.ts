@@ -584,6 +584,17 @@ export interface Notification {
   created_at: string;
 }
 
+/** Where to get the Android app: a download from this server, or the Play Store. */
+export interface AndroidApp {
+  available: boolean;
+  /** `url` is the Play Store page rather than a download. */
+  store: boolean;
+  url: string | null;
+  version: string | null;
+  size_bytes: number | null;
+  updated_at: string | null;
+}
+
 /** Who an admin's notification goes to. */
 export type Audience = "everyone" | "teachers" | "staff" | "chosen";
 

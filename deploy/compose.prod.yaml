@@ -28,6 +28,10 @@ services:
       CLASSTRACK_PUBLIC_URL: ${CLASSTRACK_PUBLIC_URL:-https://${CLASSTRACK_DOMAIN}}
       # Pushes to the mobile app: the Firebase service account's JSON. Unset, in-app only.
       CLASSTRACK_FCM_CREDENTIALS: ${CLASSTRACK_FCM_CREDENTIALS:-}
+      # The Android app the website's /app page offers: the newest
+      # classtrack-<version>.apk here, or the Play Store page once set.
+      CLASSTRACK_DOWNLOADS_DIR: /data/downloads
+      CLASSTRACK_ANDROID_PLAY_URL: ${CLASSTRACK_ANDROID_PLAY_URL:-}
       # The status sweep runs inside this process. Keep exactly one replica:
       # two would both try to finalise the same rows.
       CLASSTRACK_SWEEP_INTERVAL_SECONDS: "60"

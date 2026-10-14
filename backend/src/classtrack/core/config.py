@@ -67,6 +67,13 @@ class Settings(BaseSettings):
     #: notifications are unaffected.
     fcm_credentials: str | None = None
 
+    # --- the Android app ------------------------------------------------------
+    #: Where the APKs the website's /app page offers live. The newest
+    #: ``classtrack-<version>.apk`` in it is handed out.
+    downloads_dir: str = "./downloads"
+    #: The app's Play Store page. Once set, the website links there instead.
+    android_play_url: str | None = None
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_origins(cls, v: object) -> object:

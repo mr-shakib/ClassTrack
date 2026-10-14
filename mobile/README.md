@@ -43,6 +43,12 @@ flutter build apk --release            # android: build/app/outputs/flutter-apk/
 flutter build ipa                      # iOS, on a Mac with Xcode
 ```
 
+Until the app is on the Play Store, people get it from the website's **/app** page, which
+offers the universal `app-release.apk` (every Android phone, ~56 MB); publishing it is
+copying it to the server ([deploy/README.md](../deploy/README.md#the-android-app)). Raise
+`version` in `pubspec.yaml` for every release, the build number included: Android only
+installs an APK over the old one when its build number is higher.
+
 The release build is still signed with the debug key (`android/app/build.gradle.kts`).
 Set up an upload key before publishing to Play.
 

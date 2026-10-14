@@ -112,6 +112,23 @@ Then delete the downloaded key file: it signs in as the project. The API logs
 the key it logs `Push disabled`, and the app's Alerts tab still has everything.
 A phone that uninstalled the app is forgotten the first time Firebase refuses it.
 
+## The Android app
+
+The website's **/app** page (linked from sign-in and the account menu) offers the
+newest `classtrack-<version>.apk` in `/data/downloads` on the API's volume. To publish a
+version, build it (`mobile/README.md`) and copy it in; nothing restarts:
+
+```bash
+scp mobile/build/app/outputs/flutter-apk/app-release.apk shakib@class.bitstreamhq.com:/srv/classtrack/classtrack-1.1.0.apk
+# on the server
+C="docker compose --env-file /srv/classtrack/.env -f deploy/compose.nginx.yaml"
+$C exec api mkdir -p /data/downloads
+$C cp /srv/classtrack/classtrack-1.1.0.apk api:/data/downloads/classtrack-1.1.0.apk
+```
+
+Once the app is on the Play Store, set `CLASSTRACK_ANDROID_PLAY_URL` in `.env` to its
+store page and recreate the API container: the page then sends everyone there.
+
 ## Updating an existing deployment
 
 Back up first, then pull and rebuild. The API container applies any new

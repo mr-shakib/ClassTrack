@@ -82,7 +82,8 @@ Staff checking and the teacher's screens are also a Flutter app for Android and 
 [`mobile/`](mobile/README.md). It talks to the same API. Notifications are pushed to it
 through Firebase, teachers are reminded before each class (minutes set at **Admin →
 Rules**), and admins can write their own at **Admin → Notifications**. The server needs
-the Firebase key: [deploy/README.md](deploy/README.md#push-notifications).
+the Firebase key: [deploy/README.md](deploy/README.md#push-notifications). People get the
+app from the website's **/app** page until it is on the Play Store.
 
 ```bash
 cd mobile

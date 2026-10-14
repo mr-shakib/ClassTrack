@@ -17,7 +17,7 @@ import {
 } from "@/lib/auth";
 import type { User } from "@/lib/types";
 import { Avatar } from "./Avatar";
-import { ChevronDownIcon, LockIcon, SignOutIcon, UserIcon } from "./icons";
+import { ChevronDownIcon, LockIcon, PhoneIcon, SignOutIcon, UserIcon } from "./icons";
 
 /** `section`: the path prefix that marks the link current, when wider than `href`. */
 type NavLink = { href: string; label: string; may: (u: User) => boolean; section?: string };
@@ -217,6 +217,14 @@ function AccountMenu({ user, onSignOut }: { user: User; onSignOut: () => void })
               >
                 <LockIcon className="size-5 text-ink-faint" />
                 Change password
+              </Link>
+              <Link
+                role="menuitem"
+                href="/app"
+                className={`${item} text-ink hover:bg-canvas`}
+              >
+                <PhoneIcon className="size-5 text-ink-faint" />
+                Get the Android app
               </Link>
             </div>
             <div className="border-t border-line p-1.5">

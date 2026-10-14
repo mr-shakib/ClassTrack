@@ -1,5 +1,6 @@
 import type {
   Account,
+  AndroidApp,
   Audience,
   AuditEntry,
   CheckOutcome,
@@ -112,6 +113,8 @@ export const api = {
     post<User>("/auth/login", { username, password }),
   logout: () => post<{ detail: string }>("/auth/logout"),
   me: () => get<User>("/auth/me"),
+  /** Public: the /app page shows it before anyone signs in. */
+  androidApp: () => get<AndroidApp>("/app/android"),
   profile: () => get<Profile>("/auth/profile"),
   /** A teacher's address for absence reports. */
   updateProfile: (contact_email: string) =>

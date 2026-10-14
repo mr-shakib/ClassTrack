@@ -490,6 +490,15 @@ account registered: the same title, body and `link`, with `data = {kind, link}`.
 is also pushed `kind: CLASS_REMINDER` the set minutes before each class they hold
 (`class_reminder_minutes`); a reminder is not kept as a notification.
 
+### Getting the app
+
+Public, for the website's `/app` page.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/app/android` | `{available, store, url, version, size_bytes, updated_at}`: the Play Store page once `CLASSTRACK_ANDROID_PLAY_URL` is set, else the newest `classtrack-<version>.apk` in `CLASSTRACK_DOWNLOADS_DIR` |
+| `GET` | `/app/android/download` | That APK, as `ClassTrack-<version>.apk`; 404 when there is none |
+
 ## 9. Admin
 
 | Method | Path | Roles | Purpose |

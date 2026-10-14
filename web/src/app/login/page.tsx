@@ -1,11 +1,13 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { homeFor, useAuth } from "@/lib/auth";
 import { Button, Card, ErrorNote, Field, inputClass } from "@/components/ui";
+import { PhoneIcon } from "@/components/icons";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -85,6 +87,14 @@ export default function LoginPage() {
             </Button>
           </form>
         </Card>
+
+        <Link
+          href="/app"
+          className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-sm font-medium text-ink hover:bg-canvas"
+        >
+          <PhoneIcon className="size-5 text-brand" />
+          Get the ClassTrack app for Android
+        </Link>
       </div>
     </div>
   );

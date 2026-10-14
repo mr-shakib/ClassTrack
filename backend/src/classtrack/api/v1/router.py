@@ -11,6 +11,7 @@ from classtrack.api.v1.routes import (
     health,
     instances,
     makeup,
+    mobile_app,
     notifications,
     reports,
 )
@@ -27,5 +28,6 @@ for module in (
     notifications,
     admin,
     announcements,
+    mobile_app,
 ):
     api_router.include_router(module.router)
