@@ -42,6 +42,10 @@ class PushMessage {
 class Push {
   bool _ready = false;
   StreamSubscription<String>? _refresh;
+
+  /// The token being deleted at sign-out. Signing in again waits for it, or
+  /// would register the old token just before it dies.
+  Future<void>? _deleting;
   PushMessage? _pending;
   final _opened = StreamController<PushMessage>.broadcast();
   final _received = StreamController<PushMessage>.broadcast();
@@ -88,6 +92,7 @@ class Push {
     if (!_ready) return;
     final messaging = FirebaseMessaging.instance;
     try {
+      await _deleting;
       final allowed = await messaging.requestPermission();
       if (allowed.authorizationStatus == AuthorizationStatus.denied) return;
       // iOS hands out a Firebase token only once Apple has given its own.
@@ -117,6 +122,7 @@ class Push {
     } catch (_) {
       // The token is deleted below either way.
     }
-    unawaited(messaging.deleteToken().catchError((Object _) {}));
+    // Not awaited, so signing out is not held up; the next sign-in waits instead.
+    _deleting = messaging.deleteToken().timeout(const Duration(seconds: 10)).catchError((Object _) {});
   }
 }

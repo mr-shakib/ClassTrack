@@ -78,7 +78,8 @@ or extra — as long before as an admin sets (**Admin → Rules** on the website
 unless changed). Reminders are pushed only; they never fill up Alerts.
 
 - **The phone is registered** on each sign-in and launch (`POST /notifications/devices`),
-  asking for notification permission the first time, and **let go on sign-out**. A
+  asking for notification permission the first time on Android 13+ and iOS (older Android
+  allows notifications from install, so it never asks), and **let go on sign-out**. A
   session that merely expired keeps its pushes, so reminders do not stop when it lapses;
   they move to whoever signs in on the phone next.
 - **Tapping a push** opens what it is about, as tapping it in Alerts does; a reminder
