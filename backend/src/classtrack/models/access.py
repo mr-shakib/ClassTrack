@@ -50,6 +50,7 @@ class Permission(str, enum.Enum):
     # Oversight
     VIEW_AUDIT = "audit.view"
     RECEIVE_ALERTS = "alerts.receive"
+    SEND_NOTIFICATIONS = "notifications.send"
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,6 +183,12 @@ PERMISSION_INFO: tuple[PermissionInfo, ...] = (
         "Receive department alerts",
         "Be notified of reschedule requests and booked rooms.",
     ),
+    PermissionInfo(
+        Permission.SEND_NOTIFICATIONS,
+        "Oversight",
+        "Send notifications",
+        "Write a notification to teachers and staff, for the app's alerts and their phones.",
+    ),
 )
 
 #: Only mean anything to a teacher: the class in question must be their own.
@@ -225,6 +232,7 @@ _COORDINATION = frozenset(
         Permission.MANAGE_STAFF,
         Permission.MANAGE_TEACHERS,
         Permission.VIEW_AUDIT,
+        Permission.SEND_NOTIFICATIONS,
     }
 )
 

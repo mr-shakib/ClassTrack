@@ -1,4 +1,4 @@
-"""In-app notifications."""
+"""In-app notifications, and the phones they are pushed to."""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ from sqlalchemy import select
 
 from classtrack.api.deps import CurrentUser, SessionDep
 from classtrack.models import Notification
-from classtrack.schemas.admin import NotificationOut
+from classtrack.schemas.admin import NotificationOut, PushDeviceIn, PushDeviceRemove
 from classtrack.schemas.common import Message
-from classtrack.services import notification_service
+from classtrack.services import notification_service, push_service
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -37,3 +37,20 @@ async def mark_all_read(session: SessionDep, user: CurrentUser) -> Message:
     await notification_service.mark_all_read(session, user.id)
     await session.commit()
     return Message(detail="All marked read")
+
+
+@router.post("/devices", response_model=Message, summary="Push my notifications to this phone")
+async def register_device(payload: PushDeviceIn, session: SessionDep, user: CurrentUser) -> Message:
+    """Called by the mobile app on every sign-in and launch, so it is idempotent."""
+    await push_service.register(session, user=user, token=payload.token, platform=payload.platform)
+    await session.commit()
+    return Message(detail="Registered")
+
+
+@router.post("/devices/remove", response_model=Message, summary="Stop pushing to this phone")
+async def remove_device(
+    payload: PushDeviceRemove, session: SessionDep, user: CurrentUser
+) -> Message:
+    await push_service.unregister(session, user=user, token=payload.token)
+    await session.commit()
+    return Message(detail="Removed")

@@ -26,6 +26,8 @@ services:
       CLASSTRACK_RESEND_API_KEY: ${CLASSTRACK_RESEND_API_KEY:-}
       CLASSTRACK_EMAIL_FROM: ${CLASSTRACK_EMAIL_FROM:-ClassTrack <noreply@bitstreamhq.com>}
       CLASSTRACK_PUBLIC_URL: ${CLASSTRACK_PUBLIC_URL:-https://${CLASSTRACK_DOMAIN}}
+      # Pushes to the mobile app: the Firebase service account's JSON. Unset, in-app only.
+      CLASSTRACK_FCM_CREDENTIALS: ${CLASSTRACK_FCM_CREDENTIALS:-}
       # The status sweep runs inside this process. Keep exactly one replica:
       # two would both try to finalise the same rows.
       CLASSTRACK_SWEEP_INTERVAL_SECONDS: "60"

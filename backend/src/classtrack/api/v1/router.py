@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from classtrack.api.v1.routes import (
     admin,
+    announcements,
     auth,
     checking,
     extra_classes,
@@ -25,5 +26,6 @@ for module in (
     reports,
     notifications,
     admin,
+    announcements,
 ):
     api_router.include_router(module.router)

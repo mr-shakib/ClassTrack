@@ -24,10 +24,11 @@ dependencies = [
     # Auth: bcrypt and PyJWT directly. passlib and python-jose are unmaintained
     # and break on current Python.
     "bcrypt>=4.2",
-    "PyJWT>=2.10",
+    # The crypto extra signs the Firebase service account's RS256 sign-in.
+    "PyJWT[crypto]>=2.10",
     # Teacher-wise and summary reports as PDF.
     "reportlab>=4.2",
-    # Absence emails, posted to the Resend API.
+    # Absence emails, posted to the Resend API, and pushes, to Firebase.
     "httpx>=0.28",
 ]
 

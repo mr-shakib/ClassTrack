@@ -17,6 +17,7 @@ const ACTION_LABEL: Record<string, string> = {
   routine_ingested: "Routine parsed",
   routine_activated: "Routine activated",
   settings_changed: "Rules changed",
+  notification_sent: "Notification sent",
   holiday_added: "Calendar day added",
   holiday_removed: "Calendar day removed",
   password_changed: "Changed own password",

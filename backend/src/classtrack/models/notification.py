@@ -35,6 +35,8 @@ class NotificationKind(str, enum.Enum):
     #: A teacher booked an empty room for an extra class. Kept within 16
     #: characters, the column width the existing kinds gave the table.
     EXTRA_BOOKED = "EXTRA_BOOKED"
+    #: Written by an admin to teachers and staff, from the Notifications tab.
+    ANNOUNCEMENT = "ANNOUNCEMENT"
 
 
 class Notification(Base, TimestampMixin):

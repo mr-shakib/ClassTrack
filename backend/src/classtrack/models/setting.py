@@ -22,6 +22,9 @@ SETTING_DEFAULTS: dict[str, str] = {
     #: The share of that minimum due by the mid-term exams. The rest is due
     #: between the mid-term and the final exams.
     "min_conducted_before_mid": "9",
+    #: How long before each of their classes a teacher's phone is reminded.
+    #: 0 sends no reminders.
+    "class_reminder_minutes": "10",
     "timezone": "Asia/Dhaka",
     "department": "cse",
 }

@@ -21,7 +21,8 @@ export type Permission =
   | "accounts.manage"
   | "roles.manage"
   | "audit.view"
-  | "alerts.receive";
+  | "alerts.receive"
+  | "notifications.send";
 
 /** What a role makes a person: a teacher, floor staff, or neither. */
 export type RoleKind = "TEACHER" | "STAFF" | "OFFICE";
@@ -580,6 +581,32 @@ export interface Notification {
   body: string;
   link: string | null;
   read_at: string | null;
+  created_at: string;
+}
+
+/** Who an admin's notification goes to. */
+export type Audience = "everyone" | "teachers" | "staff" | "chosen";
+
+/** An account a notification can be sent to. */
+export interface Recipient {
+  id: number;
+  full_name: string;
+  teacher_initial: string | null;
+  roles: string;
+  is_teacher: boolean;
+  is_staff: boolean;
+  /** Signed in on the app on a phone, so it is pushed there too. */
+  on_phone: boolean;
+}
+
+/** A notification an admin sent, from the audit log. */
+export interface SentNotification {
+  id: number;
+  title: string;
+  body: string;
+  audience: Audience;
+  sent_to: number;
+  sent_by: string | null;
   created_at: string;
 }
 

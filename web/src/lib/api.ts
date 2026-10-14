@@ -1,5 +1,6 @@
 import type {
   Account,
+  Audience,
   AuditEntry,
   CheckOutcome,
   CheckResponse,
@@ -23,6 +24,7 @@ import type {
   Profile,
   ReportFilters,
   ReportPeriod,
+  Recipient,
   ReportSemester,
   RoleInfo,
   RoleKind,
@@ -31,6 +33,7 @@ import type {
   RoutineReview,
   Semester,
   SemesterDates,
+  SentNotification,
   StaffMember,
   StaffReport,
   TeacherAccount,
@@ -261,7 +264,16 @@ export const api = {
     missed_threshold_minutes?: number;
     min_conducted_classes?: number;
     min_conducted_before_mid?: number;
+    class_reminder_minutes?: number;
   }) => put<Record<string, string>>("/admin/settings", payload),
+  sentNotifications: () => get<SentNotification[]>("/admin/notifications"),
+  notificationRecipients: () => get<Recipient[]>("/admin/notifications/recipients"),
+  sendNotification: (payload: {
+    title: string;
+    body: string;
+    audience: Audience;
+    user_ids?: number[];
+  }) => post<{ sent_to: number; on_phones: number }>("/admin/notifications", payload),
   audit: (params: { entity_type?: string; entity_id?: number; limit?: number }) =>
     get<AuditEntry[]>(`/admin/audit${qs(params)}`),
   teachers: (q?: string) => get<TeacherAccount[]>(`/admin/teachers${qs({ q })}`),

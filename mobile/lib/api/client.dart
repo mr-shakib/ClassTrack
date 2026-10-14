@@ -265,4 +265,9 @@ class Api {
       _list(await _get('/notifications', {'unread': unread ? 'true' : null}), AppNotification.fromJson);
   Future<void> markRead(int id) async => _post('/notifications/$id/read');
   Future<void> markAllRead() async => _post('/notifications/read-all');
+
+  /// `platform` is `android` or `ios`. Safe to repeat: a phone serves the last to sign in on it.
+  Future<void> registerDevice(String token, String platform) async =>
+      _post('/notifications/devices', {'token': token, 'platform': platform});
+  Future<void> removeDevice(String token) async => _post('/notifications/devices/remove', {'token': token});
 }

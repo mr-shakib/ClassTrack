@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date as Date
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -19,6 +20,58 @@ class NotificationOut(ORMModel):
     link: str | None = None
     read_at: datetime | None = None
     created_at: datetime
+
+
+class PushDeviceIn(BaseModel):
+    """A phone's Firebase token, from the mobile app."""
+
+    model_config = {"str_strip_whitespace": True}
+
+    token: str = Field(min_length=1, max_length=512)
+    platform: Literal["android", "ios"]
+
+
+class PushDeviceRemove(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+
+    token: str = Field(min_length=1, max_length=512)
+
+
+class AnnouncementIn(BaseModel):
+    """A notification an admin writes. ``user_ids`` is read only for ``chosen``."""
+
+    model_config = {"str_strip_whitespace": True}
+
+    title: str = Field(min_length=1, max_length=120)
+    body: str = Field(min_length=1, max_length=1000)
+    audience: Literal["everyone", "teachers", "staff", "chosen"]
+    user_ids: list[int] = Field(default_factory=list, max_length=2000)
+
+
+class AnnouncementSent(BaseModel):
+    sent_to: int
+    #: Of those, how many will also see it on a phone.
+    on_phones: int
+
+
+class AnnouncementOut(BaseModel):
+    id: int
+    title: str
+    body: str
+    audience: str
+    sent_to: int
+    sent_by: str | None
+    created_at: datetime
+
+
+class RecipientOut(BaseModel):
+    id: int
+    full_name: str
+    teacher_initial: str | None
+    roles: str
+    is_teacher: bool
+    is_staff: bool
+    on_phone: bool
 
 
 class SemesterIn(BaseModel):
@@ -243,6 +296,8 @@ class SettingsIn(BaseModel):
     missed_threshold_minutes: int | None = Field(default=None, ge=1, le=180)
     min_conducted_classes: int | None = Field(default=None, ge=1, le=200)
     min_conducted_before_mid: int | None = Field(default=None, ge=0, le=200)
+    #: 0 turns class reminders off.
+    class_reminder_minutes: int | None = Field(default=None, ge=0, le=120)
 
 
 class AuditOut(ORMModel):

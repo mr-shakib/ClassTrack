@@ -32,6 +32,7 @@ from classtrack.models.instance import (
 )
 from classtrack.models.makeup import MakeupClass, MakeupMode, MakeupStatus
 from classtrack.models.notification import Notification, NotificationKind
+from classtrack.models.push import PushDevice
 from classtrack.models.routine import ClassSession, Routine
 from classtrack.models.setting import SETTING_DEFAULTS, Setting
 from classtrack.models.teacher import Teacher
@@ -63,6 +64,7 @@ __all__ = [
     "NotificationKind",
     "Permission",
     "PermissionInfo",
+    "PushDevice",
     "Role",
     "RoleKind",
     "Routine",

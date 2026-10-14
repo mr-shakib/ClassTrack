@@ -1,12 +1,15 @@
 """Notification delivery.
 
 Delivery sits behind ``NotificationChannel`` so adding email or SMS (SRS 2.2) is
-a new class beside ``InAppChannel``, not a change to any caller.
+a new class beside ``InAppChannel``, not a change to any caller. Every
+notification is kept for the bell and pushed to the account's phones.
 """
 
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
+from math import ceil
 from typing import Protocol
 
 from sqlalchemy import select, update
@@ -26,7 +29,7 @@ from classtrack.models import (
     Teacher,
     User,
 )
-from classtrack.services import email_service, role_service
+from classtrack.services import email_service, push_service, role_service
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +67,27 @@ class InAppChannel:
         )
 
 
+class PushChannel:
+    """Pushes to every phone the user has signed in on, once the caller commits."""
+
+    async def send(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: int,
+        kind: NotificationKind,
+        title: str,
+        body: str,
+        link: str | None = None,
+    ) -> None:
+        push_service.queue(
+            session,
+            push_service.Push(user_id=user_id, title=title, body=body, kind=kind.value, link=link),
+        )
+
+
 #: Active channels. Append an EmailChannel here to enable email delivery.
-CHANNELS: list[NotificationChannel] = [InAppChannel()]
+CHANNELS: list[NotificationChannel] = [InAppChannel(), PushChannel()]
 
 
 async def _dispatch(
@@ -245,6 +267,47 @@ async def _email_absent(session: AsyncSession, instance: ClassInstance) -> None:
             link=link,
             link_label="Reschedule this class",
         ),
+    )
+
+
+async def notify_class_starting(
+    session: AsyncSession, instance: ClassInstance, *, starts_in: timedelta
+) -> None:
+    """Remind the teacher, on their phone, that one of their classes is about to start.
+
+    Pushed only, not kept in the bell: it is worth something for a few minutes,
+    and a teacher holds several classes a day.
+    """
+    user = await _user_for_teacher(session, instance.teacher_initial)
+    if user is None:
+        return
+    minutes = max(1, ceil(starts_in.total_seconds() / 60))
+    kind = "Extra class" if instance.is_extra else "Makeup class" if instance.is_makeup else "Class"
+    where = "online" if instance.room == "ONLINE" else f"in room {instance.room}"
+    push_service.queue(
+        session,
+        push_service.Push(
+            user_id=user.id,
+            kind=push_service.CLASS_REMINDER,
+            title=f"{_course(instance)} starts in {minutes} minute{'s' if minutes != 1 else ''}",
+            body=f"{kind} {where}, {instance.time_slot}.",
+            link="/teacher",
+            ttl_seconds=int(starts_in.total_seconds()),
+        ),
+    )
+
+
+async def notify_announcement(
+    session: AsyncSession, *, user_id: int, title: str, body: str
+) -> None:
+    """Deliver what an admin wrote, as written. It is about nothing in particular,
+    so it links nowhere: the app opens Alerts on a tap."""
+    await _dispatch(
+        session,
+        user_id=user_id,
+        kind=NotificationKind.ANNOUNCEMENT,
+        title=title,
+        body=body,
     )
 
 

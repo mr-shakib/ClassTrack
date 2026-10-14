@@ -15,7 +15,7 @@ holiday  (blocks generation)                          ├──0:N──> makeup
 teacher (V) <──0:1── user                             │              │
                       │                               │              └──> class_instance
                       ├──> check_record.checked_by    │                   (is_makeup=1)
-                      ├──> notification               │
+                      ├──> notification, push_device  │
                       └──> audit_log.actor <──────────┘
 setting (k/v)
 ```
@@ -124,6 +124,7 @@ The central table. One row per class per date.
 | `teacher_response` | enum | `CONFIRMED` · `DISPUTED`, nullable |
 | `response_note` | text | nullable |
 | `resolved_at` | datetime | when a terminal status was written |
+| `reminded_at` | datetime | nullable; when the sweep pushed the teacher its "starts in N minutes" reminder |
 
 ```
 uq_instance_session_date (session_id, date)      ← makes generation idempotent
@@ -216,7 +217,16 @@ in `time_slot` is then no longer a grid coordinate `slot_bounds()` can read back
 ix_notification_user_unread (user_id, read_at)
 ```
 
-`kind ∈ {MISSED_CLASS, MAKEUP_REMINDER, ONLINE_DECISION, ONLINE_REQUEST, DISPUTE_RAISED}`
+`kind ∈ {MISSED_CLASS, MAKEUP_REMINDER, ONLINE_DECISION, ONLINE_REQUEST, DISPUTE_RAISED, ANNOUNCEMENT}`
+— `ANNOUNCEMENT` is one an admin wrote, from the Notifications tab.
+
+### 3.7a `push_device`
+
+`id · user_id FK (cascade) · token (unique, str(512)) · platform · created_at · updated_at`
+
+A phone's Firebase Cloud Messaging token, registered by the mobile app at sign-in.
+The token is unique, so a phone names one account: whoever registered it last. Removed
+at sign-out, or the first time Firebase answers that the token is gone.
 
 ### 3.8 `audit_log` — append-only
 
@@ -247,6 +257,7 @@ ix_audit_entity (entity_type, entity_id) · ix_audit_actor · ix_audit_created
 | Key | Default | Meaning |
 |---|---|---|
 | `missed_threshold_minutes` | `30` | BR-05 threshold |
+| `class_reminder_minutes` | `10` | push a teacher this long before each class; `0` off |
 | `timezone` | `Asia/Dhaka` | all clock comparisons |
 | `department` | `cse` | active department |
 

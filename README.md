@@ -79,7 +79,10 @@ Sign in with any of these — password `classtrack`:
 ## Mobile app
 
 Staff checking and the teacher's screens are also a Flutter app for Android and iOS, in
-[`mobile/`](mobile/README.md). It talks to the same API and needs no backend change.
+[`mobile/`](mobile/README.md). It talks to the same API. Notifications are pushed to it
+through Firebase, teachers are reminded before each class (minutes set at **Admin →
+Rules**), and admins can write their own at **Admin → Notifications**. The server needs
+the Firebase key: [deploy/README.md](deploy/README.md#push-notifications).
 
 ```bash
 cd mobile

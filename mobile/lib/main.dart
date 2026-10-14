@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'api/client.dart';
+import 'push.dart';
 import 'screens/home_shell.dart';
 import 'screens/login_screen.dart';
 import 'session.dart';
@@ -13,7 +14,9 @@ Future<void> main() async {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   final settings = AppSettings();
   await settings.load();
-  final session = Session(Api())..restore();
+  final push = Push();
+  await push.start();
+  final session = Session(Api(), push)..restore();
   runApp(ClassTrackApp(session: session, settings: settings));
 }
 

@@ -13,7 +13,7 @@ Admin work (dashboards, reports, approvals, routines) stays on the website.
 | Office staff, committee, admins who check | **Checking**: pick a floor, then one tap per room (running / late / absent); *Find by teacher* to correct a past record | `/staff` |
 | Teachers | **Home**: the class on now (or next), what is waiting on them, today as a timeline, and the week as a timetable (days across, slots down, any week back or forward; tap a class for its details) | — |
 | Teachers | **Reschedule**: *Reschedule required*, makeups under way with mark-done and Drive link, extra classes, past reschedules | `/teacher`, `/teacher/makeup`, `/teacher/extra` |
-| Everyone | **Alerts**: tapping one opens what it is about | the bell |
+| Everyone | **Alerts**: tapping one opens what it is about. Each is also pushed to the phone, as are notifications admins write; teachers are reminded before each class | the bell |
 | Everyone | **Profile**, as cards: who they are; for a teacher the semester (share held, conducted, late, missed, not checked) and each course against the minimum; for staff their floors; then details and settings (appearance, password, sign out) | `/profile` |
 
 A teacher who also checks classes gets Home, Reschedule and Checking. An account with neither is pointed to the website.
@@ -62,12 +62,41 @@ the user in the background. A 401 signs out with a notice on the sign-in screen.
 |---|---|
 | `lib/api/` | `client.dart` (every endpoint the app calls), `models.dart` (mirrors `web/src/lib/types.ts`) |
 | `lib/session.dart` | Sign-in, the stored token, the cached user |
+| `lib/push.dart` | Push notifications: registering the phone, and the pushes tapped or received while open |
 | `lib/staff/` | Checking: floors, a floor's rooms, the room card, find by teacher |
 | `lib/teacher/` | Home, Reschedule, the reschedule and extra-class screens, and `teacher_data.dart`, which loads what all three teacher tabs show |
 | `lib/screens/` | Sign-in, the tab shell, alerts, profile |
 | `lib/theme.dart` | The palette from `web/src/app/globals.css`, and a layered charcoal dark built from the same tokens |
 | `lib/settings.dart` | The appearance choice: light by default, dark, or match the phone; kept through sign-out |
 | `lib/util/time.dart` | The six slots, and dates on Dhaka's clock |
+
+## Push notifications
+
+Every notification the Alerts tab shows is pushed to the phone too, through Firebase
+Cloud Messaging, and a teacher is reminded before each class they hold — routine, makeup
+or extra — as long before as an admin sets (**Admin → Rules** on the website; 10 minutes
+unless changed). Reminders are pushed only; they never fill up Alerts.
+
+- **The phone is registered** on each sign-in and launch (`POST /notifications/devices`),
+  asking for notification permission the first time, and **let go on sign-out**. A
+  session that merely expired keeps its pushes, so reminders do not stop when it lapses;
+  they move to whoever signs in on the phone next.
+- **Tapping a push** opens what it is about, as tapping it in Alerts does; a reminder
+  opens Home. One that arrives while the app is open shows as a bar with *Open*.
+- **Android channels**: *Class reminders* and *Alerts* (`MainActivity.kt`), so either
+  can be silenced in the phone's settings.
+
+The Firebase project is **classtrack-diu**. `lib/firebase_options.dart`,
+`android/app/google-services.json` and `firebase.json` hold its app IDs and are meant to
+be committed (they are not secrets; every build carries them). `flutterfire configure`
+rewrites them. If Firebase cannot start, the app runs as before, without push. The
+backend needs the same project's service account
+([deploy/README.md](../deploy/README.md#push-notifications)).
+
+**iOS** is registered in the project but needs a Mac to finish: in Xcode, *Signing &
+Capabilities* → add **Push Notifications**, and in the Firebase console → Project
+settings → Cloud Messaging, upload an APNs key (Apple Developer → Keys). The deployment
+target is iOS 15, which Firebase requires.
 
 ## Rules kept from the web app
 

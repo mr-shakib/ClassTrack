@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../api/client.dart';
+import '../push.dart';
 import '../session.dart';
 import '../staff/checking_tab.dart';
 import '../teacher/home_tab.dart';
@@ -31,12 +32,14 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int _unread = 0;
   Timer? _timer;
   TeacherData? _teacher;
+  final _pushes = <StreamSubscription<PushMessage>>[];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    final user = SessionScope.read(context).user!;
+    final session = SessionScope.read(context);
+    final user = session.user!;
     final initial = user.teacherInitial;
     if (user.isTeacher && initial != null) {
       _teacher = TeacherData(context.api, initial)
@@ -45,12 +48,25 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     }
     _pollUnread();
     _timer = Timer.periodic(const Duration(seconds: 60), (_) => _pollUnread());
+
+    final push = session.push;
+    _pushes
+      ..add(push.opened.listen(_onPushOpened))
+      ..add(push.received.listen(_onPushReceived));
+    // A tap that launched the app, perhaps onto the sign-in screen first.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final pending = push.takePending();
+      if (pending != null) _onPushOpened(pending);
+    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
+    for (final s in _pushes) {
+      s.cancel();
+    }
     _teacher?.dispose();
     super.dispose();
   }
@@ -75,6 +91,60 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     } on ApiError {
       // Offline, or signed out: the badge is not worth an error.
     }
+  }
+
+  /// Something changed on the server: the badge and the teacher's classes catch up.
+  void _refresh() {
+    _pollUnread();
+    _teacher?.load();
+  }
+
+  /// A push tapped in the tray: open what it is about, over whatever was open.
+  void _onPushOpened(PushMessage m) {
+    if (!mounted) return;
+    _refresh();
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    final tabs = _tabs;
+    final link = m.link;
+    if (m.isReminder) {
+      _go(tabs, _Tab.home);
+    } else if (link != null) {
+      _openLink(tabs, link);
+    } else {
+      _go(tabs, _Tab.alerts);
+    }
+  }
+
+  /// The phone shows nothing for a push while the app is open, so the app does.
+  void _onPushReceived(PushMessage m) {
+    if (!mounted) return;
+    _refresh();
+    final title = m.title;
+    if (title == null) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(text: title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                if (m.body != null) TextSpan(text: '\n${m.body}'),
+              ],
+            ),
+          ),
+          duration: const Duration(seconds: 6),
+          // A bar with an action stays until dismissed unless told otherwise.
+          persist: false,
+          action: SnackBarAction(label: 'Open', onPressed: () => _onPushOpened(m)),
+        ),
+      );
+  }
+
+  List<_Tab> get _tabs {
+    final user = SessionScope.read(context).user!;
+    final teacher = _teacher != null;
+    return _tabsFor(teacher, user.mayCheck, user.isStaff || !teacher);
   }
 
   List<_Tab> _tabsFor(bool teacher, bool checks, bool staffFirst) => [

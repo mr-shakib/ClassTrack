@@ -19,6 +19,9 @@ Properties worth preserving:
   having run. A restart re-sweeps and reaches the same answer.
 * **Testable** -- ``now`` is a parameter, so tests control the clock instead of
   sleeping.
+
+The sweep also sends the reminders the clock calls for: a push shortly before
+each class starts, and a nudge once a makeup has ended without being marked done.
 """
 
 from __future__ import annotations
@@ -112,14 +115,16 @@ async def sweep_once(session: AsyncSession, *, now: datetime | None = None) -> d
             not_checked += 1
 
     reminded = await _remind_unfinished_makeups(session, now)
+    starting = await _remind_starting_classes(session, now)
 
-    if missed or not_checked or reminded:
+    if missed or not_checked or reminded or starting:
         await session.commit()
         logger.info(
-            "Sweep: %d missed, %d not checked, %d makeup reminders",
+            "Sweep: %d missed, %d not checked, %d makeup reminders, %d starting soon",
             missed,
             not_checked,
             reminded,
+            starting,
         )
 
     return {
@@ -127,7 +132,43 @@ async def sweep_once(session: AsyncSession, *, now: datetime | None = None) -> d
         "missed": missed,
         "not_checked": not_checked,
         "reminded": reminded,
+        "starting": starting,
     }
+
+
+async def _remind_starting_classes(session: AsyncSession, now: datetime) -> int:
+    """Remind each teacher once, the set number of minutes before each class they hold.
+
+    A pass that comes late -- the server was down -- still reminds a class that
+    has not started, with the minutes actually left; one that has started is let go.
+    """
+    lead = await settings_service.class_reminder_minutes(session)
+    if lead <= 0:
+        return 0
+    horizon = now + timedelta(minutes=lead)
+    upcoming = (
+        await session.scalars(
+            select(ClassInstance).where(
+                ClassInstance.date >= now.date(),
+                ClassInstance.date <= horizon.date(),
+                ClassInstance.reminded_at.is_(None),
+                # Unresolved, or an approved online makeup, which carries its
+                # status from the start (BR-12). A cancelled class has a status.
+                ClassInstance.status.is_(None)
+                | (ClassInstance.is_makeup & (ClassInstance.status == ClassStatus.ONLINE_APPROVED)),
+            )
+        )
+    ).all()
+
+    reminded = 0
+    for instance in upcoming:
+        start = slot_start_at(instance.date, instance.start_min)
+        if not now < start <= horizon:
+            continue
+        await notification_service.notify_class_starting(session, instance, starts_in=start - now)
+        instance.reminded_at = utcnow()
+        reminded += 1
+    return reminded
 
 
 async def _remind_unfinished_makeups(session: AsyncSession, now: datetime) -> int:

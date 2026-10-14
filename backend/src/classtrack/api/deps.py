@@ -98,6 +98,7 @@ RoleAdminUser = _gate(P.MANAGE_ROLES)
 #: Roles and the permission list, to read or to give out to accounts.
 RoleReaderUser = _gate(P.MANAGE_ROLES, P.MANAGE_ACCOUNTS)
 AuditUser = _gate(P.VIEW_AUDIT)
+NotifierUser = _gate(P.SEND_NOTIFICATIONS)
 
 
 # --- teaching ---------------------------------------------------------------

@@ -368,7 +368,7 @@ a nightly cron entry satisfies the source SRS backup requirement for v1.
 
 | Deferred feature | Seam already in place |
 |---|---|
-| Email / SMS | `NotificationChannel` protocol; add `EmailChannel` beside `InAppChannel` |
+| Email / SMS | `NotificationChannel` protocol; add `EmailChannel` beside `InAppChannel` and `PushChannel` |
 | Editable verification grid | `IngestionReport.skipped_cells` already carries page/day/slot/room/text |
 | Conflict override | `ConflictReport.overridable` + `AuditLog.reason` |
 | Monthly/semester/yearly reports | `report_service` aggregates already take a date range |

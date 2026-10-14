@@ -21,20 +21,28 @@ logger = logging.getLogger(__name__)
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:  # noqa: ARG001
-    """Run the status sweep alongside the app, and shut it down cleanly."""
+    """Run the status sweep and the push sender alongside the app, and shut them down cleanly."""
+    from classtrack.services import push_service
+
     settings = get_settings()
-    task: asyncio.Task[None] | None = None
+    tasks: list[asyncio.Task[None]] = []
+
+    # Before the sweep, so its first pass already reaches phones.
+    sender = push_service.start()
+    if sender is not None:
+        tasks.append(sender)
+        logger.info("Push notifications on")
 
     if settings.sweep_interval_seconds > 0:
         from classtrack.services.sweep import sweep_loop
 
-        task = asyncio.create_task(sweep_loop(settings.sweep_interval_seconds))
+        tasks.append(asyncio.create_task(sweep_loop(settings.sweep_interval_seconds)))
         logger.info("Status sweep started (every %ss)", settings.sweep_interval_seconds)
 
     try:
         yield
     finally:
-        if task is not None:
+        for task in reversed(tasks):
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await task

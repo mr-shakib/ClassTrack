@@ -61,6 +61,12 @@ class Settings(BaseSettings):
     #: Public origin for links in emails, e.g. "https://class.bitstreamhq.com".
     public_url: str | None = None
 
+    # --- push -----------------------------------------------------------------
+    #: The Firebase service account that sends pushes to the mobile app: its JSON
+    #: itself, or the path of a file holding it. Unset disables push; in-app
+    #: notifications are unaffected.
+    fcm_credentials: str | None = None
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_origins(cls, v: object) -> object:

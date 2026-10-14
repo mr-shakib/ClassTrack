@@ -125,6 +125,7 @@ class _NotificationTile extends StatelessWidget {
       'MAKEUP_REMINDER' => (Icons.alarm_rounded, p.warn, p.warnSoft),
       'ONLINE_DECISION' || 'MAKEUP_DECISION' => (Icons.gavel_rounded, p.info, p.infoSoft),
       'ONLINE_REQUEST' || 'MAKEUP_REQUEST' => (Icons.inbox_rounded, p.brand, p.brandSoft),
+      'ANNOUNCEMENT' => (Icons.campaign_rounded, p.info, p.infoSoft),
       _ => (Icons.notifications_rounded, p.brand, p.brandSoft),
     };
   }

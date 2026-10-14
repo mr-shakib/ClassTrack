@@ -122,6 +122,9 @@ class ClassInstance(Base, TimestampMixin):
         Enum(ClassStatus, native_enum=False), default=None
     )
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    #: When the sweep pushed the teacher a reminder that the class is about to
+    #: start, so each class is reminded once.
+    reminded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     is_makeup: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     #: A class the teacher booked in an empty room on top of the routine. Checked

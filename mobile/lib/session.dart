@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
@@ -5,16 +6,18 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'api/client.dart';
 import 'api/models.dart';
+import 'push.dart';
 
 /// Who is signed in. The token lives in the platform keystore; the user is
 /// cached beside it, so the app opens straight onto its screens and refreshes
 /// the user in the background.
 class Session extends ChangeNotifier {
-  Session(this.api) {
-    api.onUnauthorized = () => signOut(notice: 'Your session ended. Sign in again.');
+  Session(this.api, this.push) {
+    api.onUnauthorized = () => signOut(notice: 'Your session ended. Sign in again.', expired: true);
   }
 
   final Api api;
+  final Push push;
   final _store = const FlutterSecureStorage();
 
   static const _tokenKey = 'token';
@@ -45,7 +48,11 @@ class Session extends ChangeNotifier {
     }
     restoring = false;
     notifyListeners();
-    if (user != null) await refreshUser();
+    if (user != null) {
+      await refreshUser();
+      // A launch re-registers, so the server always has the phone's current token.
+      if (user != null) unawaited(push.register(api));
+    }
   }
 
   /// Picks up role changes made on the website since the last launch.
@@ -70,12 +77,17 @@ class Session extends ChangeNotifier {
     await _store.write(key: _userKey, value: jsonEncode(signedIn.raw));
     await _store.write(key: _usernameKey, value: lastUsername);
     notifyListeners();
+    unawaited(push.register(api));
     // The sign-in response leaves out the faculty photo; /me has it.
     await refreshUser();
   }
 
-  Future<void> signOut({String? notice}) async {
+  /// `expired`: the server ended the session, rather than the person signing out.
+  /// The phone keeps its pushes then -- it is still theirs, and reminders should
+  /// not stop because a session lapsed -- until someone signs in on it again.
+  Future<void> signOut({String? notice, bool expired = false}) async {
     if (user == null && api.token == null) return;
+    if (!expired) await push.unregister(api);
     api.token = null;
     user = null;
     this.notice = notice;

@@ -1,5 +1,7 @@
+import 'package:classtrack/push.dart';
 import 'package:classtrack/util/time.dart';
 import 'package:classtrack/widgets/common.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -27,5 +29,22 @@ void main() {
     expect(Avatar.initialsOf('Dr. Sheak Rashed Haider Noori', 'SRH'), 'SRH');
     expect(Avatar.initialsOf('Dr. Sheak Rashed Haider Noori', null), 'SN');
     expect(Avatar.initialsOf('Staff One', null), 'SO');
+  });
+
+  test('a push carries its kind and link as data; an empty link is none', () {
+    final missed = PushMessage.from(
+      const RemoteMessage(
+        data: {'kind': 'CLASS_REPORTED', 'link': '/teacher/makeup?instance=7'},
+        notification: RemoteNotification(title: 'Class missed', body: 'CSE311 has been marked as missed.'),
+      ),
+    );
+    expect(missed.link, '/teacher/makeup?instance=7');
+    expect(missed.title, 'Class missed');
+    expect(missed.isReminder, isFalse);
+
+    final reminder = PushMessage.from(const RemoteMessage(data: {'kind': 'CLASS_REMINDER', 'link': ''}));
+    expect(reminder.isReminder, isTrue);
+    expect(reminder.link, isNull);
+    expect(reminder.title, isNull);
   });
 }

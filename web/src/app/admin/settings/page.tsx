@@ -11,6 +11,7 @@ export default function SettingsPage() {
   const [missed, setMissed] = useState("");
   const [minimum, setMinimum] = useState("");
   const [byMid, setByMid] = useState("");
+  const [reminder, setReminder] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -22,6 +23,7 @@ export default function SettingsPage() {
       setMissed(v.missed_threshold_minutes ?? "30");
       setMinimum(v.min_conducted_classes ?? "18");
       setByMid(v.min_conducted_before_mid ?? "9");
+      setReminder(v.class_reminder_minutes ?? "10");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load the rules.");
     }
@@ -41,6 +43,7 @@ export default function SettingsPage() {
         missed_threshold_minutes: Number(missed),
         min_conducted_classes: Number(minimum),
         min_conducted_before_mid: Number(byMid),
+        class_reminder_minutes: Number(reminder),
       });
       setNotice("Saved. The next sweep and every report use the new values.");
       await load();
@@ -108,6 +111,24 @@ export default function SettingsPage() {
               className={inputClass}
               value={byMid}
               onChange={(e) => setByMid(e.target.value)}
+            />
+          </Field>
+
+          <Field
+            label="Class reminder (minutes before)"
+            hint={
+              Number(reminder) === 0 && reminder !== ""
+                ? "Off: no teacher is reminded before their classes."
+                : "The mobile app reminds each teacher this long before every class they hold, makeups and extra classes included. 0 turns reminders off."
+            }
+          >
+            <input
+              type="number"
+              min={0}
+              max={120}
+              className={inputClass}
+              value={reminder}
+              onChange={(e) => setReminder(e.target.value)}
             />
           </Field>
 

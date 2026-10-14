@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- brandSolid in lib/theme.dart: tints the push icon in the tray. -->
+    <color name="notification">#1D4ED8</color>
+</resources>

@@ -66,6 +66,11 @@ export const ADMIN_TABS: { href: string; label: string; may: (u: User) => boolea
   },
   { href: "/admin/calendar", label: "Calendar", may: (u) => can(u, "calendar.manage") },
   { href: "/admin/settings", label: "Rules", may: (u) => can(u, "settings.manage") },
+  {
+    href: "/admin/notifications",
+    label: "Notifications",
+    may: (u) => can(u, "notifications.send"),
+  },
   { href: "/admin/audit", label: "Audit log", may: (u) => can(u, "audit.view") },
 ];
 

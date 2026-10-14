@@ -70,6 +70,7 @@ request (the session token carries only who you are).
 | `roles.manage` | Create and edit roles | admins |
 | `audit.view` | Audit log | CO, admins |
 | `alerts.receive` | Notifications of reschedules and booked rooms | admins |
+| `notifications.send` | Write a notification to teachers and staff | CO, admins |
 
 "Admins" are Super admin, Head of Department and Associate Head; CO is the Coordination
 Officer. A role's **kind** says what the holder is: `TEACHER` (only on accounts with a
@@ -473,6 +474,21 @@ default 18) for any period but a term, which is held to its own share.
 | `GET` | `/notifications` | any | `?unread=true` |
 | `POST` | `/notifications/{id}/read` | any | Mark read |
 | `POST` | `/notifications/read-all` | any | Mark all read |
+| `POST` | `/notifications/devices` | any | `{token, platform: "android"\|"ios"}`: push my notifications to this phone. Idempotent; a phone serves the last account to register it |
+| `POST` | `/notifications/devices/remove` | any | `{token}`: stop pushing to this phone, if it is mine (sign-out) |
+
+An admin's own notifications (`notifications.send`):
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/admin/notifications` | `{title ≤120, body ≤1000, audience: everyone\|teachers\|staff\|chosen, user_ids?}` → `{sent_to, on_phones}`. A group leaves out the sender; `chosen` is exactly who was chosen. Kind `ANNOUNCEMENT`, no link; audited as `notification_sent` |
+| `GET` | `/admin/notifications` | The last 20 sent, newest first, read from the audit log |
+| `GET` | `/admin/notifications/recipients` | Every active account: name, initial, roles, `is_teacher`, `is_staff`, `on_phone` |
+
+Every notification is also pushed, through Firebase Cloud Messaging, to each phone its
+account registered: the same title, body and `link`, with `data = {kind, link}`. A teacher
+is also pushed `kind: CLASS_REMINDER` the set minutes before each class they hold
+(`class_reminder_minutes`); a reminder is not kept as a notification.
 
 ## 9. Admin
 
@@ -489,7 +505,7 @@ default 18) for any period but a term, which is held to its own share.
 | `GET/POST/DELETE` | `/admin/holidays` | MGR | Calendar (`?semester_id=`); a day off takes its classes off the schedule at once |
 | `GET/POST` | `/admin/users` | HOD, SA | User management |
 | `PATCH` | `/admin/users/{id}` | HOD, SA | Rename, change role, (de)activate, reset password |
-| `GET/PUT` | `/admin/settings` | MGR | Missed threshold, minimum classes per course (whole semester, and by the mid-term) |
+| `GET/PUT` | `/admin/settings` | MGR | Missed threshold, minimum classes per course (whole semester, and by the mid-term), class reminder minutes (0–120, 0 off) |
 | `GET` | `/admin/audit` | MGR | `?entity_type=&entity_id=&actor=` |
 | `POST` | `/admin/instances/generate` | HOD, SA | Re-run generation (idempotent) |
 

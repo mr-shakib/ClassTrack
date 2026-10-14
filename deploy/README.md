@@ -90,6 +90,28 @@ docker compose -f deploy/compose.prod.yaml exec api classtrack faculty
 Each send is logged (`Emailed ...` or `Email to ... rejected`) in the API logs.
 Without a key nothing is mailed, and the teacher is still told in the app.
 
+## Push notifications
+
+Every notification the bell shows is also pushed to the phones its person signed
+in on in the mobile app, and teachers are reminded shortly before each class
+(**Admin → Rules → Class reminder**, 10 minutes unless changed; 0 turns it off).
+Admins can also write their own (**Admin → Notifications**). Pushes go through
+Firebase Cloud Messaging, project **classtrack-diu**; the app's side of it is in the repo
+([mobile/README.md](../mobile/README.md#push-notifications)). The API needs the project's
+service account key: Firebase console → **Project settings → Service accounts →
+Generate new private key**. Put it in `.env` on one line, in single quotes, and recreate
+the API container:
+
+```bash
+echo "CLASSTRACK_FCM_CREDENTIALS='$(jq -c . classtrack-firebase-adminsdk.json)'" >> /srv/classtrack/.env
+docker compose --env-file /srv/classtrack/.env -f deploy/compose.nginx.yaml up -d api
+```
+
+Then delete the downloaded key file: it signs in as the project. The API logs
+`Push notifications on` at start, and `Pushed N to M phones` after each batch; without
+the key it logs `Push disabled`, and the app's Alerts tab still has everything.
+A phone that uninstalled the app is forgotten the first time Firebase refuses it.
+
 ## Updating an existing deployment
 
 Back up first, then pull and rebuild. The API container applies any new
