@@ -48,12 +48,15 @@ export default function AppPage() {
   const { user, loading: authLoading } = useAuth();
   const [app, setApp] = useState<AndroidApp | null>(null);
   const [failed, setFailed] = useState(false);
-  const [here, setHere] = useState<string | null>(null);
+  /** This page's address, for a QR code -- shown on a computer only, never on the phone itself. */
+  const [qr, setQr] = useState<string | null>(null);
 
   useEffect(() => {
     api.androidApp().then(setApp, () => setFailed(true));
-    // Known only in the browser: the QR code opens this same page on a phone.
-    setHere(`${window.location.origin}/app`);
+    // Known only in the browser.
+    if (!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+      setQr(`${window.location.origin}/app`);
+    }
   }, []);
 
   const signedOut = !authLoading && !user;
@@ -122,10 +125,10 @@ export default function AppPage() {
               </div>
             </div>
 
-            {here && app?.available ? (
+            {qr && app?.available ? (
               <div className="hidden text-center md:block">
                 <div className="rounded-xl border border-line bg-white p-2">
-                  <QrCode value={here} label="QR code that opens this page on a phone" />
+                  <QrCode value={qr} label="QR code that opens this page on a phone" />
                 </div>
                 <p className="mt-2 max-w-40 text-xs text-ink-faint">
                   On a computer? Scan this with your phone&apos;s camera.
