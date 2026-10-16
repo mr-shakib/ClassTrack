@@ -8,6 +8,7 @@ import '../theme.dart';
 import '../util/time.dart';
 import '../widgets/common.dart';
 import '../widgets/status.dart';
+import 'outbox.dart';
 
 /// One room on the checking screen. Mirrors web/src/components/RoomCard.tsx.
 ///
@@ -66,7 +67,7 @@ class _RoomCardState extends State<RoomCard> {
   Future<void> _submit(String outcome, {String? arrival}) async {
     HapticFeedback.mediumImpact();
     final messenger = ScaffoldMessenger.of(context);
-    final api = context.api;
+    final session = SessionScope.read(context);
     final previous = row;
     final remark = _remark.text.trim().isEmpty ? null : _remark.text.trim();
     setState(() {
@@ -82,27 +83,52 @@ class _RoomCardState extends State<RoomCard> {
       ),
     );
 
+    final check = PendingCheck(
+      instanceId: previous.instanceId,
+      outcome: outcome,
+      observedAt: observedNow(),
+      date: previous.date ?? todayIso(),
+      room: previous.room,
+      label: '${previous.courseCode} · ${previous.scheduledStart}',
+      account: session.api.cacheScope,
+      arrivalTime: arrival,
+      remark: remark,
+      reason: _reason.text.trim().isEmpty ? null : _reason.text.trim(),
+    );
     try {
-      final res = await api.submitCheck(
-        previous.instanceId,
-        outcome: outcome,
-        arrivalTime: arrival,
-        remark: remark,
-        reason: _reason.text.trim().isEmpty ? null : _reason.text.trim(),
-      );
-      widget.onChanged(
-        previous.withCheck(
-          CheckRecord(
-            outcome: outcome,
-            arrivalTime: arrival,
-            lateMinutes: res.lateMinutes,
-            remark: remark,
-            checkedAt: res.checkedAt,
-            checkedBy: res.checkedBy,
+      final res = await session.outbox.send(check);
+      if (res == null) {
+        // No signal: kept on the phone, and shown as kept.
+        widget.onChanged(previous.withCheck(check.record, outcome == 'TEACHER_NOT_FOUND' ? null : outcome));
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(content: Text('No signal. ${previous.room} is saved on this phone and sends itself later.')),
+          );
+      } else {
+        // Someone saw the class after this phone did and sent theirs first: theirs stands.
+        final kept = res.outcome ?? outcome;
+        widget.onChanged(
+          previous.withCheck(
+            CheckRecord(
+              outcome: kept,
+              arrivalTime: kept == outcome ? arrival : null,
+              lateMinutes: res.lateMinutes,
+              remark: kept == outcome ? remark : null,
+              checkedAt: res.checkedAt,
+              checkedBy: res.checkedBy,
+            ),
+            res.status,
           ),
-          res.status,
-        ),
-      );
+        );
+        if (kept != outcome) {
+          messenger
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(content: Text('${previous.room}: ${res.checkedBy} checked it after you, so theirs stands.')),
+            );
+        }
+      }
       if (mounted) {
         setState(() {
           _confirmingLate = false;
@@ -425,6 +451,7 @@ class _RoomCardState extends State<RoomCard> {
     final p = context.palette;
     final check = row.check!;
     final saving = check.checkedAt.isEmpty;
+    final queued = check.isQueued;
     final (text, solid, tone, tint, icon) = switch (check.outcome) {
       'RUNNING' => ('Class is running', p.okSolid, p.ok, p.okSoft, Icons.check_circle_rounded),
       'LATE' => (
@@ -488,6 +515,19 @@ class _RoomCardState extends State<RoomCard> {
                           ),
                           const SizedBox(width: 8),
                           Text('Saving…', style: TextStyle(color: p.inkFaint, fontSize: 14)),
+                        ],
+                      )
+                    : queued
+                    ? Row(
+                        children: [
+                          Icon(Icons.cloud_upload_outlined, size: 16, color: p.info),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              'On this phone · sends when online',
+                              style: TextStyle(color: p.info, fontSize: 14, fontWeight: FontWeight.w600),
+                            ),
+                          ),
                         ],
                       )
                     : Text(

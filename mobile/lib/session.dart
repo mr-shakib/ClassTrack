@@ -6,7 +6,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'api/client.dart';
 import 'api/models.dart';
+import 'offline/cache.dart';
 import 'push.dart';
+import 'staff/outbox.dart';
 
 /// Who is signed in. The token lives in the platform keystore; the user is
 /// cached beside it, so the app opens straight onto its screens and refreshes
@@ -14,10 +16,17 @@ import 'push.dart';
 class Session extends ChangeNotifier {
   Session(this.api, this.push) {
     api.onUnauthorized = () => signOut(notice: 'Your session ended. Sign in again.', expired: true);
+    api.cache = cache;
   }
 
   final Api api;
   final Push push;
+
+  /// What was last read, for screens to show with no signal.
+  final cache = OfflineCache();
+
+  /// Checks made with no signal, waiting to be sent.
+  late final outbox = Outbox(api);
   final _store = const FlutterSecureStorage();
 
   static const _tokenKey = 'token';
@@ -41,14 +50,17 @@ class Session extends ChangeNotifier {
       if (token != null && cached != null) {
         api.token = token;
         user = User.fromJson(jsonDecode(cached) as Json);
+        api.cacheScope = '${user!.id}';
       }
     } catch (_) {
       // A keystore that cannot be read is the same as being signed out.
       user = null;
     }
+    await outbox.load();
     restoring = false;
     notifyListeners();
     if (user != null) {
+      unawaited(outbox.adopt(api.cacheScope));
       await refreshUser();
       // A launch re-registers, so the server always has the phone's current token.
       if (user != null) unawaited(push.register(api));
@@ -69,6 +81,10 @@ class Session extends ChangeNotifier {
 
   Future<void> signIn(String username, String password) async {
     final (signedIn, token) = await api.login(username.trim(), password);
+    // Another account's reads and waiting checks are not this one's to see or send.
+    await cache.clearAccount();
+    api.cacheScope = '${signedIn.id}';
+    await outbox.adopt(api.cacheScope);
     api.token = token;
     user = signedIn;
     notice = null;
@@ -84,10 +100,16 @@ class Session extends ChangeNotifier {
 
   /// `expired`: the server ended the session, rather than the person signing out.
   /// The phone keeps its pushes then -- it is still theirs, and reminders should
-  /// not stop because a session lapsed -- until someone signs in on it again.
+  /// not stop because a session lapsed -- until someone signs in on it again. It
+  /// keeps their waiting checks and what they read, too, to send and show once
+  /// they sign in again.
   Future<void> signOut({String? notice, bool expired = false}) async {
     if (user == null && api.token == null) return;
-    if (!expired) await push.unregister(api);
+    if (!expired) {
+      await push.unregister(api);
+      await outbox.clear();
+      await cache.clearAccount();
+    }
     api.token = null;
     user = null;
     this.notice = notice;

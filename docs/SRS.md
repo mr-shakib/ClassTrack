@@ -69,7 +69,9 @@ to a working-but-shallow depth. It satisfies all ten acceptance criteria (AC-01�
 - Staff area/room assignment (`assigned_rooms`) — all staff see all rooms in v1
 - Override-with-reason flow for conflicts — v1 blocks conflicts outright
 - Multi-department support — schema carries `department`, UI assumes CSE
-- PWA / offline checking, QR/NFC, geolocation — §24 of source SRS
+- QR/NFC, geolocation — §24 of source SRS. (Offline checking was deferred here and has since
+  been built: the app keeps checks made with no signal and sends them later; the student
+  page installs to a home screen and opens offline.)
 
 ## 3. User roles
 

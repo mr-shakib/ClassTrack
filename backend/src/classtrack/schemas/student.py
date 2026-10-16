@@ -47,6 +47,9 @@ class TopicsOut(BaseModel):
     alerts: list[str]
     #: Followed for a push shortly before each of their classes.
     reminders: list[str]
+    #: How long before a class it is reminded; 0 means no reminders. The app
+    #: sets its own alarm this far ahead when the phone allows it.
+    reminder_minutes: int = 10
 
 
 class TeacherCardOut(BaseModel):

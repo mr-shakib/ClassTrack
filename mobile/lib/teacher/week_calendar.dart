@@ -454,7 +454,7 @@ class _Legend extends StatelessWidget {
     final p = context.palette;
     const items = [
       (_Kind.upcoming, 'Upcoming'),
-      (_Kind.held, 'Held'),
+      (_Kind.held, 'Conducted'),
       (_Kind.late, 'Late'),
       (_Kind.missed, 'Missed'),
       (_Kind.notChecked, 'Not checked'),

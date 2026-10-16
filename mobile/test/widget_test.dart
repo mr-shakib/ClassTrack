@@ -1,5 +1,7 @@
 import 'package:classtrack/api/models.dart';
 import 'package:classtrack/push.dart';
+import 'package:classtrack/offline/offline_bar.dart';
+import 'package:classtrack/staff/outbox.dart';
 import 'package:classtrack/student/student.dart';
 import 'package:classtrack/util/time.dart';
 import 'package:classtrack/widgets/common.dart';
@@ -79,5 +81,40 @@ void main() {
     expect(c.movedOnline, isTrue);
     expect(c.teacher.display, 'Teacher A');
     expect(c.noteBody, 'Quiz');
+  });
+
+  test('a waiting check keeps everything it needs across a restart', () {
+    final c = PendingCheck(
+      instanceId: 12,
+      outcome: 'LATE',
+      observedAt: '2026-10-17T10:06:00+06:00',
+      date: '2026-10-17',
+      room: 'KT-305',
+      label: 'CSE311(70_A) · 10:00',
+      account: '8',
+      arrivalTime: '10:05',
+    );
+    final back = PendingCheck.fromJson(c.toJson());
+    expect(back.instanceId, 12);
+    expect(back.observedAt, '2026-10-17T10:06:00+06:00');
+    expect(back.account, '8');
+    expect(back.arrivalTime, '10:05');
+    expect(back.failure, isNull);
+    expect(back.record.isQueued, isTrue);
+  });
+
+  test('a check is stamped with Dhaka time and its offset', () {
+    expect(RegExp(r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\+06:00$').hasMatch(observedNow()), isTrue);
+  });
+
+  test('a saved time reads as the hour today, the date before', () {
+    final now = DateTime.now().toUtc();
+    expect(savedLabel(now), matches(RegExp(r'^\d\d:\d\d$')));
+    expect(savedLabel(now.subtract(const Duration(days: 3))), matches(RegExp(r'^\d{1,2} \w{3}, \d\d:\d\d$')));
+  });
+
+  test('the reminder lead defaults when an older server leaves it out', () {
+    expect(StudentTopics.fromJson({'alerts': [], 'reminders': []}).reminderMinutes, 10);
+    expect(StudentTopics.fromJson({'alerts': [], 'reminders': [], 'reminder_minutes': 15}).reminderMinutes, 15);
   });
 }

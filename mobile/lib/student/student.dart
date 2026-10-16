@@ -8,22 +8,28 @@ import '../api/client.dart';
 import '../api/models.dart';
 import '../push.dart';
 import '../util/time.dart';
+import 'class_alarm.dart';
 
 /// A student on this phone. Students have no account: they pick the groups
 /// they sit in -- a section, its lab group, any retake groups, as tokens like
 /// `63_A1` or `CSE447:RE_A` -- and the phone follows those groups' push topics.
 /// Everything is kept on the phone and survives restarts.
 class Student extends ChangeNotifier {
-  Student(this.api, this.push);
+  Student(this.api, this.push, this.clock);
 
   final Api api;
   final Push push;
+
+  /// Rings Class Alarm on the phone, when the phone allows it.
+  final ClassAlarm clock;
   final _store = const FlutterSecureStorage();
 
   static const _groupsKey = 'student.groups';
   static const _alarmKey = 'student.alarm';
   static const _topicsKey = 'student.topics';
   static const _seenKey = 'student.seen';
+  static const _leadKey = 'student.lead';
+  static const _onPhoneKey = 'student.onphone';
 
   List<String> groups = [];
 
@@ -32,7 +38,14 @@ class Student extends ChangeNotifier {
 
   /// The newest notice read, so Updates can mark the rest new.
   int seen = 0;
+
+  /// Minutes before a class that Class Alarm rings, as the department sets it.
+  int lead = 10;
+
+  /// Class Alarm rings from the phone, so with no signal too; else the server pushes it.
+  bool onPhone = false;
   Set<String> _followed = {};
+  String _scheduled = '';
 
   bool get active => groups.isNotEmpty;
 
@@ -42,6 +55,8 @@ class Student extends ChangeNotifier {
       alarm = (await _store.read(key: _alarmKey)) != 'off';
       _followed = {...((jsonDecode(await _store.read(key: _topicsKey) ?? '[]') as List?) ?? const []).cast<String>()};
       seen = int.tryParse(await _store.read(key: _seenKey) ?? '') ?? 0;
+      lead = int.tryParse(await _store.read(key: _leadKey) ?? '') ?? 10;
+      onPhone = (await _store.read(key: _onPhoneKey)) == 'yes';
     } catch (_) {
       // A keystore that cannot be read is a phone with no student on it.
       groups = [];
@@ -57,8 +72,10 @@ class Student extends ChangeNotifier {
 
   Future<void> setAlarm(bool on) async {
     alarm = on;
+    _scheduled = '';
     notifyListeners();
     await _write(_alarmKey, on ? 'on' : 'off');
+    if (!on) await clock.clear();
     await sync();
   }
 
@@ -69,30 +86,61 @@ class Student extends ChangeNotifier {
     await _write(_seenKey, '$id');
   }
 
-  /// Leaves student mode: the phone stops following every topic.
+  /// Leaves student mode: the phone stops following every topic, and rings no more.
   Future<void> leave() async {
     groups = [];
     notifyListeners();
     await _store.delete(key: _groupsKey);
+    await clock.clear();
+    _scheduled = '';
+    await sync();
+  }
+
+  /// Opens the phone's setting that lets Class Alarm ring from the phone.
+  Future<void> allowOnPhone() async {
+    await clock.askExact();
     await sync();
   }
 
   /// Follows the topics of the groups picked, and leaves the rest. On each
   /// launch too, since a new Firebase token starts following nothing.
+  ///
+  /// Class Alarm rings from the phone when it may set exact alarms; only then
+  /// does the phone leave the reminder topics, so a student is reminded once.
   Future<void> sync() async {
     var wanted = <String>{};
     if (active) {
       await push.askPermission();
+      final exact = alarm && await clock.exactAllowed();
       try {
         final topics = await api.studentTopics(groups);
-        wanted = {...topics.alerts, if (alarm) ...topics.reminders};
+        lead = topics.reminderMinutes;
+        await _write(_leadKey, '$lead');
+        wanted = {...topics.alerts, if (alarm && !exact) ...topics.reminders};
       } on ApiError {
         // Offline: keep what is followed, and try on the next launch.
         return;
       }
+      if (exact != onPhone) {
+        onPhone = exact;
+        _scheduled = '';
+        await _write(_onPhoneKey, exact ? 'yes' : 'no');
+        notifyListeners();
+      }
+      if (!exact) await clock.clear();
     }
     _followed = await push.follow(wanted: wanted, followed: _followed);
     await _write(_topicsKey, jsonEncode(_followed.toList()));
+  }
+
+  /// Sets Class Alarm on the phone for these classes, when it rings from the phone.
+  /// Only when they changed: the routine reloads every few minutes.
+  Future<void> ring(List<StudentClass> classes) async {
+    if (!active || !alarm || !onPhone) return;
+    final key = '$lead|${classes.where((c) => c.on).map((c) => '${c.id}@${c.date}${c.start}').join(',')}';
+    if (key == _scheduled) return;
+    _scheduled = key;
+    await clock.schedule(classes, lead);
   }
 
   Future<void> _write(String key, String value) async {

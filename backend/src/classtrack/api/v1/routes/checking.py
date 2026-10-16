@@ -9,6 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, Query
 
 from classtrack.api.deps import CheckerUser, DashboardUser, DayMarkerUser, SessionDep
 from classtrack.core.errors import ValidationError
+from classtrack.models import User
 from classtrack.routine.lattice import SLOTS
 from classtrack.schemas.monitoring import (
     CheckingScreen,
@@ -153,17 +154,24 @@ async def submit(
         arrival_time=payload.arrival_time,
         remark=payload.remark,
         reason=payload.reason,
+        observed_at=payload.observed_at,
     )
     outside = not status_engine.is_checkable(instance)
     await session.commit()
     background.add_task(email_service.send_all, email_service.take(session))
+    check = instance.check
+    # Someone else's, when theirs was seen later than this one: say whose.
+    by = user
+    if check is not None and check.checked_by_id != user.id:
+        by = await session.get(User, check.checked_by_id) or user
     return CheckResponse(
         instance_id=instance.id,
         status=status_engine.derive(instance),
-        late_minutes=instance.check.late_minutes if instance.check else None,
-        checked_by=user.full_name,
-        checked_at=instance.check.checked_at if instance.check else status_engine.now_local(),
+        late_minutes=check.late_minutes if check else None,
+        checked_by=by.full_name,
+        checked_at=check.checked_at if check else status_engine.now_local(),
         outside_window=outside,
+        outcome=check.outcome if check else payload.outcome,
     )
 
 

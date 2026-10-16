@@ -3,6 +3,11 @@
 One check per instance, upserted. That is what makes submission safe to retry
 over a flaky mobile connection: a double tap cannot create two records.
 
+A check made with no signal waits on the phone and arrives later, carrying the
+time it was made (``observed_at``). That time is trusted only between the class's
+start and the moment it arrives, and an observation older than the one on file
+changes nothing: whichever was seen last stands, not whichever arrived last.
+
 Note what this module does *not* do. A ``TEACHER_NOT_FOUND`` observation does not
 become ``MISSED`` here -- only the sweep may decide that, once the threshold has
 elapsed (BR-05). Recording the observation and classifying the class are
@@ -14,7 +19,7 @@ from __future__ import annotations
 import logging
 from collections import Counter
 from datetime import date as Date
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -66,6 +71,7 @@ async def submit(
     arrival_time: time | None = None,
     remark: str | None = None,
     reason: str | None = None,
+    observed_at: datetime | None = None,
     now: datetime | None = None,
 ) -> ClassInstance:
     """Record a monitoring observation for one class instance.
@@ -97,6 +103,7 @@ async def submit(
         raise ValidationError("An arrival time is required when recording a late class.")
 
     now = now or status_engine.now_local()
+    seen = observation_time(instance, observed_at, now=now)
 
     # --- reporting hours: from the class's start to the end of its day -------
     late_override = not status_engine.is_checkable(instance, now=now)
@@ -128,8 +135,19 @@ async def submit(
     }
 
     record = instance.check
+    if record is not None:
+        on_file = status_engine.to_local(record.checked_at)
+        # Someone saw the class after this was seen, and said so first: this
+        # one arrived late from a phone that had no signal. Or it is this very
+        # observation, sent again because its answer was lost. Either way it
+        # changes nothing.
+        retried = (
+            on_file == seen and record.outcome is outcome and record.checked_by_id == user.id
+        )
+        if on_file > seen or retried:
+            return instance
     if record is None:
-        record = CheckRecord(instance_id=instance.id, checked_at=now)
+        record = CheckRecord(instance_id=instance.id, checked_at=seen)
         session.add(record)
         instance.check = record
 
@@ -138,7 +156,7 @@ async def submit(
     record.arrival_time = arrival_time
     record.late_minutes = late
     record.remark = remark
-    record.checked_at = now
+    record.checked_at = seen
 
     resolved = _IMMEDIATE.get(outcome)
     if resolved is not None:
@@ -176,6 +194,29 @@ async def submit(
 
     await session.flush()
     return instance
+
+
+#: How far ahead of the server a phone's clock may run before its time is ignored.
+_CLOCK_SKEW = timedelta(minutes=5)
+
+
+def observation_time(
+    instance: ClassInstance, observed_at: datetime | None, *, now: datetime
+) -> datetime:
+    """When the class was seen: the phone's time if it is believable, else now.
+
+    Believable means on the class's own day and not ahead of now by more than a
+    phone's clock drifts. It is then held between the class's start and now, so
+    a phone running fast or slow cannot place a check outside the class.
+    """
+    if observed_at is None:
+        return now
+    seen = status_engine.to_local(observed_at)
+    day_starts = status_engine.slot_start_at(instance.date, 0)
+    if seen < day_starts or seen > now + _CLOCK_SKEW:
+        return now
+    starts = status_engine.slot_start_at(instance.date, instance.start_min)
+    return min(max(seen, starts), now)
 
 
 #: What a class marked conducted carries as its remark, so the record says how

@@ -192,16 +192,24 @@ and `reason` is optional.
 ```jsonc
 { "outcome": "LATE",              // RUNNING | LATE | TEACHER_NOT_FOUND
   "arrival_time": "10:08",        // required iff LATE
-  "remark": null }
+  "remark": null,
+  "observed_at": "2026-09-13T10:09:00+06:00" }  // optional: when the phone recorded it
 // 200
-{ "instance_id": 1042, "status": "LATE", "late_minutes": 8,
-  "checked_by": "Staff One", "checked_at": "2026-09-13T10:08:00+06:00" }
+{ "instance_id": 1042, "status": "LATE", "late_minutes": 8, "outcome": "LATE",
+  "checked_by": "Staff One", "checked_at": "2026-09-13T10:09:00+06:00" }
 ```
 
 - `late_minutes` is computed server-side; a submitted value is ignored (BR-04, I6).
 - `TEACHER_NOT_FOUND` does **not** immediately set `MISSED` — the sweep does, once the
   threshold elapses (BR-05). Response status stays `null` until then.
 - Re-submitting replaces the previous check and writes an audit row.
+- **A check made with no signal** waits on the phone and arrives later with `observed_at`.
+  That time becomes `checked_at` if it is on the class's day and not more than five minutes
+  ahead of the server; it is then held between the class's start and now. Otherwise the
+  server's time is used. An observation older than the check on file changes nothing, and
+  the same one sent twice (same time, outcome and person) changes nothing either: the
+  answer then carries the `outcome` and `checked_by` on file. Reporting still closes at
+  midnight for a check that waited.
 
 ## 3. Class instances
 
@@ -517,7 +525,7 @@ section's classes too. Notices also go to `63` (an intake) and `*` (everyone).
 | `GET` | `/students/directory` | Every section of the routine in force with its lab groups, and every retake course with its groups, to pick from |
 | `GET` | `/students/classes` | `?groups=&from=&to=` (inclusive, at most 42 days; default today and six days on): each class as students see it, below |
 | `GET` | `/students/notices` | `?groups=&limit=` What was written to any of the groups, the student's intake or everyone, newest first |
-| `GET` | `/students/topics` | `?groups=` The push topics to follow: `alerts` (every notice) and `reminders` (before each class) |
+| `GET` | `/students/topics` | `?groups=` The push topics to follow: `alerts` (every notice) and `reminders` (before each class), and `reminder_minutes`, how far ahead (the app sets its own alarm that far ahead when the phone allows exact alarms, and then follows no reminder topic) |
 | `GET` | `/students/calendar` | The current semester: dates, `exams`, and `holidays` (every day off, with its kind); `null` with none |
 | `GET` | `/students/free-rooms` | `?date=` today to two weeks on: each of the six slots and the rooms with nothing in them; `[]` on a day with no classes at all |
 

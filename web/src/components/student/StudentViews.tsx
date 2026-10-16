@@ -737,7 +737,7 @@ export function CalendarView() {
 
 /** For students: the app is where Class Alarm and Change Alerts live. */
 export function StudentAppBanner() {
-  const [show, setShow] = useState(false);
+  const [show, setShow] = useState<"android" | "iphone" | null>(null);
   useEffect(() => {
     let closed = 0;
     try {
@@ -746,15 +746,55 @@ export function StudentAppBanner() {
       /* show it */
     }
     const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    // Opened from the Home Screen already: nothing to install.
+    const installed =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (navigator as Navigator & { standalone?: boolean }).standalone === true;
     let alive = true;
-    if (!ios && Date.now() - closed > 7 * 86_400_000) {
-      api.androidApp().then((a) => alive && setShow(a.available), () => {});
+    if (installed || Date.now() - closed <= 7 * 86_400_000) {
+      // Shown this week already, or not needed.
+    } else if (ios) {
+      // No iPhone app: this page, on the Home Screen, is the app there.
+      setShow("iphone");
+    } else {
+      api.androidApp().then((a) => alive && setShow(a.available ? "android" : null), () => {});
     }
     return () => {
       alive = false;
     };
   }, []);
   if (!show) return null;
+  if (show === "iphone") {
+    return (
+      <aside className="relative flex items-center gap-3 overflow-hidden rounded-xl border border-brand/20 bg-brand-soft p-4 pr-12">
+        <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand text-white">
+          <CalendarIcon className="size-6" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-bold">Keep your routine on your Home Screen</p>
+          <p className="text-sm text-ink-soft">
+            In Safari, tap <strong>Share</strong>, then <strong>Add to Home Screen</strong>. It opens
+            like an app, with no internet too.
+          </p>
+        </div>
+        <button
+          type="button"
+          aria-label="Not now"
+          className="absolute right-2 top-2 rounded-lg p-2 text-ink-faint hover:bg-surface"
+          onClick={() => {
+            setShow(null);
+            try {
+              localStorage.setItem("classtrack.student-app-banner", String(Date.now()));
+            } catch {
+              /* it comes back next time */
+            }
+          }}
+        >
+          <CloseIcon className="size-5" />
+        </button>
+      </aside>
+    );
+  }
   return (
     <aside className="relative flex flex-col gap-3 overflow-hidden rounded-xl border border-brand/20 bg-brand-soft p-4 pr-12 sm:flex-row sm:items-center">
       <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand text-white">
@@ -774,7 +814,7 @@ export function StudentAppBanner() {
         aria-label="Not now"
         className="absolute right-2 top-2 rounded-lg p-2 text-ink-faint hover:bg-surface"
         onClick={() => {
-          setShow(false);
+          setShow(null);
           try {
             localStorage.setItem("classtrack.student-app-banner", String(Date.now()));
           } catch {

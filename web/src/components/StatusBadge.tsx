@@ -10,7 +10,8 @@ import type { ClassStatus } from "@/lib/types";
 const STYLES: Record<ClassStatus | "UNKNOWN", { label: string; className: string }> = {
   UPCOMING: { label: "Upcoming", className: "bg-canvas text-ink-soft ring-line" },
   ONGOING: { label: "Ongoing", className: "bg-brand-soft text-brand ring-brand/20" },
-  RUNNING: { label: "Running", className: "bg-ok-soft text-ok ring-ok/20" },
+  // Staff report a class "running" at the door; everyone else reads that it was held.
+  RUNNING: { label: "Conducted", className: "bg-ok-soft text-ok ring-ok/20" },
   LATE: { label: "Late", className: "bg-warn-soft text-warn ring-warn/20" },
   MISSED: { label: "Missed", className: "bg-bad-soft text-bad ring-bad/20" },
   NOT_CHECKED: { label: "Not checked", className: "bg-gap-soft text-gap ring-gap/20" },

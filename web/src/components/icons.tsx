@@ -256,3 +256,11 @@ export const FlagIcon = (p: IconProps) => (
     <path d="M5 21V4M5 4h11l-2 4 2 4H5" />
   </Svg>
 );
+
+export const CloudOffIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 3l18 18" />
+    <path d="M8.5 6.3A6 6 0 0 1 17.7 10H18a4 4 0 0 1 2.3 7.3M16 18H7a5 5 0 0 1-1.6-9.7" />
+  </Svg>
+);
+

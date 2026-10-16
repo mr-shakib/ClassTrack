@@ -239,7 +239,7 @@ class _NowCard extends StatelessWidget {
     final elapsed = (now - c.start) / (c.end - c.start);
     final check = c.check;
     final recorded = switch (check?.outcome) {
-      'RUNNING' => 'Staff recorded it running',
+      'RUNNING' => 'Staff recorded it conducted',
       'LATE' => 'Staff recorded you late${check?.lateMinutes != null ? ' · ${check!.lateMinutes} min' : ''}',
       'TEACHER_NOT_FOUND' => 'Staff reported you absent',
       _ => null,

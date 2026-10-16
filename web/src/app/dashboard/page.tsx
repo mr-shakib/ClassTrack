@@ -70,7 +70,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
         <SummaryCard label="Scheduled now" value={s?.scheduled_now ?? 0} />
-        <SummaryCard label="Running" value={s?.running ?? 0} tone="ok" />
+        <SummaryCard label="Conducted" value={s?.running ?? 0} tone="ok" />
         <SummaryCard label="Late" value={s?.late ?? 0} tone="warn" />
         <SummaryCard
           label="Missed"

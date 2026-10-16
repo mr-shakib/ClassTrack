@@ -75,11 +75,18 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 
   Future<void> _signOut() async {
+    final waiting = SessionScope.read(context).outbox.waiting.length;
     final yes = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Sign out?'),
-        content: const Text('You will need your password to sign in again.'),
+        title: Text(waiting > 0 ? 'Sign out and lose $waiting check${waiting == 1 ? '' : 's'}?' : 'Sign out?'),
+        content: Text(
+          waiting > 0
+              ? '$waiting check${waiting == 1 ? ' is' : 's are'} still on this phone, waiting for a signal. '
+                    'Signing out deletes ${waiting == 1 ? 'it' : 'them'}. Connect to the internet first to send '
+                    '${waiting == 1 ? 'it' : 'them'}.'
+              : 'You will need your password to sign in again.',
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Stay')),
           FilledButton(

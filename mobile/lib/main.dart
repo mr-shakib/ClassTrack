@@ -9,6 +9,7 @@ import 'screens/home_shell.dart';
 import 'screens/login_screen.dart';
 import 'session.dart';
 import 'settings.dart';
+import 'student/class_alarm.dart';
 import 'student/student.dart';
 import 'student/student_shell.dart';
 import 'theme.dart';
@@ -21,7 +22,9 @@ Future<void> main() async {
   final push = Push();
   await push.start();
   final session = Session(Api(), push)..restore();
-  final student = Student(session.api, push);
+  final clock = ClassAlarm();
+  await clock.start();
+  final student = Student(session.api, push, clock);
   await student.load();
   // A new Firebase token follows nothing: follow the student's topics again.
   if (student.active) unawaited(student.sync());

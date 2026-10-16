@@ -6,6 +6,7 @@ import '../theme.dart';
 import '../util/time.dart';
 import '../widgets/common.dart';
 import 'checking_controller.dart';
+import 'checking_tab.dart';
 import 'room_card.dart';
 
 /// The classes on one floor at one slot: still to do first, then done.
@@ -66,6 +67,7 @@ class FloorScreen extends StatelessWidget {
               children: [
                 _Summary(date: c.date, slot: c.slot, done: done.length, total: rooms.length),
                 const SizedBox(height: 14),
+                OfflineStrip(controller: c),
                 if (locked) ...[
                   Notice(
                     c.closed

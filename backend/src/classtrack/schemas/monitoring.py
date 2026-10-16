@@ -100,6 +100,10 @@ class CheckRequest(BaseModel):
     #: Required when an admin changes a record after the window has closed.
     #: Staff cannot submit outside the window at all, so this is ignored for them.
     reason: str | None = Field(default=None, max_length=2000)
+    #: When the phone recorded it, if it waited for a signal. Trusted only
+    #: between the class's start and now; an observation older than the one on
+    #: file is kept out.
+    observed_at: datetime | None = None
 
 
 class CheckResponse(BaseModel):
@@ -110,6 +114,9 @@ class CheckResponse(BaseModel):
     checked_at: datetime
     #: True when this was an admin correction made after the window closed.
     outside_window: bool = False
+    #: The outcome on file now: another, when someone saw the class after this
+    #: observation was made and reported it first.
+    outcome: CheckOutcome | None = None
 
 
 class MarkDayRequest(BaseModel):

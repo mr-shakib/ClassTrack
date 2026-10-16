@@ -94,10 +94,24 @@ class StudentMoreTab extends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.w700, color: p.ink),
                   ),
                   subtitle: Text(
-                    'A buzz shortly before each of your classes.',
+                    !student.alarm
+                        ? 'Off: no buzz before your classes.'
+                        : student.onPhone
+                        ? '${student.lead} minutes before each class. Rings from this phone, with no internet too.'
+                        : '${student.lead} minutes before each class, by push: needs internet.',
                     style: TextStyle(color: p.inkSoft, fontSize: 13.5),
                   ),
                 ),
+                // The phone rings on time without a signal only once it may set exact alarms.
+                if (student.alarm && !student.onPhone)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: OutlinedButton.icon(
+                      onPressed: student.allowOnPhone,
+                      icon: const Icon(Icons.alarm_on_rounded),
+                      label: const Text('Ring without internet: allow alarms'),
+                    ),
+                  ),
                 ListTile(
                   leading: _Icon(Icons.sync_rounded, p.info, p.infoSoft),
                   title: Text(

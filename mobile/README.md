@@ -35,6 +35,27 @@ each class. It follows them again on each launch, since a new token follows none
 Home reads the teacher's classes from today to three weeks ahead (`/instances?from=&to=`). A server
 older than that filter sends every class instead, and the app keeps only the window.
 
+## Offline
+
+What a screen last read is kept on the phone (`lib/offline/cache.dart`): the API client
+saves the answer to each read the offline screens need, and with no signal serves the
+saved one, while a bar above the tabs says when it was saved. Searches and free rooms
+are left out, since they go stale. The signed-in person's saved reads are scoped to them
+and deleted at sign-in and sign-out; the student routine is public and kept.
+
+- **Checking**: every slot of today is fetched ahead, every ten minutes. A check made
+  with no signal waits in the outbox (`lib/staff/outbox.dart`), shows on its room as
+  *On this phone*, and is sent with the time it was made: on a timer, on returning to
+  the app, and the moment a request gets through. A waiting check is lost at midnight,
+  when reporting closes, so the screen warns from 22:00; signing out with checks waiting
+  asks first.
+- **Students**: the routine, Makeup Radar and Updates open from what was saved. Class
+  Alarm rings from the phone (`lib/student/class_alarm.dart`) when Android lets the app
+  set exact alarms (More → *allow alarms*); the phone then leaves the reminder topics.
+  Without that permission the server's push reminds, as before.
+- **Teachers**: Home, the week, Reschedule and Profile show what was saved. Booking,
+  rescheduling and notes need a signal.
+
 ## Run
 
 ```bash

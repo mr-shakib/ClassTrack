@@ -27,7 +27,7 @@ from classtrack.schemas.student import (
     TeacherNoticeIn,
     TopicsOut,
 )
-from classtrack.services import status_engine, student_service
+from classtrack.services import settings_service, status_engine, student_service
 
 router = APIRouter(tags=["students"])
 
@@ -53,7 +53,10 @@ async def directory(session: SessionDep, response: Response) -> DirectoryOut:
 async def topics(session: SessionDep, groups: str = Groups) -> TopicsOut:
     chosen = student_service.parse_groups(groups)
     dept = await student_service.department(session)
-    return TopicsOut(**student_service.topics_for(dept, chosen))
+    return TopicsOut(
+        **student_service.topics_for(dept, chosen),
+        reminder_minutes=await settings_service.class_reminder_minutes(session),
+    )
 
 
 @router.get(

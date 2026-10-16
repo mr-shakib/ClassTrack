@@ -97,6 +97,10 @@ class CheckRecord {
   final String? remark;
   final String checkedAt;
   final String? checkedBy;
+
+  /// `checkedAt` of a check kept on the phone until there is a signal to send it.
+  static const queued = 'queued';
+  bool get isQueued => checkedAt == queued;
 }
 
 /// The other end of a reschedule.
@@ -201,8 +205,9 @@ class CheckingScreen {
 
   final String date, timeSlot;
 
-  /// UPCOMING, ONGOING or CLOSED.
-  final String slotState;
+  /// UPCOMING, ONGOING or CLOSED. Worked out again on the phone when the screen
+  /// was kept from earlier, since the clock has moved on since.
+  String slotState;
 
   /// The caller's assigned floors (staff only). They order the list, not filter it.
   final List<String> zones;
@@ -215,11 +220,16 @@ class CheckResponse {
     : status = j['status'] as String?,
       lateMinutes = (j['late_minutes'] as num?)?.toInt(),
       checkedBy = j['checked_by'] as String? ?? '',
-      checkedAt = j['checked_at'] as String? ?? '';
+      checkedAt = j['checked_at'] as String? ?? '',
+      outcome = j['outcome'] as String?;
 
   final String? status;
   final int? lateMinutes;
   final String checkedBy, checkedAt;
+
+  /// The outcome on file now: another one when someone saw the class after this
+  /// check was made and sent theirs first.
+  final String? outcome;
 }
 
 class ClassInstance {
@@ -517,8 +527,12 @@ class StudentNotice {
 class StudentTopics {
   StudentTopics.fromJson(Json j)
     : alerts = (j['alerts'] as List? ?? const []).cast<String>(),
-      reminders = (j['reminders'] as List? ?? const []).cast<String>();
+      reminders = (j['reminders'] as List? ?? const []).cast<String>(),
+      reminderMinutes = (j['reminder_minutes'] as num?)?.toInt() ?? 10;
   final List<String> alerts, reminders;
+
+  /// How long before a class it is reminded; 0 means no reminders.
+  final int reminderMinutes;
 }
 
 class FreeSlot {

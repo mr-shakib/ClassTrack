@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import '../offline/cache.dart';
 import 'models.dart';
 
 /// Where the API lives. Build with
@@ -44,6 +46,35 @@ class Api {
   /// Called when a signed-in request comes back 401: the session ended.
   void Function()? onUnauthorized;
 
+  /// Where the reads the app needs offline are kept. Without it, nothing is.
+  OfflineCache? cache;
+
+  /// Whose reads they are, so one person's are never shown to another.
+  String cacheScope = '';
+
+  /// When the answer last shown was saved, because there was no signal to ask
+  /// again; null while the server answers.
+  final offline = ValueNotifier<DateTime?>(null);
+
+  /// The reads kept for offline: what staff check from, what a teacher and a
+  /// student look up. Not the free rooms, which go stale by the minute, nor
+  /// searches.
+  static const _kept = {
+    '/checking/rooms',
+    '/instances',
+    '/makeup',
+    '/reports/teacher',
+    '/auth/profile',
+    '/extra-classes',
+    '/extra-classes/sections',
+    '/notifications',
+    '/students/classes',
+    '/students/notices',
+    '/students/calendar',
+    '/students/directory',
+    '/students/topics',
+  };
+
   Uri _uri(String path, [Map<String, Object?>? query]) {
     final q = <String, String>{};
     query?.forEach((k, v) {
@@ -62,7 +93,10 @@ class Api {
       req.body = jsonEncode(body);
     }
     try {
-      return await http.Response.fromStream(await _http.send(req).timeout(const Duration(seconds: 20)));
+      final res = await http.Response.fromStream(await _http.send(req).timeout(const Duration(seconds: 20)));
+      // The server answered: whatever is on screen can be fresh again.
+      offline.value = null;
+      return res;
     } on SocketException {
       throw const ApiError('No connection. Check your internet and try again.', code: 'offline');
     } on TimeoutException {
@@ -102,8 +136,26 @@ class Api {
     return null;
   }
 
-  Future<dynamic> _get(String path, [Map<String, Object?>? query]) async =>
-      _decode(await _send('GET', path, query: query));
+  Future<dynamic> _get(String path, [Map<String, Object?>? query]) async {
+    final cache = this.cache;
+    if (cache == null || !_kept.contains(path)) return _decode(await _send('GET', path, query: query));
+    final public = path.startsWith('/students/');
+    final keys = (query?.entries.where((e) => e.value != null && e.value != '').toList() ?? [])
+      ..sort((a, b) => a.key.compareTo(b.key));
+    final key = '${public ? '' : '$cacheScope|'}$path?${keys.map((e) => '${e.key}=${e.value}').join('&')}';
+    try {
+      final body = _decode(await _send('GET', path, query: query));
+      await cache.write(key, body, public: public);
+      return body;
+    } on ApiError catch (e) {
+      if (!e.offline) rethrow;
+      final kept = await cache.read(key, public: public);
+      if (kept == null) rethrow;
+      offline.value = kept.$2;
+      return kept.$1;
+    }
+  }
+
   Future<dynamic> _post(String path, [Object? body]) async => _decode(await _send('POST', path, body: body ?? {}));
   Future<dynamic> _patch(String path, Object body) async => _decode(await _send('PATCH', path, body: body));
 
@@ -137,18 +189,21 @@ class Api {
   Future<CheckingScreen> checkingRooms({String? date, String? slot}) async =>
       CheckingScreen.fromJson(await _get('/checking/rooms', {'date': date, 'slot': slot}) as Json);
 
+  /// `observedAt`: when the check was made, for one that waited for a signal.
   Future<CheckResponse> submitCheck(
     int instanceId, {
     required String outcome,
     String? arrivalTime,
     String? remark,
     String? reason,
+    String? observedAt,
   }) async => CheckResponse.fromJson(
     await _post('/checking/$instanceId', {
           'outcome': outcome,
           'arrival_time': arrivalTime,
           'remark': remark,
           'reason': reason,
+          'observed_at': observedAt,
         })
         as Json,
   );

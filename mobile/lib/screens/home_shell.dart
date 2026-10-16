@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../api/client.dart';
+import '../offline/offline_bar.dart';
 import '../push.dart';
 import '../session.dart';
 import '../staff/checking_tab.dart';
@@ -75,7 +76,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _pollUnread();
-      SessionScope.read(context).refreshUser();
+      final session = SessionScope.read(context);
+      session.refreshUser();
+      // Checks made with no signal go as soon as the app is back.
+      session.outbox.flush();
       _teacher
         ?..load()
         ..startPolling();
@@ -211,9 +215,14 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
     return Scaffold(
       body: IndexedStack(index: index, children: [for (var i = 0; i < tabs.length; i++) page(tabs[i], i == index)]),
-      bottomNavigationBar: teacher == null
-          ? _NavBar(tabs: tabs, index: index, unread: _unread, actions: 0, onTap: (i) => setState(() => _index = i))
-          : ListenableBuilder(
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          OfflineBar(api: context.api),
+          if (teacher == null)
+            _NavBar(tabs: tabs, index: index, unread: _unread, actions: 0, onTap: (i) => setState(() => _index = i))
+          else
+            ListenableBuilder(
               listenable: teacher,
               builder: (context, _) => _NavBar(
                 tabs: tabs,
@@ -223,6 +232,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                 onTap: (i) => setState(() => _index = i),
               ),
             ),
+        ],
+      ),
     );
   }
 }

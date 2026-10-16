@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../offline/offline_bar.dart';
 import '../push.dart';
 import '../session.dart';
 import '../theme.dart';
@@ -33,15 +34,36 @@ class _StudentShellState extends State<StudentShell> with WidgetsBindingObserver
     WidgetsBinding.instance.addObserver(this);
     final student = StudentScope.read(context);
     _feed = StudentFeed(context.api, student.groups)
+      ..addListener(_onFeed)
       ..load()
       ..startPolling();
     final push = SessionScope.read(context).push;
     _pushes
       ..add(push.opened.listen(_onPushOpened))
       ..add(push.received.listen(_onPushReceived));
+    _alarms = student.clock.opened.listen(_onAlarmOpened);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final pending = push.takePending();
       if (pending != null) _onPushOpened(pending);
+      final rang = student.clock.takeLaunched();
+      if (rang != null) _onAlarmOpened(rang);
+    });
+  }
+
+  StreamSubscription<String?>? _alarms;
+
+  /// The routine loaded, fresh or saved: Class Alarm is set for it on the phone.
+  void _onFeed() {
+    if (!_feed.loading) StudentScope.read(context).ring(_feed.upcoming);
+  }
+
+  /// A Class Alarm tapped: the day of its class.
+  void _onAlarmOpened(String? date) {
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    setState(() {
+      _tab = _Tab.routine;
+      _focusDate = date;
     });
   }
 
@@ -51,13 +73,18 @@ class _StudentShellState extends State<StudentShell> with WidgetsBindingObserver
     for (final s in _pushes) {
       s.cancel();
     }
-    _feed.dispose();
+    _alarms?.cancel();
+    _feed
+      ..removeListener(_onFeed)
+      ..dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      // Back from the phone's settings, perhaps with alarms now allowed.
+      StudentScope.read(context).sync();
       _feed
         ..load()
         ..startPolling();
@@ -137,7 +164,7 @@ class _StudentShellState extends State<StudentShell> with WidgetsBindingObserver
             backgroundColor: color,
             child: Icon(icon),
           );
-          return DecoratedBox(
+          final bar = DecoratedBox(
             decoration: BoxDecoration(
               border: Border(top: BorderSide(color: p.line)),
             ),
@@ -172,6 +199,13 @@ class _StudentShellState extends State<StudentShell> with WidgetsBindingObserver
                 ),
               ],
             ),
+          );
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              OfflineBar(api: context.api),
+              bar,
+            ],
           );
         },
       ),

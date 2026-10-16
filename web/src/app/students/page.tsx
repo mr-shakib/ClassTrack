@@ -15,7 +15,7 @@ import {
   UpdatesView,
   readSeen,
 } from "@/components/student/StudentViews";
-import { LinkIcon } from "@/components/icons";
+import { CloudOffIcon, LinkIcon } from "@/components/icons";
 import { Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -93,6 +93,8 @@ function Students() {
     void countUnread();
   }, [countUnread]);
 
+  const offline = useOffline();
+
   const signedOut = !loading && !user;
 
   const share = async () => {
@@ -149,6 +151,13 @@ function Students() {
             </button>
           </div>
         </div>
+
+        {offline ? (
+          <p className="flex items-center gap-2 rounded-xl bg-surface px-4 py-3 text-sm font-medium text-ink-soft ring-1 ring-inset ring-line">
+            <CloudOffIcon className="size-5 shrink-0 text-ink-faint" />
+            You are offline. This is what was saved the last time you opened it; it updates when you are back online.
+          </p>
+        ) : null}
 
         <StudentAppBanner />
 
@@ -213,4 +222,41 @@ function Students() {
       <main className="mx-auto max-w-5xl px-4 py-6">{body}</main>
     </div>
   );
+}
+
+/**
+ * Whether the browser has no network, and the offline worker set up on the
+ * way: once this page has been opened with a signal, it opens without one.
+ */
+function useOffline(): boolean {
+  const [offline, setOffline] = useState(false);
+  useEffect(() => {
+    const update = () => setOffline(!navigator.onLine);
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker
+        .register("/sw.js", { scope: "/" })
+        .then(() => navigator.serviceWorker.ready)
+        .then((registration) => {
+          // The files this page loaded before the worker was in charge of it.
+          const urls = [
+            ...Array.from(document.scripts, (s) => s.src),
+            ...Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'), (l) => l.href),
+            ...performance.getEntriesByType("resource").map((e) => e.name),
+          ].filter(Boolean);
+          registration.active?.postMessage({ type: "keep", urls });
+        })
+        .catch(() => {
+          /* without the worker the page still works, only not offline */
+        });
+    }
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
+  return offline;
 }

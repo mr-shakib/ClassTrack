@@ -80,6 +80,11 @@ Students need no account: **/students** (or a short link such as `/s/63_A` for a
 group chat) shows a section's routine, its makeups, notices and free rooms. They see when a
 class is on, moved or cancelled, never whether the teacher came: see
 [`services/student_service.py`](backend/src/classtrack/services/student_service.py).
+The page installs to a phone's home screen and opens offline (`web/public/sw.js`).
+
+**Offline:** the app keeps what each screen last read, and staff keep checking with no
+signal: checks wait on the phone and are sent, with the time they were made, when the
+signal is back. See [mobile/README.md](mobile/README.md#offline).
 
 ## Mobile app
 

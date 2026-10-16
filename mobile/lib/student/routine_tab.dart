@@ -89,7 +89,20 @@ class _StudentRoutineTabState extends State<StudentRoutineTab> {
       if (!mounted || request != _request) return;
       setState(() => _cache[from] = rows);
     } on ApiError catch (e) {
-      if (mounted && request == _request) setState(() => _error = e.message);
+      if (!mounted || request != _request) return;
+      final feed = widget.feed.upcoming;
+      // No signal, and this week was never kept: the four weeks the feed keeps
+      // hold it, from today on.
+      if (e.offline && feed.isNotEmpty && to.compareTo(todayIso()) >= 0 && from.compareTo(feed.last.date) <= 0) {
+        setState(() {
+          _cache[from] = [
+            for (final c in feed)
+              if (c.date.compareTo(from) >= 0 && c.date.compareTo(to) <= 0) c,
+          ];
+        });
+      } else {
+        setState(() => _error = e.message);
+      }
     }
   }
 

@@ -24,7 +24,7 @@ class CheckingTab extends StatefulWidget {
 }
 
 class _CheckingTabState extends State<CheckingTab> with WidgetsBindingObserver {
-  late final CheckingController _c = CheckingController(context.api);
+  late final CheckingController _c = CheckingController(context.api, SessionScope.read(context).outbox);
   bool _byTeacher = false;
 
   @override
@@ -134,6 +134,7 @@ class _CheckingTabState extends State<CheckingTab> with WidgetsBindingObserver {
                                 ),
                               ),
                             const SizedBox(height: 12),
+                            OfflineStrip(controller: _c),
                             if (_c.error != null && _c.screen != null) ...[
                               Notice.error(_c.error!),
                               const SizedBox(height: 12),
@@ -603,6 +604,102 @@ class _FloorCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// No signal, checks waiting to be sent, checks the server refused: said at
+/// the top of the floors and of each floor, where staff are when it matters.
+class OfflineStrip extends StatelessWidget {
+  const OfflineStrip({super.key, required this.controller});
+  final CheckingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final outbox = controller.outbox;
+    return ListenableBuilder(
+      listenable: Listenable.merge([controller, outbox]),
+      builder: (context, _) {
+        final saved = controller.savedAt;
+        final waiting = outbox.waiting;
+        final failed = outbox.failed;
+        if (saved == null && waiting.isEmpty && failed.isEmpty) return const SizedBox.shrink();
+        final p = context.palette;
+        final n = waiting.length;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (saved != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Notice(
+                    'Showing the list saved at ${dhakaHhmm(saved.toIso8601String())}. Keep checking: your checks '
+                    'stay on this phone and are sent when the signal is back.',
+                    title: 'No signal',
+                    tone: Tone.neutral,
+                    icon: Icons.cloud_off_rounded,
+                  ),
+                ),
+              if (n > 0)
+                Container(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+                  decoration: BoxDecoration(
+                    color: outbox.closingSoon ? p.warnSoft : p.infoSoft,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: (outbox.closingSoon ? p.warn : p.info).withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.outbox_rounded, color: outbox.closingSoon ? p.warn : p.info),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          outbox.closingSoon
+                              ? '$n check${n == 1 ? '' : 's'} not sent yet. Connect before midnight, '
+                                    'or ${n == 1 ? 'it is' : 'they are'} lost.'
+                              : '$n check${n == 1 ? '' : 's'} waiting to be sent.',
+                          style: TextStyle(fontWeight: FontWeight.w700, color: outbox.closingSoon ? p.warn : p.info),
+                        ),
+                      ),
+                      TextButton(onPressed: outbox.flush, child: const Text('Send now')),
+                    ],
+                  ),
+                ),
+              for (final c in failed)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 4, 10),
+                    decoration: BoxDecoration(
+                      color: p.badSoft,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: p.bad.withValues(alpha: 0.25)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.error_outline_rounded, color: p.bad),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '${c.room} (${c.label}) was not sent. ${c.failure}',
+                            style: TextStyle(fontWeight: FontWeight.w600, color: p.bad),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Dismiss',
+                          onPressed: () => outbox.dismiss(c),
+                          icon: Icon(Icons.close_rounded, color: p.bad),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

@@ -14,7 +14,8 @@ import 'common.dart';
   return switch (status) {
     'UPCOMING' => ('Upcoming', p.inkSoft, p.subtle),
     'ONGOING' => ('Ongoing', p.brand, p.brandSoft),
-    'RUNNING' => ('Running', p.ok, p.okSoft),
+    // Staff report a class "running" at the door; everyone else reads that it was held.
+    'RUNNING' => ('Conducted', p.ok, p.okSoft),
     'LATE' => (lateMinutes != null ? 'Late · $lateMinutes min' : 'Late', p.warn, p.warnSoft),
     'MISSED' => ('Missed', p.bad, p.badSoft),
     'NOT_CHECKED' => ('Not checked', p.gap, p.gapSoft),
