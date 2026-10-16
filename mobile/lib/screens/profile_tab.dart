@@ -8,6 +8,7 @@ import '../session.dart';
 import '../settings.dart';
 import '../teacher/teacher_data.dart';
 import '../theme.dart';
+import '../util/version.dart';
 import '../widgets/appearance_sheet.dart';
 import '../widgets/common.dart';
 
@@ -171,6 +172,12 @@ class _ProfileTabState extends State<ProfileTab> {
                     trailing: Icon(Icons.open_in_new_rounded, color: p.inkFaint, size: 20),
                     onTap: () => openLink(context, siteUrl),
                   ),
+                  _Row(
+                    icon: Icons.privacy_tip_outlined,
+                    label: 'Privacy policy',
+                    trailing: Icon(Icons.open_in_new_rounded, color: p.inkFaint, size: 20),
+                    onTap: () => openLink(context, '$siteUrl/privacy'),
+                  ),
                   _Row(icon: Icons.logout_rounded, label: 'Sign out', danger: true, onTap: _signOut),
                 ],
               ),
@@ -181,17 +188,20 @@ class _ProfileTabState extends State<ProfileTab> {
                   borderRadius: BorderRadius.circular(8),
                   child: Padding(
                     padding: const EdgeInsets.all(8),
-                    child: Text.rich(
-                      TextSpan(
-                        children: [
-                          const TextSpan(text: 'ClassTrack 1.0  ·  '),
-                          TextSpan(
-                            text: 'Shakib Howlader',
-                            style: TextStyle(color: p.inkSoft, fontWeight: FontWeight.w600),
-                          ),
-                        ],
+                    child: FutureBuilder<String>(
+                      future: appVersion,
+                      builder: (context, version) => Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(text: 'ClassTrack ${version.data ?? ''}  ·  '),
+                            TextSpan(
+                              text: 'Shakib Howlader',
+                              style: TextStyle(color: p.inkSoft, fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                        style: TextStyle(fontSize: 12.5, color: p.inkFaint),
                       ),
-                      style: TextStyle(fontSize: 12.5, color: p.inkFaint),
                     ),
                   ),
                 ),

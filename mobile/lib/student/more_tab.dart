@@ -146,6 +146,12 @@ class StudentMoreTab extends StatelessWidget {
                   external: true,
                   onTap: () => openLink(context, '$siteUrl/students?g=${student.groups.join(',')}'),
                 ),
+                _Row(
+                  icon: Icons.privacy_tip_outlined,
+                  label: 'Privacy policy',
+                  external: true,
+                  onTap: () => openLink(context, '$siteUrl/privacy'),
+                ),
                 _Row(icon: Icons.login_rounded, label: 'Staff or teacher? Sign in', onTap: () => _leave(context)),
               ],
             ),

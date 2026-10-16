@@ -220,6 +220,11 @@ function Students() {
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-4 py-6">{body}</main>
+      <footer className="pb-6 text-center text-xs text-ink-faint">
+        <Link href="/privacy" className="hover:text-brand hover:underline">
+          Privacy policy
+        </Link>
+      </footer>
     </div>
   );
 }

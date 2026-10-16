@@ -74,18 +74,24 @@ Debug builds may use plain `http` for a local backend; release builds cannot.
 ## Build
 
 ```bash
-flutter build apk --release            # android: build/app/outputs/flutter-apk/app-release.apk
+flutter build appbundle --release      # Google Play: build/app/outputs/bundle/release/app-release.aab
+flutter build apk --release            # one APK: build/app/outputs/flutter-apk/app-release.apk
 flutter build ipa                      # iOS, on a Mac with Xcode
 ```
 
-Until the app is on the Play Store, people get it from the website's **/app** page, which
-offers the universal `app-release.apk` (every Android phone, ~56 MB); publishing it is
-copying it to the server ([deploy/README.md](../deploy/README.md#the-android-app)). Raise
-`version` in `pubspec.yaml` for every release, the build number included: Android only
-installs an APK over the old one when its build number is higher.
+Release builds are signed with the **upload key** that `android/key.properties` names
+(`storeFile`, `storePassword`, `keyAlias`, `keyPassword`); the key and that file live
+outside git, in `~/.classtrack-keys/` on the machine that publishes. Without them a release
+build is signed with the debug key and Gradle says so: fine on a phone, refused by Play.
+Releasing on Play, step by step: [docs/PLAY_STORE.md](../docs/PLAY_STORE.md).
 
-The release build is still signed with the debug key (`android/app/build.gradle.kts`).
-Set up an upload key before publishing to Play.
+Raise `version` in `pubspec.yaml` for every release, the build number included: Android
+and Play only take a build whose number is higher than the last.
+
+Until the app is on Play, people get it from the website's **/app** page
+([deploy/README.md](../deploy/README.md#the-android-app)). Those APKs were signed with the
+debug key, so a Play install cannot update them: see *Moving people from the website APK
+to Play* in the release guide.
 
 ## How it signs in
 

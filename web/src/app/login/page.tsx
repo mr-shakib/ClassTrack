@@ -102,6 +102,11 @@ export default function LoginPage() {
           <CalendarIcon className="size-5 text-brand" />
           Student? See your class routine, no sign-in
         </Link>
+        <p className="mt-6 text-center text-xs text-ink-faint">
+          <Link href="/privacy" className="hover:text-brand hover:underline">
+            Privacy policy
+          </Link>
+        </p>
       </div>
     </div>
   );

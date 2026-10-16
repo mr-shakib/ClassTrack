@@ -13,6 +13,7 @@ import 'student/class_alarm.dart';
 import 'student/student.dart';
 import 'student/student_shell.dart';
 import 'theme.dart';
+import 'widgets/common.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -116,14 +117,14 @@ class _Gate extends StatelessWidget {
   Widget build(BuildContext context) {
     final session = SessionScope.of(context);
     if (session.restoring) {
-      final p = context.palette;
       return Scaffold(
         body: Center(
           child: Container(
             width: 76,
             height: 76,
-            decoration: BoxDecoration(color: p.brandSolid, borderRadius: BorderRadius.circular(22)),
-            child: const Icon(Icons.event_available_rounded, color: Colors.white, size: 40),
+            decoration: BoxDecoration(gradient: logoGradient, borderRadius: BorderRadius.circular(22)),
+            alignment: Alignment.center,
+            child: Image.asset('assets/images/logo-mark.png', width: 52, height: 52),
           ),
         ),
       );

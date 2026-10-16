@@ -351,6 +351,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           >
             Shakib Howlader
           </a>
+          {" · "}
+          <Link href="/privacy" className="hover:text-brand hover:underline">
+            Privacy
+          </Link>
         </p>
       </footer>
     </div>

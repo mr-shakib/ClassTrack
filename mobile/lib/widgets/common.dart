@@ -5,6 +5,13 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../theme.dart';
 
+/// The ClassTrack logo's blue, as on the launcher icon (assets/icon): fixed, not themed.
+const logoGradient = LinearGradient(
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+  colors: [Color(0xFF2563EB), Color(0xFF0E7490)],
+);
+
 /// A white panel with a hairline border: the app's basic card.
 class Panel extends StatelessWidget {
   const Panel({super.key, required this.child, this.padding = const EdgeInsets.all(16), this.color, this.border});
@@ -433,4 +440,77 @@ void showMessage(BuildContext context, String message) {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(content: Text(message)));
+}
+
+/// Two or three choices side by side, the picked one raised: the same switch as
+/// Checking's "By floor / Find by teacher".
+class SegmentedSwitch<T> extends StatelessWidget {
+  const SegmentedSwitch({super.key, required this.options, required this.value, required this.onChanged});
+
+  /// Each choice's value, label, and an optional icon.
+  final List<(T, String, IconData?)> options;
+  final T value;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final dark = p.isDark;
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: dark ? p.surface : p.line.withValues(alpha: 0.6),
+        border: dark ? Border.all(color: p.line) : null,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          for (final (v, label, icon) in options)
+            Expanded(
+              child: GestureDetector(
+                onTap: () => onChanged(v),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: v == value ? (dark ? p.raised : p.surface) : Colors.transparent,
+                    border: dark && v == value ? Border.all(color: p.line) : null,
+                    borderRadius: BorderRadius.circular(11),
+                    boxShadow: v == value && !dark
+                        ? [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.06),
+                              blurRadius: 6,
+                              offset: const Offset(0, 1),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (icon != null) ...[
+                        Icon(icon, size: 18, color: v == value ? p.brand : p.inkSoft),
+                        const SizedBox(width: 6),
+                      ],
+                      Flexible(
+                        child: Text(
+                          label,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: v == value ? p.brand : p.inkSoft,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }

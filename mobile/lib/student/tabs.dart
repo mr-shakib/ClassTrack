@@ -276,6 +276,8 @@ class _StudentRoomsTabState extends State<StudentRoomsTab> {
 
   static bool _isLab(String type) => type.toLowerCase().contains('lab');
 
+  bool _wanted(FreeRoom r) => _kind == 'all' || (_kind == 'lab') == _isLab(r.roomType);
+
   @override
   Widget build(BuildContext context) {
     final p = context.palette;
@@ -283,120 +285,348 @@ class _StudentRoomsTabState extends State<StudentRoomsTab> {
     final tomorrow = isoDate(parseDay(today).add(const Duration(days: 1)));
     final slots = _slots;
     final current = slots?.where((s) => s.timeSlot == _slot).firstOrNull;
-    final rooms = (current?.rooms ?? const <FreeRoom>[])
-        .where((r) => _kind == 'all' || (_kind == 'lab') == _isLab(r.roomType))
-        .toList();
-    final byZone = <String, List<FreeRoom>>{};
+    final rooms = (current?.rooms ?? const <FreeRoom>[]).where(_wanted).toList();
+    // By building: a floor often has one free room, and a panel each would be a long scroll.
+    final byBuilding = <String, List<FreeRoom>>{};
     for (final r in rooms) {
-      byZone.putIfAbsent(r.zone, () => []).add(r);
+      byBuilding.putIfAbsent(_ZoneRooms.place(r.zone).$1, () => []).add(r);
     }
-
-    Widget choice(String label, bool on, VoidCallback onTap) =>
-        ChoiceChip(label: Text(label), selected: on, onSelected: (_) => onTap());
+    final now = dhakaMinutesNow();
+    final live = _day == today
+        ? slots?.where((s) => slotBounds(s.timeSlot).$1 <= now && now < slotBounds(s.timeSlot).$2).firstOrNull?.timeSlot
+        : null;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Free Room Finder')),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
-          children: [
-            Text('Rooms with no class in them, for group study.', style: TextStyle(fontSize: 14.5, color: p.inkSoft)),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              children: [
-                choice('Today', _day == today, () {
-                  _day = today;
+      body: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          onRefresh: _load,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+            children: [
+              Text('Free rooms', style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 2),
+              Text('Empty classrooms and labs, for group study.', style: TextStyle(fontSize: 14.5, color: p.inkSoft)),
+              const SizedBox(height: 16),
+              SegmentedSwitch<String>(
+                options: [(today, 'Today', null), (tomorrow, 'Tomorrow', null)],
+                value: _day,
+                onChanged: (d) {
+                  if (d == _day) return;
+                  _day = d;
                   _load();
-                }),
-                choice('Tomorrow', _day == tomorrow, () {
-                  _day = tomorrow;
-                  _load();
-                }),
-              ],
-            ),
-            if (slots != null && slots.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: [
-                  for (final s in slots)
-                    choice(slot24(s.timeSlot), s.timeSlot == _slot, () => setState(() => _slot = s.timeSlot)),
-                ],
+                },
               ),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: 8,
-                children: [
-                  choice('All rooms', _kind == 'all', () => setState(() => _kind = 'all')),
-                  choice('Classrooms', _kind == 'theory', () => setState(() => _kind = 'theory')),
-                  choice('Labs', _kind == 'lab', () => setState(() => _kind = 'lab')),
-                ],
-              ),
-            ],
-            const SizedBox(height: 14),
-            if (!_loaded || slots == null)
-              const Loading()
-            else if (_error != null)
-              LoadError(message: _error!, onRetry: _load)
-            else if (slots.isEmpty)
-              const Panel(
-                child: EmptyState(
-                  icon: Icons.door_front_door_outlined,
-                  title: 'No classes that day',
-                  body: 'On a weekend or a holiday nothing is listed, since rooms may be locked.',
-                ),
-              )
-            else if (rooms.isEmpty)
-              const Panel(
-                child: EmptyState(
-                  icon: Icons.meeting_room_outlined,
-                  title: 'No free room then',
-                  body: 'Every room is taken in that slot. Try another.',
-                ),
-              )
-            else
-              Panel(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(height: 14),
+              if (!_loaded || slots == null)
+                const Loading(label: 'Finding empty rooms…')
+              else if (_error != null)
+                LoadError(message: _error!, onRetry: _load)
+              else if (slots.isEmpty)
+                const Panel(
+                  child: EmptyState(
+                    icon: Icons.door_front_door_outlined,
+                    title: 'No classes that day',
+                    body: 'On a weekend or a holiday nothing is listed, since rooms may be locked.',
+                  ),
+                )
+              else ...[
+                Row(
                   children: [
-                    Text(
-                      '${rooms.length} free at ${slot24(_slot!)}',
-                      style: TextStyle(fontWeight: FontWeight.w800, color: p.ok, fontSize: 15),
-                    ),
-                    for (final entry in byZone.entries) ...[
-                      const SizedBox(height: 14),
-                      Text(
-                        entry.key.toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: p.inkFaint,
-                          letterSpacing: 0.6,
+                    for (var i = 0; i < slots.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 6),
+                      Expanded(
+                        child: _SlotPick(
+                          slot: slots[i],
+                          free: slots[i].rooms.where(_wanted).length,
+                          selected: slots[i].timeSlot == _slot,
+                          live: slots[i].timeSlot == live,
+                          onTap: () => setState(() => _slot = slots[i].timeSlot),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          for (final r in entry.value)
-                            Pill(
-                              _isLab(r.roomType) ? '${r.room} · Lab' : r.room,
-                              color: p.ok,
-                              background: p.okSoft,
-                              large: true,
-                            ),
-                        ],
                       ),
                     ],
                   ],
                 ),
-              ),
-          ],
+                const SizedBox(height: 14),
+                _FreeSummary(
+                  count: rooms.length,
+                  when: '${slot24(_slot!)} · ${_day == today ? 'Today' : 'Tomorrow'}',
+                  live: _slot == live,
+                ),
+                const SizedBox(height: 14),
+                SegmentedSwitch<String>(
+                  options: const [
+                    ('all', 'All', null),
+                    ('theory', 'Classrooms', Icons.chair_alt_outlined),
+                    ('lab', 'Labs', Icons.computer_rounded),
+                  ],
+                  value: _kind,
+                  onChanged: (k) => setState(() => _kind = k),
+                ),
+                const SizedBox(height: 16),
+                if (rooms.isEmpty)
+                  const Panel(
+                    child: EmptyState(
+                      icon: Icons.meeting_room_outlined,
+                      title: 'Nothing free then',
+                      body: 'Every room of this kind is taken in that slot. Try another time.',
+                    ),
+                  )
+                else
+                  for (final entry in byBuilding.entries) ...[
+                    _ZoneRooms(building: entry.key, rooms: entry.value),
+                    const SizedBox(height: 12),
+                  ],
+              ],
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+/// A slot to pick: when it starts, and how many rooms are free in it.
+class _SlotPick extends StatelessWidget {
+  const _SlotPick({
+    required this.slot,
+    required this.free,
+    required this.selected,
+    required this.live,
+    required this.onTap,
+  });
+
+  final FreeSlot slot;
+  final int free;
+  final bool selected, live;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final fg = selected ? Colors.white : p.ink;
+    return Material(
+      color: selected ? p.brandSolid : p.surface,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          height: 62,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: selected ? p.brandSolid : p.line, width: 1.2),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              FittedBox(
+                child: Text(
+                  clock(slotBounds(slot.timeSlot).$1),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: fg, fontFeatures: tabular),
+                ),
+              ),
+              const SizedBox(height: 3),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (live) ...[
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(color: selected ? Colors.white : p.ok, shape: BoxShape.circle),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  Text(
+                    '$free',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: selected ? Colors.white70 : (free == 0 ? p.inkFaint : p.ok),
+                      fontFeatures: tabular,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// How many are free, and when: the answer, before the list.
+class _FreeSummary extends StatelessWidget {
+  const _FreeSummary({required this.count, required this.when, required this.live});
+  final int count;
+  final String when;
+  final bool live;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+      decoration: p.hero(radius: 20),
+      child: Row(
+        children: [
+          Text(
+            '$count',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 40,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -1,
+              height: 1,
+              fontFeatures: tabular,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  count == 1 ? 'room free' : 'rooms free',
+                  style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  live ? '$when · on now' : when,
+                  style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.meeting_room_rounded, color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One building's free rooms, as a grid of tiles, lowest floor first.
+class _ZoneRooms extends StatelessWidget {
+  const _ZoneRooms({required this.building, required this.rooms});
+  final String building;
+  final List<FreeRoom> rooms;
+
+  /// "ANX1-2" -> ("ANX1", "Floor 2"); "G1-0" -> ("G1", "Ground floor").
+  static (String, String?) place(String zone) {
+    final m = RegExp(r'^(.+)-(\d+)$').firstMatch(zone);
+    if (m == null) return (zone, null);
+    final floor = int.parse(m.group(2)!);
+    return (m.group(1)!, floor == 0 ? 'Ground floor' : 'Floor $floor');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    return Panel(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(color: p.brandSoft, borderRadius: BorderRadius.circular(10)),
+                child: Icon(Icons.apartment_rounded, size: 18, color: p.brand),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  building,
+                  style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: p.ink),
+                ),
+              ),
+              Text(
+                '${rooms.length} free',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: p.ok),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, box) {
+              const gap = 8.0;
+              final columns = box.maxWidth > 420 ? 4 : 3;
+              final width = (box.maxWidth - gap * (columns - 1)) / columns;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: [
+                  for (final r in rooms)
+                    SizedBox(
+                      width: width,
+                      child: _RoomTile(room: r),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoomTile extends StatelessWidget {
+  const _RoomTile({required this.room});
+  final FreeRoom room;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final lab = room.roomType.toLowerCase().contains('lab');
+    // "ANX1-210": the building is on the card already; the number is what people look for.
+    final dash = room.room.lastIndexOf('-');
+    final number = dash > 0 ? room.room.substring(dash + 1) : room.room;
+    final floor = _ZoneRooms.place(room.zone).$2?.replaceFirst(' floor', '');
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+      decoration: BoxDecoration(
+        color: p.okSoft,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: p.ok.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            number,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: p.ink, fontFeatures: tabular),
+          ),
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              Icon(lab ? Icons.computer_rounded : Icons.chair_alt_outlined, size: 13, color: p.ok),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  floor ?? (lab ? 'Lab' : 'Room'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: p.ok),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
