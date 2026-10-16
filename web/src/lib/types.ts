@@ -73,6 +73,8 @@ export interface User {
   teacher_initial: string | null;
   /** A teacher's faculty photo, when the directory has one. */
   photo_url?: string | null;
+  /** Signed in on the app on some phone, with notifications allowed. */
+  has_app?: boolean;
 }
 
 export interface CheckRecord {

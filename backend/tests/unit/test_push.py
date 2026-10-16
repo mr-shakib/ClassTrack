@@ -496,6 +496,31 @@ async def test_signing_out_stops_the_pushes_but_only_for_ones_own_phone(
     assert await _phones(session) == []
 
 
+async def test_the_website_knows_once_the_app_is_in_use(session, teacher_user):
+    async def has_app() -> bool:
+        async def override_session():
+            yield session
+
+        app.dependency_overrides[get_session] = override_session
+        app.dependency_overrides[get_current_user] = lambda: teacher_user
+        try:
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                return (await client.get("/api/v1/auth/me")).json()["has_app"]
+        finally:
+            app.dependency_overrides.clear()
+
+    assert await has_app() is False
+
+    body = {"token": TOKEN, "platform": "android"}
+    await _post(session, teacher_user, "/notifications/devices", body)
+    assert await has_app() is True
+
+    await _post(session, teacher_user, "/notifications/devices/remove", {"token": TOKEN})
+    assert await has_app() is False
+
+
 async def test_an_unknown_platform_is_refused(session, teacher_user):
     response = await _post(
         session, teacher_user, "/notifications/devices", {"token": TOKEN, "platform": "web"}

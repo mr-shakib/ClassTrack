@@ -17,7 +17,7 @@ from classtrack.schemas.auth import (
     UserOut,
 )
 from classtrack.schemas.common import Message
-from classtrack.services import auth_service, profile_service
+from classtrack.services import auth_service, profile_service, push_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -47,7 +47,11 @@ async def logout(response: Response) -> Message:
 @router.get("/me", response_model=UserOut, summary="Current user")
 async def me(session: SessionDep, user: CurrentUser) -> UserOut:
     teacher = await profile_service.teacher_of(session, user)
-    return UserOut.of(user, photo_url=teacher.image_url if teacher else None)
+    return UserOut.of(
+        user,
+        photo_url=teacher.image_url if teacher else None,
+        has_app=await push_service.has_phone(session, user),
+    )
 
 
 async def _profile(session: AsyncSession, user: User) -> ProfileOut:

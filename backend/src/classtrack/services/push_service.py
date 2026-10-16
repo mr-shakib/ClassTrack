@@ -351,6 +351,14 @@ async def register(session: AsyncSession, *, user: User, token: str, platform: s
         device.platform = platform
 
 
+async def has_phone(session: AsyncSession, user: User) -> bool:
+    """Whether some phone gets this account's pushes: the app is in use."""
+    found = await session.scalar(
+        select(PushDevice.id).where(PushDevice.user_id == user.id).limit(1)
+    )
+    return found is not None
+
+
 async def unregister(session: AsyncSession, *, user: User, token: str) -> None:
     """Stop pushing to this phone, if it is this account's."""
     await session.execute(

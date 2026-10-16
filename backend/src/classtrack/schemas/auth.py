@@ -38,9 +38,12 @@ class UserOut(ORMModel):
     teacher_initial: str | None = None
     #: A teacher's photo from the faculty directory, for the header.
     photo_url: str | None = None
+    #: Signed in on the app on some phone, with notifications allowed: the
+    #: website stops offering the app.
+    has_app: bool = False
 
     @classmethod
-    def of(cls, user: User, *, photo_url: str | None = None) -> UserOut:
+    def of(cls, user: User, *, photo_url: str | None = None, has_app: bool = False) -> UserOut:
         return cls(
             id=user.id,
             email=user.email,
@@ -51,6 +54,7 @@ class UserOut(ORMModel):
             is_staff=user.is_staff,
             teacher_initial=user.teacher_initial,
             photo_url=photo_url,
+            has_app=has_app,
         )
 
 

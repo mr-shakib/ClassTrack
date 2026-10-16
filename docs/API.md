@@ -34,7 +34,8 @@ requests. `COMMITTEE` may check classes and correct past ones, nothing more.
   "roles": [{ "key": "TEACHER", "name": "Teacher", "kind": "TEACHER" },
             { "key": "COMMITTEE", "name": "Committee member", "kind": "OFFICE" }],
   "permissions": ["checking.correct", "checking.submit", "extra_classes.book", "reschedules.request"],
-  "is_teacher": true, "is_staff": false, "photo_url": "https://faculty.daffodilvarsity.edu.bd/..." }
+  "is_teacher": true, "is_staff": false, "photo_url": "https://faculty.daffodilvarsity.edu.bd/...",
+  "has_app": false }  // has_app (signed in on the app, notifications allowed): /auth/me only
 // 401 { "detail": "Invalid credentials" }
 ```
 

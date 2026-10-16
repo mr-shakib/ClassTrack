@@ -5,33 +5,13 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import QrCode from "@/components/QrCode";
 import { Card, Spinner } from "@/components/ui";
-import { BellIcon, CalendarIcon, CheckIcon, ClockIcon, DownloadIcon } from "@/components/icons";
+import { APP_FEATURES } from "@/components/AppPromo";
+import { DownloadIcon } from "@/components/icons";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { AndroidApp } from "@/lib/types";
 
-const FEATURES = [
-  {
-    icon: ClockIcon,
-    title: "Reminded before each class",
-    body: "A notification shortly before every class you take, makeups and extra classes included.",
-  },
-  {
-    icon: BellIcon,
-    title: "Alerts as they happen",
-    body: "Missed classes, reschedules and notices from the department arrive as notifications.",
-  },
-  {
-    icon: CalendarIcon,
-    title: "Reschedule from your phone",
-    body: "Find an empty room for a missed class, and mark a makeup done after it.",
-  },
-  {
-    icon: CheckIcon,
-    title: "Checking, room by room",
-    body: "Office staff report classes floor by floor, one tap per room.",
-  },
-];
+const FEATURES = Object.values(APP_FEATURES);
 
 const megabytes = (bytes: number) => `${Math.round(bytes / 1_000_000)} MB`;
 
@@ -139,12 +119,12 @@ export default function AppPage() {
 
           <ul className="grid gap-px border-t border-line bg-line sm:grid-cols-2">
             {FEATURES.map((f) => (
-              <li key={f.title} className="flex gap-3 bg-surface p-4">
+              <li key={f.name} className="flex gap-3 bg-surface p-4">
                 <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand">
                   <f.icon className="size-5" />
                 </span>
                 <span>
-                  <span className="block text-sm font-semibold text-ink">{f.title}</span>
+                  <span className="block text-sm font-semibold text-ink">{f.name}</span>
                   <span className="mt-0.5 block text-sm text-ink-soft">{f.body}</span>
                 </span>
               </li>

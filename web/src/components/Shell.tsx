@@ -16,8 +16,16 @@ import {
   useAuth,
 } from "@/lib/auth";
 import type { User } from "@/lib/types";
+import { APP_FEATURES, AppPromo, useAppOffer } from "./AppPromo";
 import { Avatar } from "./Avatar";
-import { ChevronDownIcon, LockIcon, PhoneIcon, SignOutIcon, UserIcon } from "./icons";
+import {
+  ArrowRightIcon,
+  ChevronDownIcon,
+  LockIcon,
+  PhoneIcon,
+  SignOutIcon,
+  UserIcon,
+} from "./icons";
 
 /** `section`: the path prefix that marks the link current, when wider than `href`. */
 type NavLink = { href: string; label: string; may: (u: User) => boolean; section?: string };
@@ -32,7 +40,8 @@ const NAV: NavLink[] = [
   { href: "/reports", label: "Reports", may: mayReadReports },
 ];
 
-function Bell() {
+function Bell({ user }: { user: User }) {
+  const offerApp = useAppOffer(user);
   const [count, setCount] = useState(0);
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<
@@ -120,6 +129,20 @@ function Bell() {
                 ))}
               </ul>
             )}
+            {offerApp ? (
+              <Link
+                href="/app"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-3 border-t border-line bg-brand-soft px-4 py-3 hover:bg-brand/10"
+              >
+                <PhoneIcon className="size-5 shrink-0 text-brand" />
+                <span className="min-w-0 flex-1 text-sm text-ink-soft">
+                  <span className="font-semibold text-ink">{APP_FEATURES.alerts.name}</span>:
+                  get these on your phone the moment they happen.
+                </span>
+                <ArrowRightIcon className="size-4 shrink-0 text-brand" />
+              </Link>
+            ) : null}
           </div>
         </>
       ) : null}
@@ -305,14 +328,17 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="ml-auto md:ml-0">
-            <Bell />
+            <Bell user={user} />
           </div>
 
           <AccountMenu user={user} onSignOut={signOut} />
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">
+        <AppPromo user={user} pathname={pathname} />
+        {children}
+      </main>
 
       <footer className="border-t border-line">
         <p className="mx-auto max-w-7xl px-4 py-4 text-center text-xs text-ink-faint">
