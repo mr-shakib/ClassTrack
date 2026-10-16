@@ -39,6 +39,11 @@ _OUTBOX = "push_outbox"
 #: Pushed only, never kept as a notification: it is worth something for minutes.
 CLASS_REMINDER = "CLASS_REMINDER"
 
+#: To students, through their section's topics: a class about to start, and
+#: anything written to them (``student_service``).
+STUDENT_REMINDER = "STUDENT_REMINDER"
+STUDENT_NOTICE = "STUDENT_NOTICE"
+
 #: The Android notification channels the app creates (MainActivity.kt), so a
 #: teacher can silence reminders and keep the alerts, or the other way round.
 CHANNEL_CLASSES = "classes"
@@ -66,7 +71,23 @@ class Push:
     ttl_seconds: int | None = None
 
 
-def queue(session: AsyncSession | Session, push: Push) -> None:
+@dataclass(frozen=True)
+class TopicPush:
+    """A push to every phone following any of its topics: students, who have no
+    accounts, follow the topics of their sections. Firebase fans it out, so one
+    message reaches a whole section, and a phone following two of the topics is
+    told once. Firebase takes at most five topics in one message."""
+
+    topics: tuple[str, ...]
+    title: str
+    body: str
+    #: ``STUDENT_REMINDER`` or ``STUDENT_NOTICE``.
+    kind: str
+    link: str | None = None
+    ttl_seconds: int | None = None
+
+
+def queue(session: AsyncSession | Session, push: Push | TopicPush) -> None:
     """Send ``push`` once the transaction in progress commits; never, if it rolls back."""
     sync = session.sync_session if isinstance(session, AsyncSession) else session
     if not sync.in_transaction():
@@ -76,7 +97,7 @@ def queue(session: AsyncSession | Session, push: Push) -> None:
     session.info.setdefault(_OUTBOX, []).append(push)
 
 
-def take(session: AsyncSession | Session) -> list[Push]:
+def take(session: AsyncSession | Session) -> list[Push | TopicPush]:
     """Remove and return everything queued on the session."""
     return session.info.pop(_OUTBOX, [])
 
@@ -84,7 +105,7 @@ def take(session: AsyncSession | Session) -> list[Push]:
 # --- handing over on commit -----------------------------------------------------
 
 #: Where a commit hands its pushes: the running sender. None outside the app.
-_sink: Callable[[list[Push]], None] | None = None
+_sink: Callable[[list[Push | TopicPush]], None] | None = None
 
 
 @event.listens_for(Session, "after_commit")
@@ -110,7 +131,7 @@ def start() -> asyncio.Task[None] | None:
     if not enabled():
         logger.info("Push disabled (CLASSTRACK_FCM_CREDENTIALS unset); in-app only")
         return None
-    pending: asyncio.Queue[list[Push]] = asyncio.Queue()
+    pending: asyncio.Queue[list[Push | TopicPush]] = asyncio.Queue()
     _sink = pending.put_nowait
     task = asyncio.create_task(_send_forever(pending))
     task.add_done_callback(_stopped)
@@ -122,7 +143,7 @@ def _stopped(_task: asyncio.Task[None]) -> None:
     _sink = None
 
 
-async def _send_forever(pending: asyncio.Queue[list[Push]]) -> None:
+async def _send_forever(pending: asyncio.Queue[list[Push | TopicPush]]) -> None:
     async with httpx.AsyncClient(timeout=10) as client:
         while True:
             pushes = await pending.get()
@@ -210,19 +231,25 @@ async def _access_token(
     return _access[0]
 
 
-def _message(push: Push, token: str) -> dict[str, object]:
+def _message(push: Push | TopicPush, token: str | None = None) -> dict[str, object]:
+    """The FCM message: to one phone's ``token``, or else to the push's topic."""
+    reminder = push.kind in (CLASS_REMINDER, STUDENT_REMINDER)
     android: dict[str, object] = {
         "priority": "high",
-        "notification": {
-            "channel_id": CHANNEL_CLASSES if push.kind == CLASS_REMINDER else CHANNEL_ALERTS
-        },
+        "notification": {"channel_id": CHANNEL_CLASSES if reminder else CHANNEL_ALERTS},
     }
     apns: dict[str, object] = {"payload": {"aps": {"sound": "default"}}}
     if push.ttl_seconds is not None:
         android["ttl"] = f"{max(push.ttl_seconds, 0)}s"
         apns["headers"] = {"apns-expiration": str(int(time.time()) + max(push.ttl_seconds, 0))}
+    if not isinstance(push, TopicPush):
+        target = {"token": token}
+    elif len(push.topics) == 1:
+        target = {"topic": push.topics[0]}
+    else:
+        target = {"condition": " || ".join(f"'{t}' in topics" for t in push.topics)}
     return {
-        "token": token,
+        **target,
         "notification": {"title": push.title, "body": push.body},
         # Data values must be strings.
         "data": {"kind": push.kind, "link": push.link or ""},
@@ -243,18 +270,25 @@ def _error_code(response: httpx.Response) -> str | None:
 
 
 async def send_all(
-    pushes: list[Push],
+    pushes: list[Push | TopicPush],
     *,
     client: httpx.AsyncClient,
     sessions: async_sessionmaker[AsyncSession] | None = None,
 ) -> None:
-    """Deliver each push to every phone its account has registered.
+    """Deliver each push to every phone its account has registered, and each
+    topic push to its topic.
 
     A failure is logged, never raised. A phone Firebase no longer knows is
     forgotten, so it is not tried again.
     """
     account = _service_account()
     if account is None or not pushes:
+        return
+    topics = [p for p in pushes if isinstance(p, TopicPush)]
+    if topics:
+        await _send_topics(topics, client=client, account=account)
+    pushes = [p for p in pushes if isinstance(p, Push)]
+    if not pushes:
         return
     if sessions is None:
         from classtrack.db.session import get_sessionmaker
@@ -364,3 +398,48 @@ async def unregister(session: AsyncSession, *, user: User, token: str) -> None:
     await session.execute(
         delete(PushDevice).where(PushDevice.token == token, PushDevice.user_id == user.id)
     )
+
+
+async def _send_topics(
+    pushes: list[TopicPush], *, client: httpx.AsyncClient, account: _ServiceAccount
+) -> None:
+    """One request per topic push: Firebase reaches its followers itself."""
+    try:
+        access = await _access_token(client, account)
+    except (httpx.HTTPError, KeyError, ValueError) as exc:
+        logger.warning(
+            "Push sign-in to Google failed; %d topic pushes not sent: %s", len(pushes), exc
+        )
+        return
+    url = FCM_SEND.format(project=account.project_id)
+    gate = asyncio.Semaphore(_PARALLEL)
+    sent = 0
+
+    async def to_topic(push: TopicPush) -> None:
+        nonlocal sent, access
+        async with gate:
+            body = {"message": _message(push)}
+            try:
+                response = await client.post(
+                    url, json=body, headers={"Authorization": f"Bearer {access}"}
+                )
+                if response.status_code == 401:
+                    access = await _access_token(client, account, fresh=True)
+                    response = await client.post(
+                        url, json=body, headers={"Authorization": f"Bearer {access}"}
+                    )
+            except (httpx.HTTPError, KeyError, ValueError) as exc:
+                logger.warning("Push to topics %s failed: %s", push.topics, exc)
+                return
+            if response.is_success:
+                sent += 1
+            else:
+                logger.warning(
+                    "Push to topics %s rejected (%s): %s",
+                    push.topics,
+                    response.status_code,
+                    response.text[:300],
+                )
+
+    await asyncio.gather(*(to_topic(p) for p in pushes))
+    logger.info("Pushed %d of %d to student topics", sent, len(pushes))

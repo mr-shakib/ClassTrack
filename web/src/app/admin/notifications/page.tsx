@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import StudentNoticeForm from "@/components/student/StudentNoticeForm";
 import { Button, Card, EmptyState, ErrorNote, Field, Spinner, inputClass } from "@/components/ui";
 import { ApiError, api } from "@/lib/api";
 import { adminTab, useAuth, useRequireAccess } from "@/lib/auth";
@@ -29,6 +30,40 @@ const people = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
 
 export default function NotificationsPage() {
   const { permitted, loading: authLoading } = useRequireAccess(adminTab("/admin/notifications"));
+  const [readers, setReaders] = useState<"staff" | "students">("staff");
+
+  if (authLoading || !permitted) return <Spinner />;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1.5" role="tablist" aria-label="Who to write to">
+        {(
+          [
+            ["staff", "Teachers & staff"],
+            ["students", "Students"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={readers === key}
+            onClick={() => setReaders(key)}
+            className={`rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors ${
+              readers === key ? "bg-ink text-white" : "text-ink-soft hover:bg-surface"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {readers === "staff" ? <StaffNotifications /> : <StudentNoticeForm />}
+    </div>
+  );
+}
+
+/** To teachers and staff: their bell, and their phones. */
+function StaffNotifications() {
   const { user } = useAuth();
   const [recipients, setRecipients] = useState<Recipient[] | null>(null);
   const [sent, setSent] = useState<SentNotification[] | null>(null);
@@ -52,8 +87,8 @@ export default function NotificationsPage() {
   }, []);
 
   useEffect(() => {
-    if (permitted) void load();
-  }, [permitted, load]);
+    void load();
+  }, [load]);
 
   /** Who the chosen audience reaches, as the API resolves it: a group leaves out the sender. */
   const reach = useMemo(() => {
@@ -124,8 +159,6 @@ export default function NotificationsPage() {
       setBusy(false);
     }
   };
-
-  if (authLoading || !permitted) return <Spinner />;
 
   return (
     <div className="grid max-w-5xl gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">

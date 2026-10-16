@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { homeFor, useAuth } from "@/lib/auth";
 import { Button, Card, ErrorNote, Field, inputClass } from "@/components/ui";
-import { PhoneIcon } from "@/components/icons";
+import { CalendarIcon, PhoneIcon } from "@/components/icons";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -94,6 +94,13 @@ export default function LoginPage() {
         >
           <PhoneIcon className="size-5 text-brand" />
           Get the ClassTrack app for Android
+        </Link>
+        <Link
+          href="/students"
+          className="mt-2 flex items-center justify-center gap-2 rounded-xl border border-line bg-surface px-4 py-3 text-sm font-medium text-ink hover:bg-canvas"
+        >
+          <CalendarIcon className="size-5 text-brand" />
+          Student? See your class routine, no sign-in
         </Link>
       </div>
     </div>

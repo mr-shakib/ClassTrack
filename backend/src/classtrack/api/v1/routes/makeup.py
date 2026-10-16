@@ -29,6 +29,7 @@ from classtrack.schemas.makeup import (
     FreeRoomOut,
     MakeupCreateRequest,
     MakeupOut,
+    MeetingLinkRequest,
 )
 from classtrack.services import conflict_service, makeup_service
 
@@ -133,6 +134,7 @@ async def create(
         room=payload.room,
         reason=payload.reason,
         drive_link=payload.drive_link,
+        meeting_link=payload.meeting_link,
     )
     await session.commit()
     return (await _decorate(session, [makeup]))[0]
@@ -201,6 +203,20 @@ async def complete(
         makeup_id=makeup_id,
         user=user,
         drive_link=payload.drive_link if payload else None,
+    )
+    await session.commit()
+    return (await _decorate(session, [makeup]))[0]
+
+
+@router.post(
+    "/makeup/{makeup_id}/meeting-link", response_model=MakeupOut, summary="Set the join link"
+)
+async def meeting_link(
+    makeup_id: int, payload: MeetingLinkRequest, session: SessionDep, user: ReschedulerUser
+) -> MakeupOut:
+    """An online class's link for students to join by. Blank removes it."""
+    makeup = await makeup_service.set_meeting_link(
+        session, makeup_id=makeup_id, user=user, meeting_link=payload.meeting_link
     )
     await session.commit()
     return (await _decorate(session, [makeup]))[0]

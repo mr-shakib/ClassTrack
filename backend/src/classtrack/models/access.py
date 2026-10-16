@@ -35,6 +35,7 @@ class Permission(str, enum.Enum):
     # A teacher's own: these only take effect on a teacher-kind role.
     REQUEST_RESCHEDULES = "reschedules.request"
     BOOK_EXTRA_CLASSES = "extra_classes.book"
+    MESSAGE_STUDENTS = "students.message"
     # Reports
     DEPARTMENT_REPORTS = "reports.department"
     # Semester and routine
@@ -118,6 +119,13 @@ PERMISSION_INFO: tuple[PermissionInfo, ...] = (
         "Take an empty room for an extra class of their own section. Teacher roles only.",
     ),
     PermissionInfo(
+        Permission.MESSAGE_STUDENTS,
+        "Teaching",
+        "Message own students",
+        "Write to the students of their own sections, or about one of their classes. "
+        "Teacher roles only.",
+    ),
+    PermissionInfo(
         Permission.DEPARTMENT_REPORTS,
         "Reports",
         "Department reports",
@@ -187,12 +195,14 @@ PERMISSION_INFO: tuple[PermissionInfo, ...] = (
         Permission.SEND_NOTIFICATIONS,
         "Oversight",
         "Send notifications",
-        "Write a notification to teachers and staff, for the app's alerts and their phones.",
+        "Write a notification to teachers, staff or students, for the app and their phones.",
     ),
 )
 
 #: Only mean anything to a teacher: the class in question must be their own.
-TEACHER_PERMISSIONS = frozenset({Permission.REQUEST_RESCHEDULES, Permission.BOOK_EXTRA_CLASSES})
+TEACHER_PERMISSIONS = frozenset(
+    {Permission.REQUEST_RESCHEDULES, Permission.BOOK_EXTRA_CLASSES, Permission.MESSAGE_STUDENTS}
+)
 
 
 class RoleKind(str, enum.Enum):

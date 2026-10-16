@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -7,6 +9,8 @@ import 'screens/home_shell.dart';
 import 'screens/login_screen.dart';
 import 'session.dart';
 import 'settings.dart';
+import 'student/student.dart';
+import 'student/student_shell.dart';
 import 'theme.dart';
 
 Future<void> main() async {
@@ -17,16 +21,21 @@ Future<void> main() async {
   final push = Push();
   await push.start();
   final session = Session(Api(), push)..restore();
-  runApp(ClassTrackApp(session: session, settings: settings));
+  final student = Student(session.api, push);
+  await student.load();
+  // A new Firebase token follows nothing: follow the student's topics again.
+  if (student.active) unawaited(student.sync());
+  runApp(ClassTrackApp(session: session, settings: settings, student: student));
 }
 
 final _light = buildTheme(Brightness.light);
 final _dark = buildTheme(Brightness.dark);
 
 class ClassTrackApp extends StatefulWidget {
-  const ClassTrackApp({super.key, required this.session, required this.settings});
+  const ClassTrackApp({super.key, required this.session, required this.settings, required this.student});
   final Session session;
   final AppSettings settings;
+  final Student student;
 
   @override
   State<ClassTrackApp> createState() => _ClassTrackAppState();
@@ -63,28 +72,31 @@ class _ClassTrackAppState extends State<ClassTrackApp> {
       settings: widget.settings,
       child: SessionScope(
         session: widget.session,
-        child: ListenableBuilder(
-          listenable: widget.settings,
-          builder: (context, _) => MaterialApp(
-            title: 'ClassTrack',
-            debugShowCheckedModeBanner: false,
-            navigatorKey: _navigator,
-            theme: _light,
-            darkTheme: _dark,
-            themeMode: widget.settings.themeMode,
-            // A short cross-fade when the theme changes, rather than a snap.
-            themeAnimationDuration: const Duration(milliseconds: 220),
-            builder: (context, child) {
-              final dark = Theme.of(context).brightness == Brightness.dark;
-              return AnnotatedRegion<SystemUiOverlayStyle>(
-                value: (dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark).copyWith(
-                  statusBarColor: Colors.transparent,
-                  systemNavigationBarColor: Colors.transparent,
-                ),
-                child: child!,
-              );
-            },
-            home: const _Gate(),
+        child: StudentScope(
+          student: widget.student,
+          child: ListenableBuilder(
+            listenable: widget.settings,
+            builder: (context, _) => MaterialApp(
+              title: 'ClassTrack',
+              debugShowCheckedModeBanner: false,
+              navigatorKey: _navigator,
+              theme: _light,
+              darkTheme: _dark,
+              themeMode: widget.settings.themeMode,
+              // A short cross-fade when the theme changes, rather than a snap.
+              themeAnimationDuration: const Duration(milliseconds: 220),
+              builder: (context, child) {
+                final dark = Theme.of(context).brightness == Brightness.dark;
+                return AnnotatedRegion<SystemUiOverlayStyle>(
+                  value: (dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark).copyWith(
+                    statusBarColor: Colors.transparent,
+                    systemNavigationBarColor: Colors.transparent,
+                  ),
+                  child: child!,
+                );
+              },
+              home: const _Gate(),
+            ),
           ),
         ),
       ),
@@ -92,7 +104,8 @@ class _ClassTrackAppState extends State<ClassTrackApp> {
   }
 }
 
-/// The splash while the keystore is read, then sign-in or the app.
+/// The splash while the keystore is read, then sign-in, the app, or -- with no
+/// one signed in and a section picked -- the student's app.
 class _Gate extends StatelessWidget {
   const _Gate();
 
@@ -113,9 +126,15 @@ class _Gate extends StatelessWidget {
       );
     }
     final user = session.user;
+    final student = StudentScope.of(context);
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 250),
-      child: user == null ? const LoginScreen() : HomeShell(key: ValueKey(user.id)),
+      child: user != null
+          ? HomeShell(key: ValueKey(user.id))
+          : student.active
+          // A new section starts the student's tabs afresh.
+          ? StudentShell(key: ValueKey(student.groups.join(',')))
+          : const LoginScreen(),
     );
   }
 }

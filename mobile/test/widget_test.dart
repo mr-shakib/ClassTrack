@@ -1,4 +1,6 @@
+import 'package:classtrack/api/models.dart';
 import 'package:classtrack/push.dart';
+import 'package:classtrack/student/student.dart';
 import 'package:classtrack/util/time.dart';
 import 'package:classtrack/widgets/common.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -46,5 +48,36 @@ void main() {
     expect(reminder.isReminder, isTrue);
     expect(reminder.link, isNull);
     expect(reminder.title, isNull);
+  });
+
+  test('a group reads as a section, a lab group or a retake group', () {
+    expect(groupLabel('63_A'), 'Section 63_A');
+    expect(groupLabel('63_A1'), 'Lab group 63_A1');
+    expect(groupLabel('CSE447:RE_A'), 'CSE447 retake RE_A');
+  });
+
+  test('a student class reads where it moved, and nothing else about it', () {
+    final c = StudentClass.fromJson({
+      'id': 7,
+      'date': '2026-10-18',
+      'time_slot': '10:00-11:30',
+      'start_min': 600,
+      'end_min': 690,
+      'room': 'KT-305',
+      'room_type': 'Theory',
+      'online': false,
+      'course_code': 'CSE311',
+      'section': '70_A',
+      'kind': 'CLASS',
+      'state': 'MOVED',
+      'moved_to': {'date': '2026-10-20', 'time_slot': '04:00-05:30', 'room': null, 'online': true},
+      'teacher': {'initial': 'TCA', 'name': 'Teacher A'},
+      'note': {'body': 'Quiz', 'author': 'Teacher A (TCA)', 'created_at': '2026-10-16T08:00:00'},
+    });
+    expect(c.on, isFalse);
+    expect(c.movedTo!.date, '2026-10-20');
+    expect(c.movedOnline, isTrue);
+    expect(c.teacher.display, 'Teacher A');
+    expect(c.noteBody, 'Quiz');
   });
 }

@@ -13,8 +13,13 @@ import {
   CheckIcon,
   ClockIcon,
   CloseIcon,
+  DoorIcon,
+  FlagIcon,
+  MegaphoneIcon,
+  MessageIcon,
   PhoneIcon,
   RepeatIcon,
+  UserIcon,
 } from "./icons";
 
 type Icon = (p: { className?: string }) => React.ReactNode;
@@ -46,6 +51,11 @@ export const APP_FEATURES = {
     name: "Semester Scorecard",
     body: "Your held, late and missed classes, and every course against its minimum, in one card.",
   },
+  headsUp: {
+    icon: MessageIcon,
+    name: "Heads-up",
+    body: "Tell a section about one class, a quiz or laptops, and it shows on the class for them.",
+  },
   checking: {
     icon: CheckIcon,
     name: "Tap-to-Check",
@@ -53,9 +63,60 @@ export const APP_FEATURES = {
   },
 } satisfies Record<string, { icon: Icon; name: string; body: string }>;
 
+/** What the app does for students, who need no account: they pick their section. */
+export const STUDENT_FEATURES = [
+  {
+    icon: CalendarIcon,
+    name: "My Routine",
+    body: "Your section's week, today's classes, and the next one with its room and teacher.",
+  },
+  {
+    icon: ClockIcon,
+    name: "Class Alarm",
+    body: "A buzz before each of your classes, makeups and extra classes included.",
+  },
+  {
+    icon: BellIcon,
+    name: "Change Alerts",
+    body: "Word on your phone the moment one of your classes moves or is cancelled.",
+  },
+  {
+    icon: RepeatIcon,
+    name: "Makeup Radar",
+    body: "Every makeup and extra class for your section, with its room or join link.",
+  },
+  {
+    icon: MegaphoneIcon,
+    name: "Section Notices",
+    body: "Notes from your teachers and the department, written to your section.",
+  },
+  {
+    icon: DoorIcon,
+    name: "Free Room Finder",
+    body: "Empty rooms right now and later today, for group study.",
+  },
+  {
+    icon: UserIcon,
+    name: "Teacher Card",
+    body: "Tap a class for its teacher's photo, designation and office room.",
+  },
+  {
+    icon: FlagIcon,
+    name: "Semester Calendar",
+    body: "Holidays, and how many days are left until the mid-term and final exams.",
+  },
+];
+
 type Feature = keyof typeof APP_FEATURES;
 
-const TEACHER_FEATURES: Feature[] = ["alarm", "alerts", "timetable", "reschedule", "scorecard"];
+const TEACHER_FEATURES: Feature[] = [
+  "alarm",
+  "alerts",
+  "timetable",
+  "reschedule",
+  "headsUp",
+  "scorecard",
+];
 
 /**
  * The feature that fits the page, or null for no banner. Teachers see one on

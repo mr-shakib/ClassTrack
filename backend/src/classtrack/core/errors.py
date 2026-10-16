@@ -1,6 +1,6 @@
 """Domain exceptions and the handlers that turn them into HTTP responses.
 
-Response shape is fixed by docs/API.md §10: ``{detail, code, context}``.
+Response shape is fixed by docs/API.md §11: ``{detail, code, context}``.
 """
 
 from __future__ import annotations

@@ -27,7 +27,11 @@ export function can(user: User | null | undefined, ...permissions: Permission[])
 
 /** A teacher's own permissions, which reach only their own classes. Mirrors
  *  `TEACHER_PERMISSIONS` in models/access.py. */
-const TEACHER_PERMISSIONS: Permission[] = ["reschedules.request", "extra_classes.book"];
+const TEACHER_PERMISSIONS: Permission[] = [
+  "reschedules.request",
+  "extra_classes.book",
+  "students.message",
+];
 
 /** The no-escalation rule, as the API applies it: a permission can only be
  *  given by someone who holds it -- except a teacher's own, which anyone may. */
@@ -50,6 +54,7 @@ export const mayTeach = (u: User) => u.is_teacher || can(u, "reschedules.any_tea
 export const mayReschedule = (u: User) =>
   (u.is_teacher && can(u, "reschedules.request")) || can(u, "reschedules.any_teacher");
 export const mayBookExtra = (u: User) => u.is_teacher && can(u, "extra_classes.book");
+export const mayMessageStudents = (u: User) => u.is_teacher && can(u, "students.message");
 export const everyone = () => true;
 
 /** The admin area's tabs, each with what opens it. */

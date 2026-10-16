@@ -45,6 +45,7 @@ function MakeupForm() {
   const [room, setRoom] = useState("");
   const [reason, setReason] = useState("");
   const [driveLink, setDriveLink] = useState("");
+  const [meetingLink, setMeetingLink] = useState("");
   const [report, setReport] = useState<ConflictReport | null>(null);
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -119,6 +120,7 @@ function MakeupForm() {
         room: mode === "PHYSICAL" ? room : null,
         reason: reason || null,
         drive_link: mode === "ONLINE" && driveLink.trim() ? driveLink.trim() : null,
+        meeting_link: mode === "ONLINE" && meetingLink.trim() ? meetingLink.trim() : null,
       });
       setDone(true);
       setTimeout(() => router.push("/teacher"), 2500);
@@ -286,6 +288,23 @@ function MakeupForm() {
               onPick={setRoom}
               roomType={original?.room_type}
             />
+          ) : null}
+
+          {mode === "ONLINE" ? (
+            <Field
+              label="Join link for students (optional)"
+              size="lg"
+              hint="A Meet or Zoom link. Students see it on the class once it is approved; you can add it later too."
+            >
+              <input
+                type="url"
+                inputMode="url"
+                className={bigInputClass}
+                placeholder="https://meet.google.com/…"
+                value={meetingLink}
+                onChange={(e) => setMeetingLink(e.target.value)}
+              />
+            </Field>
           ) : null}
 
           {mode === "ONLINE" ? (

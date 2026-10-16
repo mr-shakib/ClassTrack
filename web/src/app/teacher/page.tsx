@@ -10,9 +10,11 @@ import {
 } from "@/components/MakeupTracker";
 import { ExtraTag, RescheduledTag } from "@/components/Rescheduled";
 import StatusBadge from "@/components/StatusBadge";
+import { HeadsUp, MessageStudentsCard } from "@/components/StudentNote";
 import { Button, Card, EmptyState, ErrorNote, Spinner, SummaryCard } from "@/components/ui";
 import { api, todayISO } from "@/lib/api";
-import { mayBookExtra, mayTeach, useRequireAccess } from "@/lib/auth";
+import { slotMinutes } from "@/lib/student";
+import { mayBookExtra, mayMessageStudents, mayTeach, useRequireAccess } from "@/lib/auth";
 import type { ClassInstance, Makeup, TeacherReport } from "@/lib/types";
 
 
@@ -212,11 +214,19 @@ export default function TeacherPage() {
                   lateMinutes={inst.check?.late_minutes}
                   size="lg"
                 />
+                {/* Only the teacher's own, and only before it ends. */}
+                {user && mayMessageStudents(user) && inst.teacher_initial === initial && !ended(inst, now) ? (
+                  <div className="w-full">
+                    <HeadsUp instance={inst} />
+                  </div>
+                ) : null}
               </li>
             ))}
           </ul>
         )}
       </Card>
+
+      {user && mayMessageStudents(user) ? <MessageStudentsCard /> : null}
 
       <Card>
         <div className="border-b border-line px-4 py-4 sm:px-5">
@@ -234,6 +244,15 @@ export default function TeacherPage() {
       </Card>
     </div>
   );
+}
+
+/** Whether a class of today has ended, on Dhaka's clock. `now` is epoch ms. */
+function ended(inst: ClassInstance, now: number): boolean {
+  const bounds = slotMinutes(inst.time_slot);
+  if (!now || !bounds) return false;
+  const d = new Date(now);
+  const minutes = (d.getUTCHours() * 60 + d.getUTCMinutes() + 6 * 60) % (24 * 60);
+  return bounds[1] <= minutes;
 }
 
 function MissedRow({ instance }: { instance: ClassInstance }) {

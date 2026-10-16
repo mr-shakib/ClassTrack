@@ -11,7 +11,8 @@ import '../util/time.dart';
 /// room "ONLINE" at its own time.
 class UpcomingClass {
   UpcomingClass(ClassInstance i)
-    : date = i.date,
+    : id = i.id,
+      date = i.date,
       timeSlot = i.timeSlot,
       courseCode = i.courseCode,
       section = i.section,
@@ -29,6 +30,7 @@ class UpcomingClass {
   /// ONLINE_* status too, while the request is decided, but keeps its room.
   static bool _online(ClassInstance i) => i.isMakeup && (i.room == 'ONLINE' || (i.status ?? '').startsWith('ONLINE'));
 
+  final int id;
   final String date, timeSlot, courseCode, section;
 
   /// Null for an online class.

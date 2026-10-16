@@ -6,6 +6,7 @@ import '../session.dart';
 import '../theme.dart';
 import '../util/time.dart';
 import '../widgets/common.dart';
+import 'student_note.dart';
 
 /// An online class waits for a decision; one in a room is booked outright.
 const _steps = {
@@ -122,6 +123,10 @@ class _MakeupCardState extends State<MakeupCard> {
                     tone: Tone.neutral,
                     icon: Icons.format_quote_rounded,
                   ),
+                ],
+                if (m.online && !ended && (m.status == 'PENDING' || m.status == 'APPROVED')) ...[
+                  const SizedBox(height: 12),
+                  JoinLinkEditor(makeup: m, onChanged: widget.onChanged),
                 ],
                 if (m.driveLink != null && m.driveLink!.isNotEmpty) ...[
                   const SizedBox(height: 12),

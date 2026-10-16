@@ -198,6 +198,7 @@ export function MakeupCard({
               <span className="font-semibold">Head of Department: </span>“{m.decision_note}”
             </p>
           ) : null}
+          {online && !ended ? <JoinLink makeup={m} onChanged={onChanged} /> : null}
           {m.drive_link ? (
             <a
               href={m.drive_link}
@@ -274,6 +275,74 @@ export function MakeupCard({
         </footer>
       </article>
     </li>
+  );
+}
+
+/** Where the students of an online class join it. They see it on the class, and
+ *  are told once it is approved. */
+function JoinLink({ makeup: m, onChanged }: { makeup: Makeup; onChanged: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [link, setLink] = useState(m.meeting_link ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.setMeetingLink(m.id, link.trim());
+      setEditing(false);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not save the link.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-line px-4 py-3">
+        <div className="min-w-0">
+          <p className="text-base font-semibold">Join link for students</p>
+          <p className="truncate text-sm text-ink-soft">
+            {m.meeting_link ?? "Not added yet. Students see it on the class in ClassTrack."}
+          </p>
+        </div>
+        <Button variant="secondary" size="lg" onClick={() => setEditing(true)}>
+          {m.meeting_link ? "Change" : "Add link"}
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 rounded-xl border-2 border-brand/30 px-4 py-3">
+      <label className="block">
+        <span className="mb-1.5 block text-base font-semibold">Join link for students</span>
+        <input
+          type="url"
+          inputMode="url"
+          className={bigInputClass}
+          placeholder="https://meet.google.com/…"
+          value={link}
+          onChange={(e) => setLink(e.target.value)}
+        />
+      </label>
+      <p className="text-sm text-ink-soft">
+        Students of the section see it on the class
+        {m.status === "APPROVED" ? ", and are told it is there." : " once it is approved."}
+      </p>
+      {error ? <p className="text-sm font-semibold text-bad">{error}</p> : null}
+      <div className="flex gap-2">
+        <Button size="lg" onClick={save} disabled={busy}>
+          {busy ? "Saving…" : "Save link"}
+        </Button>
+        <Button variant="ghost" size="lg" onClick={() => setEditing(false)} disabled={busy}>
+          Cancel
+        </Button>
+      </div>
+    </div>
   );
 }
 

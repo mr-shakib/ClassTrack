@@ -59,6 +59,8 @@ class MakeupCreateRequest(BaseModel):
     reason: str | None = Field(default=None, max_length=2000)
     #: ONLINE only, optional: a Drive link for the approver to open. Ignored for PHYSICAL.
     drive_link: str | None = Field(default=None, max_length=1024)
+    #: ONLINE only, optional: where students join the class (Meet, Zoom). Ignored for PHYSICAL.
+    meeting_link: str | None = Field(default=None, max_length=1024)
 
 
 class MakeupOut(ORMModel):
@@ -75,6 +77,7 @@ class MakeupOut(ORMModel):
     decided_at: datetime | None = None
     created_instance_id: int | None = None
     drive_link: str | None = None
+    meeting_link: str | None = None
     completed_at: datetime | None = None
     #: When the rescheduled class ends; it can be marked done from then on.
     ends_at: datetime | None = None
@@ -92,6 +95,11 @@ class FreeRoomOut(BaseModel):
     room_type: str
     #: Short floor label, e.g. "KT-3".
     zone: str
+
+
+class MeetingLinkRequest(BaseModel):
+    #: Blank or null removes the link.
+    meeting_link: str | None = Field(default=None, max_length=1024)
 
 
 class CompleteRequest(BaseModel):

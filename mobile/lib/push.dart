@@ -29,7 +29,7 @@ class PushMessage {
   final String? link;
   final String? title, body;
 
-  bool get isReminder => kind == 'CLASS_REMINDER';
+  bool get isReminder => kind == 'CLASS_REMINDER' || kind == 'STUDENT_REMINDER';
 }
 
 /// Push notifications, through Firebase Cloud Messaging.
@@ -107,6 +107,47 @@ class Push {
       // Offline, or Play services missing: the next launch tries again.
       debugPrint('Push registration failed: $e');
     }
+  }
+
+  /// Asks to show notifications, the first time. Whether they are allowed.
+  Future<bool> askPermission() async {
+    if (!_ready) return false;
+    try {
+      final allowed = await FirebaseMessaging.instance.requestPermission();
+      return allowed.authorizationStatus != AuthorizationStatus.denied;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Follows and leaves push topics: how a student, who has no account, gets
+  /// the pushes for their sections. Firebase keeps the topics with the phone's
+  /// token, so they survive restarts; following one twice changes nothing.
+  /// Returns the topics now followed, which on a failure keeps what was.
+  Future<Set<String>> follow({required Set<String> wanted, required Set<String> followed}) async {
+    if (!_ready) return followed;
+    final messaging = FirebaseMessaging.instance;
+    final now = {...followed};
+    await _deleting;
+    for (final t in followed.difference(wanted)) {
+      try {
+        await messaging.unsubscribeFromTopic(t);
+        now.remove(t);
+      } catch (e) {
+        debugPrint('Could not leave topic $t: $e');
+      }
+    }
+    // Every wanted topic again, not only the new ones: a reinstall or a new
+    // token starts with none.
+    for (final t in wanted) {
+      try {
+        await messaging.subscribeToTopic(t);
+        now.add(t);
+      } catch (e) {
+        debugPrint('Could not follow topic $t: $e');
+      }
+    }
+    return now;
   }
 
   /// Stops this phone receiving the account's notifications. Offline, the token

@@ -13,6 +13,7 @@ import type {
   DayStatus,
   ExtraSection,
   FreeRoom,
+  FreeSlot,
   Holiday,
   IngestionReport,
   Makeup,
@@ -37,8 +38,13 @@ import type {
   SentNotification,
   StaffMember,
   StaffReport,
+  StudentCalendar,
+  StudentClass,
+  StudentDirectory,
+  StudentNotice,
   TeacherAccount,
   TeacherDetails,
+  TeacherGroup,
   TeacherReport,
   UnreportedReport,
   User,
@@ -106,7 +112,24 @@ const qs = (params: Record<string, string | number | boolean | undefined | null>
   return s ? `?${s}` : "";
 };
 
+const groupsQs = (groups: string[]) => encodeURIComponent(groups.join(","));
+
 export const api = {
+  // --- students: public, no sign-in ---------------------------------------
+  studentDirectory: () => get<StudentDirectory>("/students/directory"),
+  studentClasses: (groups: string[], from: string, to: string) =>
+    get<StudentClass[]>(`/students/classes?groups=${groupsQs(groups)}&from=${from}&to=${to}`),
+  studentNotices: (groups: string[]) =>
+    get<StudentNotice[]>(`/students/notices?groups=${groupsQs(groups)}`),
+  studentCalendar: () => get<StudentCalendar | null>("/students/calendar"),
+  studentFreeRooms: (date: string) => get<FreeSlot[]>(`/students/free-rooms${qs({ date })}`),
+
+  // --- a teacher writes to their students ---------------------------------
+  myStudentGroups: () => get<TeacherGroup[]>("/teacher/notices/groups"),
+  myStudentNotices: () => get<StudentNotice[]>("/teacher/notices"),
+  writeToMyStudents: (payload: { body: string; targets?: string[]; instance_id?: number }) =>
+    post<StudentNotice>("/teacher/notices", payload),
+
   // --- auth ---------------------------------------------------------------
   /** `username` is an email address, or a teacher's initial. */
   login: (username: string, password: string) =>
@@ -205,7 +228,12 @@ export const api = {
     reason?: string | null;
     /** ONLINE only, optional: for the HoD or Associate Head to open while deciding. */
     drive_link?: string | null;
+    /** ONLINE only, optional: where students join the class. */
+    meeting_link?: string | null;
   }) => post<Makeup>("/makeup", payload),
+  /** An online class's join link for students; blank removes it. */
+  setMeetingLink: (id: number, meetingLink: string) =>
+    post<Makeup>(`/makeup/${id}/meeting-link`, { meeting_link: meetingLink }),
   makeups: (status?: string) => get<Makeup[]>(`/makeup${qs({ status })}`),
   completeMakeup: (id: number, driveLink?: string) =>
     post<Makeup>(
@@ -270,6 +298,9 @@ export const api = {
     class_reminder_minutes?: number;
   }) => put<Record<string, string>>("/admin/settings", payload),
   sentNotifications: () => get<SentNotification[]>("/admin/notifications"),
+  sentToStudents: () => get<StudentNotice[]>("/admin/notifications/students"),
+  writeToStudents: (payload: { title: string; body: string; targets: string[] }) =>
+    post<StudentNotice>("/admin/notifications/students", payload),
   notificationRecipients: () => get<Recipient[]>("/admin/notifications/recipients"),
   sendNotification: (payload: {
     title: string;

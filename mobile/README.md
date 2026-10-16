@@ -1,8 +1,9 @@
 # ClassTrack mobile
 
-The ClassTrack app for the two groups who use it on their feet: **office staff** checking
-classes room by room, and **teachers** seeing their classes and rescheduling missed ones.
-Admin work (dashboards, reports, approvals, routines) stays on the website.
+The ClassTrack app for the people who use it on their feet: **students** following their
+section's routine with no account, **office staff** checking classes room by room, and
+**teachers** seeing their classes and rescheduling missed ones. Admin work (dashboards,
+reports, approvals, routines) stays on the website.
 
 **Stack:** Flutter (Android + iOS) · talks to the same FastAPI backend as `web/`
 
@@ -10,6 +11,11 @@ Admin work (dashboards, reports, approvals, routines) stays on the website.
 
 | Who | Tab | Mirrors on the web |
 |---|---|---|
+| Students (no sign-in) | **Routine**: the class on now or next, and the week a day at a time; tap a class for its Teacher Card, a note from the teacher, where it moved, or the join link of an online makeup | `/students` |
+| Students | **Makeups** (Makeup Radar): makeups, extra classes and cancellations for their groups, four weeks ahead | `/students` → Makeup Radar |
+| Students | **Updates**: Change Alerts when a class moves, Section Notices from teachers and the department | `/students` → Updates |
+| Students | **Rooms** (Free Room Finder): empty rooms today or tomorrow, by slot | `/students` → Free rooms |
+| Students | **More**: Class Alarm on or off, change section, Semester Calendar, appearance, and *Staff or teacher? Sign in* | `/students` → Calendar |
 | Office staff, committee, admins who check | **Checking**: pick a floor, then one tap per room (running / late / absent); *Find by teacher* to correct a past record | `/staff` |
 | Teachers | **Home**: the class on now (or next), what is waiting on them, today as a timeline, and the week as a timetable (days across, slots down, any week back or forward; tap a class for its details) | — |
 | Teachers | **Reschedule**: *Reschedule required*, makeups under way with mark-done and Drive link, extra classes, past reschedules | `/teacher`, `/teacher/makeup`, `/teacher/extra` |
@@ -17,6 +23,14 @@ Admin work (dashboards, reports, approvals, routines) stays on the website.
 | Everyone | **Profile**, as cards: who they are; for a teacher the semester (share held, conducted, late, missed, not checked) and each course against the minimum; for staff their floors; then details and settings (appearance, password, sign out) | `/profile` |
 
 A teacher who also checks classes gets Home, Reschedule and Checking. An account with neither is pointed to the website.
+A teacher writes to their students from Home (*Message your students*), sends a heads-up
+about one class from its details in the week, and adds an online makeup's join link on its card.
+
+**Students** tap *I'm a student* on the sign-in screen and pick their batch, section, lab
+group and any retake groups (`lib/student/`). The choice is kept on the phone; nothing is
+signed in. The phone follows the Firebase topics the API names for those groups
+(`/students/topics`): every notice to them, and, while Class Alarm is on, the reminder before
+each class. It follows them again on each launch, since a new token follows none.
 
 Home reads the teacher's classes from today to three weeks ahead (`/instances?from=&to=`). A server
 older than that filter sends every class instead, and the app keeps only the window.

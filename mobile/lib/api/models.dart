@@ -45,6 +45,9 @@ class User {
   bool get mayCorrect => can('checking.correct');
 
   bool get mayReschedule => isTeacher && can('reschedules.request');
+
+  /// Write to the students of their own sections.
+  bool get mayMessageStudents => isTeacher && can('students.message');
   bool get mayBookExtra => isTeacher && can('extra_classes.book');
 
   String get roleNames => roles.map((r) => r.name).join(' · ');
@@ -258,6 +261,7 @@ class Makeup {
       status = j['status'] as String,
       decisionNote = j['decision_note'] as String?,
       driveLink = j['drive_link'] as String?,
+      meetingLink = j['meeting_link'] as String?,
       endsAt = j['ends_at'] as String?,
       originalCourseCode = j['original_course_code'] as String?,
       originalSection = j['original_section'] as String?,
@@ -275,6 +279,9 @@ class Makeup {
   /// SCHEDULED, PENDING, APPROVED, REJECTED or COMPLETED.
   final String status;
   final String? decisionNote, driveLink, endsAt;
+
+  /// ONLINE only: where students join the class.
+  final String? meetingLink;
   final String? originalCourseCode, originalSection, originalDate, originalTimeSlot, originalRoom;
 
   bool get online => mode == 'ONLINE';
@@ -381,4 +388,164 @@ class AppNotification {
   final String kind, title, body, createdAt;
   final String? link, readAt;
   bool get unread => readAt == null;
+}
+
+// --- students -------------------------------------------------------------------
+// Mirrors backend/src/classtrack/schemas/student.py. Students have no account:
+// they pick their groups, and every read is public.
+
+class StudentSection {
+  StudentSection.fromJson(Json j)
+    : section = j['section'] as String,
+      intake = j['intake'] as String? ?? '',
+      labGroups = (j['lab_groups'] as List? ?? const []).cast<String>();
+  final String section, intake;
+  final List<String> labGroups;
+}
+
+class RetakeGroup {
+  RetakeGroup.fromJson(Json j)
+    : token = j['token'] as String,
+      section = j['section'] as String,
+      labGroups = _list(j['lab_groups'], (l) => (l['token'] as String, l['section'] as String));
+  final String token, section;
+  final List<(String, String)> labGroups;
+}
+
+class RetakeCourse {
+  RetakeCourse.fromJson(Json j)
+    : courseCode = j['course_code'] as String,
+      courseTitle = j['course_title'] as String?,
+      groups = _list(j['groups'], RetakeGroup.fromJson);
+  final String courseCode;
+  final String? courseTitle;
+  final List<RetakeGroup> groups;
+}
+
+class StudentDirectory {
+  StudentDirectory.fromJson(Json j)
+    : department = j['department'] as String? ?? 'CSE',
+      semester = j['semester'] as String?,
+      sections = _list(j['sections'], StudentSection.fromJson),
+      retakes = _list(j['retakes'], RetakeCourse.fromJson);
+  final String department;
+  final String? semester;
+  final List<StudentSection> sections;
+  final List<RetakeCourse> retakes;
+}
+
+class TeacherCard {
+  TeacherCard.fromJson(Json j)
+    : initial = j['initial'] as String? ?? '',
+      name = j['name'] as String?,
+      designation = j['designation'] as String?,
+      officeRoom = j['office_room'] as String?,
+      photoUrl = j['photo_url'] as String?;
+  final String initial;
+  final String? name, designation, officeRoom, photoUrl;
+
+  String get display => name ?? initial;
+}
+
+/// A class as students see it: where and when, and whether it is on. Nothing
+/// about whether the teacher came: that never leaves the server.
+class StudentClass {
+  StudentClass.fromJson(Json j)
+    : id = _int(j['id']),
+      date = j['date'] as String,
+      timeSlot = j['time_slot'] as String,
+      start = _int(j['start_min']),
+      end = _int(j['end_min']),
+      room = j['room'] as String?,
+      roomType = j['room_type'] as String? ?? '',
+      online = j['online'] as bool? ?? false,
+      courseCode = j['course_code'] as String,
+      courseTitle = j['course_title'] as String?,
+      section = j['section'] as String,
+      kind = j['kind'] as String? ?? 'CLASS',
+      state = j['state'] as String? ?? 'SCHEDULED',
+      movedTo = j['moved_to'] == null ? null : SlotRef.fromJson(j['moved_to'] as Json),
+      movedOnline = (j['moved_to'] as Json?)?['online'] == true,
+      makeupFor = j['makeup_for'] == null ? null : SlotRef.fromJson(j['makeup_for'] as Json),
+      joinLink = j['join_link'] as String?,
+      teacher = TeacherCard.fromJson(j['teacher'] as Json? ?? const {}),
+      noteBody = (j['note'] as Json?)?['body'] as String?,
+      noteAt = (j['note'] as Json?)?['created_at'] as String?;
+
+  final int id, start, end;
+  final String date, timeSlot, roomType, courseCode, section;
+
+  /// Null when it is held online.
+  final String? room, courseTitle, joinLink;
+  final bool online;
+
+  /// CLASS, MAKEUP or EXTRA.
+  final String kind;
+
+  /// SCHEDULED, CANCELLED, or MOVED to [movedTo].
+  final String state;
+  final SlotRef? movedTo, makeupFor;
+  final bool movedOnline;
+  final TeacherCard teacher;
+
+  /// The latest note the teacher wrote about this class.
+  final String? noteBody, noteAt;
+
+  bool get on => state == 'SCHEDULED';
+  bool get isMakeup => kind == 'MAKEUP';
+  bool get isExtra => kind == 'EXTRA';
+}
+
+class StudentNotice {
+  StudentNotice.fromJson(Json j)
+    : id = _int(j['id']),
+      kind = j['kind'] as String,
+      title = j['title'] as String,
+      body = j['body'] as String,
+      author = j['author'] as String? ?? '',
+      createdAt = j['created_at'] as String,
+      about = j['about'] == null ? null : StudentClass.fromJson(j['about'] as Json);
+
+  final int id;
+
+  /// ANNOUNCEMENT, TEACHER or CHANGE.
+  final String kind;
+  final String title, body, author, createdAt;
+  final StudentClass? about;
+}
+
+class StudentTopics {
+  StudentTopics.fromJson(Json j)
+    : alerts = (j['alerts'] as List? ?? const []).cast<String>(),
+      reminders = (j['reminders'] as List? ?? const []).cast<String>();
+  final List<String> alerts, reminders;
+}
+
+class FreeSlot {
+  FreeSlot.fromJson(Json j) : timeSlot = j['time_slot'] as String, rooms = _list(j['rooms'], FreeRoom.fromJson);
+  final String timeSlot;
+  final List<FreeRoom> rooms;
+}
+
+class StudentCalendar {
+  StudentCalendar.fromJson(Json j)
+    : name = j['name'] as String,
+      startDate = j['start_date'] as String,
+      endDate = j['end_date'] as String,
+      exams = _list(j['exams'], (e) => (e['name'] as String, e['start'] as String, e['end'] as String)),
+      holidays = _list(j['holidays'], (h) => (h['date'] as String, h['title'] as String, h['kind'] as String));
+  final String name, startDate, endDate;
+  final List<(String, String, String)> exams;
+
+  /// Date, title and kind: HOLIDAY, EXAM, CLOSED or SPECIAL.
+  final List<(String, String, String)> holidays;
+}
+
+/// A section a teacher may write to.
+class TeacherGroup {
+  TeacherGroup.fromJson(Json j)
+    : token = j['token'] as String,
+      courseCode = j['course_code'] as String,
+      section = j['section'] as String;
+  final String token, courseCode, section;
 }

@@ -131,3 +131,6 @@ String greeting() {
   if (h < 17) return 'Good afternoon';
   return 'Good evening';
 }
+
+/// The department's week runs Saturday to Thursday; Friday is the weekend.
+DateTime weekStartOf(DateTime day) => day.subtract(Duration(days: (day.weekday + 1) % 7));

@@ -76,10 +76,16 @@ Sign in with any of these — password `classtrack`:
 | `staff1@diu.edu` | Office staff | `/staff` |
 | `teacher@diu.edu` | Teacher | `/teacher` |
 
+Students need no account: **/students** (or a short link such as `/s/63_A` for a section's
+group chat) shows a section's routine, its makeups, notices and free rooms. They see when a
+class is on, moved or cancelled, never whether the teacher came: see
+[`services/student_service.py`](backend/src/classtrack/services/student_service.py).
+
 ## Mobile app
 
-Staff checking and the teacher's screens are also a Flutter app for Android and iOS, in
-[`mobile/`](mobile/README.md). It talks to the same API. Notifications are pushed to it
+Staff checking, the teacher's screens and the student's are also a Flutter app for Android
+and iOS, in [`mobile/`](mobile/README.md). It talks to the same API. Students tap
+*I'm a student* and pick their section: no sign-in. Notifications are pushed to it
 through Firebase, teachers are reminded before each class (minutes set at **Admin →
 Rules**), and admins can write their own at **Admin → Notifications**. The server needs
 the Firebase key: [deploy/README.md](deploy/README.md#push-notifications). People get the

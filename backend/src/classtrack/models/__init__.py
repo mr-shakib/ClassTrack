@@ -35,6 +35,7 @@ from classtrack.models.notification import Notification, NotificationKind
 from classtrack.models.push import PushDevice
 from classtrack.models.routine import ClassSession, Routine
 from classtrack.models.setting import SETTING_DEFAULTS, Setting
+from classtrack.models.student import NoticeKind, StudentNotice, StudentNoticeTarget
 from classtrack.models.teacher import Teacher
 from classtrack.models.user import User
 
@@ -60,6 +61,7 @@ __all__ = [
     "MakeupClass",
     "MakeupMode",
     "MakeupStatus",
+    "NoticeKind",
     "Notification",
     "NotificationKind",
     "Permission",
@@ -71,6 +73,8 @@ __all__ = [
     "Semester",
     "Setting",
     "StaffZone",
+    "StudentNotice",
+    "StudentNoticeTarget",
     "Teacher",
     "TeacherResponse",
     "Term",

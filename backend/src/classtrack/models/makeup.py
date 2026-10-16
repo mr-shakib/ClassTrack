@@ -101,6 +101,9 @@ class MakeupClass(Base, TimestampMixin):
     #: ONLINE only: the Drive link the teacher submits after holding the class.
     #: Nothing else shows an online class took place, so completion requires it.
     drive_link: Mapped[str | None] = mapped_column(String(1024))
+    #: ONLINE only: where students join the class -- a Meet or Zoom link the
+    #: teacher adds when asking, or any time before the class.
+    meeting_link: Mapped[str | None] = mapped_column(String(1024))
     completed_by_id: Mapped[int | None] = mapped_column(
         ForeignKey("user.id", ondelete="SET NULL")
     )

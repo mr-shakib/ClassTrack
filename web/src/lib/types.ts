@@ -11,6 +11,7 @@ export type Permission =
   | "reschedules.any_teacher"
   | "reschedules.request"
   | "extra_classes.book"
+  | "students.message"
   | "reports.department"
   | "routine.manage"
   | "semesters.manage"
@@ -361,6 +362,8 @@ export interface Makeup {
   created_instance_id: number | null;
   /** ONLINE only: submitted by the teacher when marking the class done. */
   drive_link: string | null;
+  /** ONLINE only: where students join the class. */
+  meeting_link?: string | null;
   completed_at: string | null;
   /** When the rescheduled class ends; it can be marked done from then on. */
   ends_at: string | null;
@@ -788,3 +791,85 @@ export interface ExtraSection {
   /** The kind of room it usually meets in, offered first. */
   room_type: string;
 }
+
+// --- students ------------------------------------------------------------------
+
+/** A group a student sits in: "63_A", a lab group "63_A1", or a retake group
+ *  "CSE447:RE_A". Notices also go to "63" (an intake) and "*" (everyone). */
+export type GroupToken = string;
+
+export interface StudentDirectory {
+  department: string;
+  semester: string | null;
+  sections: { section: string; intake: string; lab_groups: string[] }[];
+  retakes: {
+    course_code: string;
+    course_title: string | null;
+    groups: { token: string; section: string; lab_groups: { token: string; section: string }[] }[];
+  }[];
+}
+
+export interface TeacherCard {
+  initial: string;
+  name: string | null;
+  designation: string | null;
+  office_room: string | null;
+  photo_url: string | null;
+}
+
+/** A class as students see it: where and when, and whether it is on. Nothing
+ *  about whether the teacher came: that never leaves the server. */
+export interface StudentClass {
+  id: number;
+  date: string;
+  day: string;
+  time_slot: string;
+  start_min: number;
+  end_min: number;
+  room: string | null;
+  room_type: string;
+  online: boolean;
+  course_code: string;
+  course_title: string | null;
+  section: string;
+  kind: "CLASS" | "MAKEUP" | "EXTRA";
+  state: "SCHEDULED" | "CANCELLED" | "MOVED";
+  moved_to: { date: string; time_slot: string; room: string | null; online: boolean } | null;
+  makeup_for: { date: string; time_slot: string } | null;
+  join_link: string | null;
+  teacher: TeacherCard;
+  note: { body: string; author: string; created_at: string } | null;
+}
+
+export interface StudentNotice {
+  id: number;
+  kind: "ANNOUNCEMENT" | "TEACHER" | "CHANGE";
+  title: string;
+  body: string;
+  author: string;
+  created_at: string;
+  targets: GroupToken[];
+  about: StudentClass | null;
+}
+
+export interface FreeSlot {
+  time_slot: string;
+  rooms: FreeRoom[];
+}
+
+export interface StudentCalendar {
+  name: string;
+  start_date: string;
+  end_date: string;
+  exams: { name: string; start: string; end: string }[];
+  holidays: { date: string; title: string; kind: string }[];
+}
+
+/** A section a teacher may write to. */
+export interface TeacherGroup {
+  token: GroupToken;
+  course_code: string;
+  course_title: string;
+  section: string;
+}
+

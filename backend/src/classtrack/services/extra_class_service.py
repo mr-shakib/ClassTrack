@@ -29,6 +29,7 @@ from classtrack.services import (
     makeup_service,
     notification_service,
     status_engine,
+    student_service,
 )
 
 
@@ -178,6 +179,7 @@ async def book(
         },
     )
     await notification_service.notify_extra_booked(session, instance)
+    await student_service.announce_extra(session, instance)
     return instance
 
 
@@ -211,6 +213,7 @@ async def cancel(
         before={"status": None},
         after={"status": ClassStatus.CANCELLED.value},
     )
+    await student_service.announce_cancelled(session, instance)
     return instance
 
 

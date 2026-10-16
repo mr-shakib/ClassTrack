@@ -222,6 +222,7 @@ class Api {
     String? room,
     String? reason,
     String? driveLink,
+    String? meetingLink,
   }) async => Makeup.fromJson(
     await _post('/makeup', {
           'original_instance_id': originalInstanceId,
@@ -232,9 +233,14 @@ class Api {
           'room': room,
           'reason': reason,
           'drive_link': driveLink,
+          'meeting_link': meetingLink,
         })
         as Json,
   );
+
+  /// An online class's join link for students; blank removes it.
+  Future<Makeup> setMeetingLink(int id, String link) async =>
+      Makeup.fromJson(await _post('/makeup/$id/meeting-link', {'meeting_link': link}) as Json);
 
   Future<List<ExtraSection>> extraSections() async =>
       _list(await _get('/extra-classes/sections'), ExtraSection.fromJson);
@@ -270,4 +276,35 @@ class Api {
   Future<void> registerDevice(String token, String platform) async =>
       _post('/notifications/devices', {'token': token, 'platform': platform});
   Future<void> removeDevice(String token) async => _post('/notifications/devices/remove', {'token': token});
+
+  // --- students: public, no sign-in -------------------------------------------------
+
+  Future<StudentDirectory> studentDirectory() async =>
+      StudentDirectory.fromJson(await _get('/students/directory') as Json);
+  Future<StudentTopics> studentTopics(List<String> groups) async =>
+      StudentTopics.fromJson(await _get('/students/topics', {'groups': groups.join(',')}) as Json);
+
+  /// Both dates inclusive, at most six weeks.
+  Future<List<StudentClass>> studentClasses(List<String> groups, String from, String to) async => _list(
+    await _get('/students/classes', {'groups': groups.join(','), 'from': from, 'to': to}),
+    StudentClass.fromJson,
+  );
+  Future<List<StudentNotice>> studentNotices(List<String> groups) async =>
+      _list(await _get('/students/notices', {'groups': groups.join(',')}), StudentNotice.fromJson);
+  Future<StudentCalendar?> studentCalendar() async {
+    final raw = await _get('/students/calendar');
+    return raw == null ? null : StudentCalendar.fromJson(raw as Json);
+  }
+
+  Future<List<FreeSlot>> studentFreeRooms(String date) async =>
+      _list(await _get('/students/free-rooms', {'date': date}), FreeSlot.fromJson);
+
+  // --- a teacher writes to their students -------------------------------------------
+
+  Future<List<TeacherGroup>> myStudentGroups() async =>
+      _list(await _get('/teacher/notices/groups'), TeacherGroup.fromJson);
+
+  /// About one class (`instanceId`, a heads-up), or to chosen sections.
+  Future<void> writeToMyStudents({required String body, List<String>? targets, int? instanceId}) async =>
+      _post('/teacher/notices', {'body': body, 'targets': targets ?? const [], 'instance_id': instanceId});
 }

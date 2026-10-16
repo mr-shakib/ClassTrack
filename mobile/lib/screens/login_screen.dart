@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../api/client.dart';
 import '../session.dart';
+import '../student/setup_screen.dart';
+import '../student/student.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
@@ -45,6 +47,14 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// No sign-in for a student: they pick their section, and the app opens on it.
+  Future<void> _student() async {
+    final picked = await Navigator.of(
+      context,
+    ).push<List<String>>(MaterialPageRoute(builder: (_) => const StudentSetupScreen()));
+    if (picked != null && picked.isNotEmpty && mounted) await StudentScope.read(context).setGroups(picked);
   }
 
   @override
@@ -162,6 +172,49 @@ class _LoginScreenState extends State<LoginScreen> {
                                 : const Text('Sign in'),
                           ),
                         ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Material(
+                      color: p.brandSoft,
+                      borderRadius: BorderRadius.circular(20),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: _busy ? null : _student,
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: p.brand.withValues(alpha: 0.25), width: 1.2),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 46,
+                                height: 46,
+                                decoration: BoxDecoration(color: p.brandSolid, borderRadius: BorderRadius.circular(14)),
+                                child: const Icon(Icons.school_rounded, color: Colors.white),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      "I'm a student",
+                                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: p.ink),
+                                    ),
+                                    Text(
+                                      'Your routine, makeups and alerts. No sign-in.',
+                                      style: TextStyle(fontSize: 14, color: p.inkSoft),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(Icons.chevron_right_rounded, color: p.brand),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 28),

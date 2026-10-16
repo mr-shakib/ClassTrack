@@ -1,8 +1,8 @@
 name: classtrack
-description: "ClassTrack for office staff and teachers"
+description: "ClassTrack for students, teachers and office staff"
 publish_to: 'none'
 
-version: 1.1.0+2
+version: 1.2.0+3
 
 environment:
   sdk: ^3.12.2

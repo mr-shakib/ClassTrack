@@ -49,6 +49,7 @@ from classtrack.services import (
     instance_service,
     notification_service,
     status_engine,
+    student_service,
 )
 
 logger = logging.getLogger(__name__)
@@ -199,6 +200,7 @@ async def create(
     room: str | None = None,
     reason: str | None = None,
     drive_link: str | None = None,
+    meeting_link: str | None = None,
     now: datetime | None = None,
 ) -> MakeupClass:
     """Reschedule a missed class.
@@ -216,10 +218,11 @@ async def create(
 
     if mode is MakeupMode.PHYSICAL and not room:
         raise ValidationError("A physical makeup class needs a room.")
-    link = None
+    link = join = None
     if mode is MakeupMode.ONLINE:
         room = None
         link = _clean_link(drive_link)
+        join = _clean_link(meeting_link)
     slot, start_min, end_min = _period(mode, time_slot, start_time)
     require_future(on, slot, start_min, now)
 
@@ -258,6 +261,7 @@ async def create(
         reason=reason,
         status=MakeupStatus.SCHEDULED if physical else MakeupStatus.PENDING,
         drive_link=link,
+        meeting_link=join,
     )
     session.add(makeup)
     await session.flush()
@@ -276,6 +280,7 @@ async def create(
         makeup.created_instance_id = instance.id
         original.status = ClassStatus.MAKEUP_SCHEDULED
         await notification_service.notify_makeup_scheduled(session, makeup, original)
+        await student_service.announce_makeup(session, makeup, original, instance)
     else:
         # BR-11: no instance yet -- an unapproved online class is not scheduled.
         original.status = ClassStatus.ONLINE_PENDING
@@ -385,6 +390,7 @@ async def decide(
         # A physical instance starts unresolved, so it lands on the staff screen
         # for its floor at the new time (BR-10).
         original.status = ClassStatus.MAKEUP_SCHEDULED if physical else ClassStatus.ONLINE_APPROVED
+        await student_service.announce_makeup(session, makeup, original, instance)
     elif physical:
         # The class is still owed: back to MISSED so the teacher asks again.
         original.status = ClassStatus.MISSED
@@ -521,5 +527,49 @@ async def complete(
         before=before,
         after={"makeup_status": MakeupStatus.COMPLETED.value, "drive_link": link},
     )
+    await session.flush()
+    return makeup
+
+
+async def set_meeting_link(
+    session: AsyncSession, *, makeup_id: int, user: User, meeting_link: str | None
+) -> MakeupClass:
+    """Give an online makeup the link students join it by, or change it.
+
+    Any time until the class is over. Once the class is approved its students
+    are told, since the link is what they were waiting for.
+    """
+    makeup = await session.get(MakeupClass, makeup_id)
+    if makeup is None:
+        raise NotFoundError(f"No makeup class with id {makeup_id}")
+    if not user.can(Permission.RESCHEDULE_ANY) and makeup.teacher_initial != user.teacher_initial:
+        raise ForbiddenError("You may only change your own makeup classes.")
+    if makeup.mode is not MakeupMode.ONLINE:
+        raise ValidationError("Only an online class has a join link.")
+    if makeup.status in (MakeupStatus.REJECTED, MakeupStatus.COMPLETED):
+        raise ValidationError(f"This class is {makeup.status.value.lower()}.")
+    if status_engine.now_local() >= ends_at(makeup):
+        raise ValidationError("This class is over.")
+
+    before = makeup.meeting_link
+    makeup.meeting_link = _clean_link(meeting_link)
+    audit_service.record(
+        session,
+        actor_id=user.id,
+        entity_type="makeup_class",
+        entity_id=makeup.id,
+        action="meeting_link_set",
+        before={"meeting_link": before},
+        after={"meeting_link": makeup.meeting_link},
+    )
+    if (
+        makeup.meeting_link
+        and makeup.meeting_link != before
+        and makeup.status is MakeupStatus.APPROVED
+        and makeup.created_instance_id is not None
+    ):
+        instance = await session.get(ClassInstance, makeup.created_instance_id)
+        if instance is not None:
+            await student_service.announce_meeting_link(session, instance)
     await session.flush()
     return makeup

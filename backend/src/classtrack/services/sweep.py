@@ -37,7 +37,13 @@ from sqlalchemy.orm import selectinload
 from classtrack.db.base import utcnow
 from classtrack.db.session import get_sessionmaker
 from classtrack.models import CheckOutcome, ClassInstance, ClassStatus, MakeupClass, MakeupStatus
-from classtrack.services import audit_service, notification_service, settings_service
+from classtrack.services import (
+    audit_service,
+    notification_service,
+    push_service,
+    settings_service,
+    student_service,
+)
 from classtrack.services.status_engine import (
     day_ends_at,
     now_local,
@@ -137,7 +143,8 @@ async def sweep_once(session: AsyncSession, *, now: datetime | None = None) -> d
 
 
 async def _remind_starting_classes(session: AsyncSession, now: datetime) -> int:
-    """Remind each teacher once, the set number of minutes before each class they hold.
+    """Remind each teacher once, the set number of minutes before each class they
+    hold, and the class's students with them.
 
     A pass that comes late -- the server was down -- still reminds a class that
     has not started, with the minutes actually left; one that has started is let go.
@@ -161,11 +168,14 @@ async def _remind_starting_classes(session: AsyncSession, now: datetime) -> int:
     ).all()
 
     reminded = 0
+    dept = await student_service.department(session) if upcoming else ""
     for instance in upcoming:
         start = slot_start_at(instance.date, instance.start_min)
         if not now < start <= horizon:
             continue
         await notification_service.notify_class_starting(session, instance, starts_in=start - now)
+        # Its students too, through their section's reminder topic.
+        push_service.queue(session, student_service.remind(dept, instance, starts_in=start - now))
         instance.reminded_at = utcnow()
         reminded += 1
     return reminded

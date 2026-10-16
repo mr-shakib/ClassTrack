@@ -26,6 +26,7 @@ from classtrack.services import (
     audit_service,
     reschedule_links,
     status_engine,
+    student_service,
 )
 
 router = APIRouter(prefix="/instances", tags=["instances"])
@@ -142,5 +143,7 @@ async def cancel(
         after={"status": ClassStatus.CANCELLED.value},
         reason=payload.reason,
     )
+    # Students hear that it is off, never why: the reason is the department's.
+    await student_service.announce_cancelled(session, inst)
     await session.commit()
     return _serialise(inst)

@@ -127,6 +127,8 @@ RoomFinderUser = Annotated[
 ]
 #: Book an extra class -- always the teacher's own.
 ExtraClassUser = Annotated[User, Depends(_teacher_or((P.BOOK_EXTRA_CLASSES,)))]
+#: Write to the students of their own sections.
+StudentMessengerUser = Annotated[User, Depends(_teacher_or((P.MESSAGE_STUDENTS,)))]
 
 
 def scope_teacher(user: User, requested: str | None) -> str | None:

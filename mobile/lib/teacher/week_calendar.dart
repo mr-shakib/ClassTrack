@@ -8,10 +8,8 @@ import '../util/time.dart';
 import '../widgets/common.dart';
 import '../widgets/status.dart';
 import 'reschedule_screen.dart';
+import 'student_note.dart';
 import 'teacher_data.dart';
-
-/// The department's week runs Saturday to Thursday; Friday is the weekend.
-DateTime weekStartOf(DateTime day) => day.subtract(Duration(days: (day.weekday + 1) % 7));
 
 /// A teacher's week as a timetable: days across, the six routine slots down,
 /// and a row for classes held off the routine's clock, such as an online
@@ -581,6 +579,27 @@ void _showDetails(BuildContext context, UpcomingClass c, TeacherData data) {
                     icon: Icons.sync_rounded,
                   ),
                 ),
+              // A heads-up to its students, while the class is still to be held.
+              if ((user?.mayMessageStudents ?? false) &&
+                  (c.date.compareTo(todayIso()) > 0 || (c.date == todayIso() && c.end > dhakaMinutesNow())) &&
+                  c.status != 'CANCELLED') ...[
+                const SizedBox(height: 4),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(sheet).pop();
+                      showHeadsUpSheet(
+                        context,
+                        instanceId: c.id,
+                        label: '${c.courseCode} · ${mediumDay(c.date)}, ${c.times}',
+                      );
+                    },
+                    icon: const Icon(Icons.chat_bubble_outline_rounded),
+                    label: const Text('Note to students'),
+                  ),
+                ),
+              ],
               if (owed != null && (user?.mayReschedule ?? false)) ...[
                 const SizedBox(height: 8),
                 SizedBox(

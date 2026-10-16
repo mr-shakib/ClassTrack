@@ -5,13 +5,17 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import QrCode from "@/components/QrCode";
 import { Card, Spinner } from "@/components/ui";
-import { APP_FEATURES } from "@/components/AppPromo";
+import { APP_FEATURES, STUDENT_FEATURES } from "@/components/AppPromo";
 import { DownloadIcon } from "@/components/icons";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { AndroidApp } from "@/lib/types";
 
-const FEATURES = Object.values(APP_FEATURES);
+/** Teachers and the staff who check classes sign in; students pick a section. */
+const GROUPS = [
+  { title: "For students · no sign-in", features: STUDENT_FEATURES },
+  { title: "For teachers & staff", features: Object.values(APP_FEATURES) },
+];
 
 const megabytes = (bytes: number) => `${Math.round(bytes / 1_000_000)} MB`;
 
@@ -66,8 +70,8 @@ export default function AppPage() {
               <p className="text-sm font-semibold text-brand">ClassTrack for Android</p>
               <h1 className="mt-1 text-2xl font-semibold text-ink">Your classes, on your phone</h1>
               <p className="mt-2 text-base text-ink-soft">
-                The same account as this website: sign in with your initial (or email) and
-                password.
+                Students: no account needed. Open the app, tap <strong>I&apos;m a student</strong>{" "}
+                and pick your section. Teachers and staff sign in as on this website.
               </p>
 
               <div className="mt-5">
@@ -117,19 +121,26 @@ export default function AppPage() {
             ) : null}
           </div>
 
-          <ul className="grid gap-px border-t border-line bg-line sm:grid-cols-2">
-            {FEATURES.map((f) => (
-              <li key={f.name} className="flex gap-3 bg-surface p-4">
-                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand">
-                  <f.icon className="size-5" />
-                </span>
-                <span>
-                  <span className="block text-sm font-semibold text-ink">{f.name}</span>
-                  <span className="mt-0.5 block text-sm text-ink-soft">{f.body}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
+          {GROUPS.map((g) => (
+            <section key={g.title} className="border-t border-line">
+              <h2 className="bg-canvas px-4 py-2 text-xs font-bold uppercase tracking-wide text-ink-faint">
+                {g.title}
+              </h2>
+              <ul className="grid gap-px border-t border-line bg-line sm:grid-cols-2">
+                {g.features.map((f) => (
+                  <li key={f.name} className="flex gap-3 bg-surface p-4">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand">
+                      <f.icon className="size-5" />
+                    </span>
+                    <span>
+                      <span className="block text-sm font-semibold text-ink">{f.name}</span>
+                      <span className="mt-0.5 block text-sm text-ink-soft">{f.body}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
         </Card>
 
         {app?.available && !app.store ? (
@@ -169,7 +180,11 @@ export default function AppPage() {
         ) : null}
 
         <p className="px-1 text-sm text-ink-faint">
-          No iPhone app yet: on an iPhone, keep using this website in Safari.
+          No iPhone app yet: on an iPhone, keep using this website in Safari. Students can open{" "}
+          <Link href="/students" className="font-medium text-brand hover:underline">
+            their routine
+          </Link>{" "}
+          there, with no sign-in.
         </p>
       </div>
     </div>

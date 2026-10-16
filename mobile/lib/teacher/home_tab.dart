@@ -8,6 +8,7 @@ import '../theme.dart';
 import '../util/time.dart';
 import '../widgets/common.dart';
 import '../widgets/status.dart';
+import 'student_note.dart';
 import 'teacher_data.dart';
 import 'week_calendar.dart';
 
@@ -118,6 +119,15 @@ class _HomeTabState extends State<HomeTab> {
               : '${d.awaitingApproval.length} online classes are waiting for approval',
           onTap: widget.onOpenReschedule,
         ),
+      if (SessionScope.read(context).user?.mayMessageStudents ?? false) ...[
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const MessageStudentsScreen())),
+          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+          icon: const Icon(Icons.campaign_outlined),
+          label: const Text('Message your students'),
+        ),
+      ],
       const SizedBox(height: 26),
       SectionHeader('Today', count: todays.length, subtitle: formatDay(today)),
       if (todays.isEmpty)

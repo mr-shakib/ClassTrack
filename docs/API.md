@@ -277,6 +277,7 @@ Roles: MGR. Frontend polls every 30s.
 | `POST` | `/makeup` | T, HOD, SA | Reschedule a missed class |
 | `GET` | `/makeup` | scoped | List; teachers see their own |
 | `POST` | `/makeup/{id}/complete` | T (own), HOD, SA | Mark done after the class ends; `{ "drive_link": "https://..." }` required for `ONLINE` |
+| `POST` | `/makeup/{id}/meeting-link` | T (own), HOD, SA | `ONLINE` only, until the class ends: `{ "meeting_link": "https://..." }` where students join it; blank removes it. Once approved, its section is told. `POST /makeup` takes `meeting_link` too |
 
 ```jsonc
 // POST /makeup/check-conflict
@@ -500,7 +501,66 @@ Public, for the website's `/app` page.
 | `GET` | `/app/android` | `{available, store, url, version, size_bytes, updated_at}`: the Play Store page once `CLASSTRACK_ANDROID_PLAY_URL` is set, else the newest `classtrack-<version>.apk` in `CLASSTRACK_DOWNLOADS_DIR` |
 | `GET` | `/app/android/download` | That APK, as `ClassTrack-<version>.apk`; 404 when there is none |
 
-## 9. Admin
+## 9. Students
+
+Students have no accounts. Every `/students` read is public: a student names the groups
+they sit in, and sees what the timetable on the wall would say. Whether a teacher came,
+came late or was reported absent, and every check record, stays out of it.
+
+A **group** is a token: `63_A` a section, `63_A1` one of its lab groups, `CSE447:RE_A` a
+retake group (a retake section is only a group within its course). A lab group brings its
+section's classes too. Notices also go to `63` (an intake) and `*` (everyone).
+`groups=` is comma-separated, at most 16; a malformed one, or a bare `RE_A`, is `422`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/students/directory` | Every section of the routine in force with its lab groups, and every retake course with its groups, to pick from |
+| `GET` | `/students/classes` | `?groups=&from=&to=` (inclusive, at most 42 days; default today and six days on): each class as students see it, below |
+| `GET` | `/students/notices` | `?groups=&limit=` What was written to any of the groups, the student's intake or everyone, newest first |
+| `GET` | `/students/topics` | `?groups=` The push topics to follow: `alerts` (every notice) and `reminders` (before each class) |
+| `GET` | `/students/calendar` | The current semester: dates, `exams`, and `holidays` (every day off, with its kind); `null` with none |
+| `GET` | `/students/free-rooms` | `?date=` today to two weeks on: each of the six slots and the rooms with nothing in them; `[]` on a day with no classes at all |
+
+```jsonc
+// GET /students/classes?groups=70_A1&from=2026-09-13&to=2026-09-13
+[{ "id": 1, "date": "2026-09-13", "day": "Sunday", "time_slot": "10:00-11:30",
+   "start_min": 600, "end_min": 690, "room": "KT-305", "room_type": "Theory", "online": false,
+   "course_code": "CSE311", "course_title": null, "section": "70_A",
+   "kind": "CLASS",          // CLASS, MAKEUP or EXTRA
+   "state": "MOVED",         // SCHEDULED, CANCELLED or MOVED
+   "moved_to": { "date": "2026-09-20", "time_slot": "04:00-05:30", "room": "KT-305", "online": false },
+   "makeup_for": null,       // on a MAKEUP: the class it makes up
+   "join_link": null,        // on an online MAKEUP: where to join
+   "teacher": { "initial": "TCA", "name": "Teacher A", "designation": "Lecturer",
+                "office_room": "KT-801", "photo_url": null },
+   "note": null }]           // the teacher's latest note on this class
+```
+
+A class reads `MOVED` only once its makeup is booked or approved; an online request still
+waiting for the HoD is not news. A notice is `{id, kind, title, body, author, created_at,
+targets, about}`, where `kind` is `ANNOUNCEMENT` (the department), `TEACHER`, or `CHANGE`
+(written by ClassTrack when a makeup is booked or approved, an extra class is booked or
+cancelled, a class is cancelled, or an approved online class gets its join link), and
+`about` is the class it concerns, as above.
+
+**Pushes** go to Firebase topics, not to phones: one message reaches a whole section.
+Topics are `cse.<token>` (`cse.70_A`, `cse.CSE447-RE_A`, `cse.70` for an intake, `cse.all`)
+for notices, and `cse.rem.<token>` for the reminder the set minutes before each class
+(`class_reminder_minutes`, as for teachers). Data is `{kind: STUDENT_NOTICE|STUDENT_REMINDER,
+link: "/students?date=..."}`. A notice to several groups is one message to a condition over
+their topics (five at most), so a phone following two of them is told once.
+
+Writing to students:
+
+| Method | Path | Roles | Purpose |
+|---|---|---|---|
+| `GET` | `/teacher/notices/groups` | T (`students.message`) | The teacher's own groups on the routine in force |
+| `POST` | `/teacher/notices` | T (`students.message`) | `{body ≤500, targets?, instance_id?}`: to chosen groups of their own, or a heads-up about one of their classes that has not ended (it then shows on that class) |
+| `GET` | `/teacher/notices` | T (`students.message`) | The last 30 they wrote |
+| `POST` | `/admin/notifications/students` | `notifications.send` | `{title ≤120, body ≤1000, targets}`: `*`, intakes, sections, lab or retake groups of the routine; an unknown group is `422` |
+| `GET` | `/admin/notifications/students` | `notifications.send` | The last 20 the department wrote |
+
+## 10. Admin
 
 | Method | Path | Roles | Purpose |
 |---|---|---|---|
@@ -540,7 +600,7 @@ Ingest does **not** activate. Review, then activate — that is AC-01's verifica
   "instances_skipped_holidays": 96 }
 ```
 
-## 10. Errors
+## 11. Errors
 
 ```jsonc
 { "detail": "Human-readable message",
@@ -557,7 +617,7 @@ Ingest does **not** activate. Review, then activate — that is AC-01's verifica
 | `409` | Conflict detected, or reporting closed for that day |
 | `422` | Pydantic schema violation |
 
-## 11. Build order dependency
+## 12. Build order dependency
 
 ```
 auth ──> checking ──> dashboard ──> makeup ──> approvals ──> reports
